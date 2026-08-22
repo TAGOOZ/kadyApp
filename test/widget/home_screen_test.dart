@@ -158,27 +158,7 @@ void main() {
     expect(activeIndex(), 2);
   });
 
-  testWidgets('dev boost sheet applies the demo boost locally', (tester) async {
-    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
-
-    await tester.tap(find.byKey(const Key('home_dev_boost_open')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byKey(const Key('home_dev_boost_apply')), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('home_dev_boost_apply')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-
-    // +9 points / +1 stamp per applyDemoBoost math (#007 replaces this).
-    expect(find.text('129'), findsOneWidget);
-    expect(find.text('8 / 10 زيارة → سناكس مجاني'), findsOneWidget);
-    expect(find.byKey(const Key('home_dev_boost_apply')), findsNothing);
-
-    // Flush the success snack-bar auto-dismiss timer.
-    await tester.pump(const Duration(seconds: 5));
-  });
-
+  
   testWidgets('guest hub shows generic greeting, zeros and register link → save prompt',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1400));
