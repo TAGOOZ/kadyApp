@@ -263,7 +263,17 @@ Status vocabulary: New → Accepted → In prep → Ready → Out for delivery �
 20. **Testing** (Tech): **Full TDD + integration** per slice (unit for loyalty/cart math, widget goldens for flows, Patrol/integration for place-order → status).
 21. **Shipping** (Tech): **manual builds only** for web + APK in v1; no auto-deploy pipeline.
 
-Unresolved: none for MVP. New questions should be added here with their resolution date.
+22. **Notifications** (Tech): **in-app Realtime only** in MVP; no FCM/APNs. Push deferred to Edge Function + FCM phase.
+23. **Analytics** (Tech): **none in MVP**; add PostHog/Firebase when funnel needed.
+24. **Crash reporting** (Tech): **none in MVP**; manual + Supabase logs.
+25. **Envs** (Tech): **single Supabase project** for dev/prod — ADR-0008.
+26. **Images** (Tech): **`cached_network_image` + parchment placeholder**.
+27. **Lists** (Tech): **paginated infinite scroll (20)** via Supabase `.range()`.
+28. **Search** (Tech): **`ilike %term%` on `phone` + `name`**.
+29. **Throttle** (Tech): **Edge Function rate limit** (5/5min) + app 30s debounce — ADR-0010.
+30. **Time** (Tech): **store UTC (`timestamptz`), display `Africa/Cairo`** — ADR-0009.
+
+Unresolved: QR dine-in check-in flow, accessibility audit, and performance budgets still to grill if you want to continue.
 
 ---
 
