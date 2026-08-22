@@ -1,0 +1,249 @@
+# Elkady Café App — Feature & Flow Plan
+
+Multi-mode mobile platform for Elkady Café: **dine-in, pickup, delivery**, unified with **loyalty (points / stamps / tiers)** and **gamification**.
+
+- Audience: young Egyptian (16–35), Arabic-first UI with English toggle.
+- Payments: cash on pickup / cash on delivery. No POS integration at MVP.
+- Design source of truth: Stitch project **"Elkady Café Experience Platform"** (`projects/12860480963451146010`), theme "Heritage Hearth".
+
+---
+
+## 0. Design System (from Stitch)
+
+### Colors
+
+| Token | Hex | Usage |
+|---|---|---|
+| `deep-forest` | `#004232` | Headers, primary actions |
+| `primary` | `#003A2A` | Primary color |
+| `primary-container` | `#00533E` | Filled surfaces, active states |
+| `primary-fixed` | `#ABF1D4` | Tints, badges |
+| `secondary` | `#A53C00` | Accents, prices, secondary CTAs |
+| `secondary-container` | `#FF7434` | Highlights, promo chips |
+| `cream-parchment` | `#F9EBD7` | Main app background |
+| `paper-white` | `#FFF9F0` | Card backgrounds |
+| `coffee-bean` | `#4B2C20` | Warm shadows tint, dark text accents |
+| `background` | `#F8FAF6` | Scaffold background |
+| `error` | `#BA1A1A` | Errors, destructive |
+
+### Typography
+
+| Level | Font | Size/Weight | Notes |
+|---|---|---|---|
+| display-lg | Be Vietnam Pro Bold | 40px / 700 | -0.02em tracking |
+| headline-lg | Be Vietnam Pro SemiBold | 32px / 600 | mobile variant: 24px |
+| title-md | Work Sans SemiBold | 20px / 600 | card titles |
+| body-lg | Work Sans Regular | 16px / 400 | descriptions |
+| body-sm | Work Sans Regular | 14px / 400 | item details |
+| label-md | IBM Plex Sans Medium | 12px / 500 | prices, buttons, +0.05em |
+
+Arabic fallback: *IBM Plex Sans Arabic* / *Amiri*. Arabic is default locale (`ar`), English optional (`en`). RTL-first layouts.
+
+### Shape & Spacing
+
+- Radius: sm 4px · default 8px · md 12px · lg 16px · xl 24px · pill 9999px
+- Spacing scale: base 4 · xs 8 · sm 16 · md 24 · lg 32 · xl 48 · gutter 16 · margin 20
+- Shadows: low-opacity, coffee-tinted (`#4B2C20` @ ~6–10%), highly diffused ("Coffee Shadows")
+- Dividers: geometric triangle pattern accent for heritage feel
+
+---
+
+## 1. Roles & Modes
+
+### Roles
+| Role | Capabilities |
+|---|---|
+| Customer | Order (any mode), earn points/stamps, play games, redeem rewards |
+| Staff / Barista | Receive/manage orders, check in customers, apply rewards, manage menu/campaigns |
+| Driver (optional) | Assigned deliveries, navigation handoff, status updates |
+| Admin / Owner | Menu, hours, zones, loyalty rules, basic analytics |
+
+### Service modes (shared loyalty profile)
+- **Dine-in** — check in (QR/table number), order from table or counter, earn points (+10% dine-in bonus).
+- **Pickup** — order ahead, choose time slot, pay cash at counter.
+- **Delivery** — address-based, cash on delivery; café or partner driver.
+
+---
+
+## 2. Screen Inventory & Stitch Coverage
+
+### ✅ Already designed in Stitch
+
+| # | Screen | Stitch screen ID |
+|---|---|---|
+| S0 | Onboarding Welcome | `e0bc068cb9fb4671aa6dde6dd64ecba7` |
+| S0 | Phone Verification + OTP | `637c3ee6b73a49aba568b35e66baeadf` |
+| S1 | Home Dashboard (AR) | `4e0c07f39fc84eff95e4688876696748` · EN `12b61de414d44abf8ba2de0b9d215b07` |
+| S2 | Mode Selection (AR) | `75255c0ede9c41e9947f1c6f4d0ebe67` · EN `38f5cdb0fc79414dab8373b513cca939` |
+| S3 | Menu (AR) | `66a8667b91e7492a8c59389806dfc921` · EN `5ee54e3e39354de5946181149285318a` |
+| S3b | Item Detail modal | `8df188c2225642b1956e4056edeb498e` |
+| S4 | Cart & Checkout (AR) | `334887c86f3146f39f38f594ff13f738` |
+| S4b | Order Confirmation | `8085f5fe65c34c9b991e1515d2d214d7` |
+| S5 | Order Status timeline (AR) | `6edff00f5fda4764b4b91c8eca08fbd5` |
+| S6 | Loyalty & Games hub (AR) | `1ba8b2eda00c4dd582605e6a7923c166` · EN `6e00733b82e14a5489a8253f7fe12ffc` |
+| S7 | Spinner of Luck (AR) | `40b09fc8661e4e7e88de9d804b9edffe` |
+| S8 | Staff Dashboard (AR) | `7dd506e8df2a4bbc8609f1d4e0da6e8f` · Utility/orders `eec299fa86cd479e99619be821a67152` · Pro redesign `f00d398f2bcc42c68a4846e41ab49c30` |
+| S9 | Driver Dashboard (AR) | `fc1defe107204839a63f1e3279ebaeb2` · Driver Order Detail `ac5a748447ac42728ed7d9842577a9fd` |
+
+### ✅ Completed gap screens (Aug 2026 session)
+
+| # | Screen | Stitch screen ID |
+|---|---|---|
+| G1 | Welcome / onboarding | `e0bc068cb9fb4671aa6dde6dd64ecba7` |
+| G2 | Phone auth + OTP | `637c3ee6b73a49aba568b35e66baeadf` |
+| G3 | Item detail modal | `8df188c2225642b1956e4056edeb498e` |
+| G4 | Order confirmation summary | `8085f5fe65c34c9b991e1515d2d214d7` |
+| G5 | Profile & settings (+addresses) | `b8148131e88f4daaaa692563d771f2a7` · alt `fff835a5043741208838cb5544ddec7e` |
+| G6 | Guest → save profile prompt | `e9e17252260c4c1daf87e2372e1966b0` (+ mascot image asset `ed920dbf67884ed88d00d13ab0e9720c`) |
+| G7 | 3-Card Match game | `ece9e5ede25c44e3bb6d08d6fb3bf929` |
+| G8 | Scratch & Win | `169e67ac1a9048d2a2dd39ae2bc584a1` · alt `3e8ee1f8c2ea44cba266829c50baaf8f` |
+| G9 | Quests & Badges hub | `9574eed6ca9744cd8f8de19c2978e4ef` |
+| G10 | Staff orders list (utility view) | `eec299fa86cd479e99619be821a67152` |
+| G11 | Admin campaign management | `f1b41151707b4031899b896b6765e022` |
+| G12 | Driver order detail | `ac5a748447ac42728ed7d9842577a9fd` |
+| — | Coffee-cup mascot illustration | `ed920dbf67884ed88d00d13ab0e9720c` |
+
+### ⬜ Still missing
+
+| # | Screen | Priority | Note |
+|---|---|---|---|
+| G10b | Staff customer lookup | P1 | Generation repeatedly rejected server-side ("invalid argument"); staff orders screen already has search entry point — retry later or build directly in Flutter |
+| — | Staff order detail sheet | P2 | Can reuse order card expanded state |
+| — | Admin menu CRUD editor | P2 | Phase 3 per plan |
+
+---
+
+## 3. Customer Flows
+
+### 3.1 Onboarding & Auth
+- Welcome: value prop ("Earn points, play games, get rewards"), `Continue with phone`, `Skip for now`.
+- Phone registration: phone + name (+optional email) → SMS OTP.
+- Optional fields: birthdate, "Student?" toggle, city/area.
+- **Guest mode**: browse + one order allowed; after first order/stamp prompt to save profile to keep points.
+
+### 3.2 Home (hub)
+Greeting + tier chip (Bronze/Silver/Gold); points widget (`120 / 200 → Free drink`); stamp card widget (`7/10 visits → Free snack`); quick actions: Order · Scan & earn · Play game · Rewards; banner carousel (campaigns/quests).
+
+### 3.3 Mode Selection
+Three cards with helper text:
+- Dine-in: "Check in, order from table or counter, earn points."
+- Pickup: "Order now, pick up at Elkady Café."
+- Delivery: "Order to your address. Cash on delivery."
+
+### 3.4 Menu (shared across modes)
+Category tabs (Hot Drinks, Cold Drinks, Snacks, Specials). Item rows: photo, name AR(+EN), description, price. Item detail modal: size, sugar level, add-ons, special instructions note, Add to cart / Favorite.
+
+Mode-specific requirements before confirming:
+- Dine-in → table number or area (inside/terrace)
+- Pickup → time slot
+- Delivery → saved address or add-address prompt
+
+### 3.5 Cart & Checkout
+Items with modifiers/quantities; order notes; subtotal + service charge + delivery fee (delivery only).
+Loyalty box: points to be earned preview; reward redemption ("Use 200 pts for free drink?").
+Payment: Pay at café (cash) / Cash on delivery. Confirmation screen: mode, items, slot/address, ETA.
+
+### 3.6 Order Status
+Timelines per mode:
+- Dine-in: Received → In preparation → Ready → Served
+- Pickup: Received → In preparation → Ready for pickup
+- Delivery: Received → In preparation → Out for delivery → Delivered (+driver name/phone, map link)
+
+### 3.7 Profile & Settings
+Name/phone/email/birthdate/student toggle/default area; saved addresses (Home/Work labels); notification prefs (order updates, promos, match nights, exam season); language ar/en.
+
+---
+
+## 4. Loyalty Rules (initial config)
+
+### Points
+- Earn: **1 pt / 10 EGP**; dine-in multiplier **+10%**; campaign double-point windows (quiet hours/exam season).
+- Spend: rewards catalog (free drink, discount, free topping); min redemption threshold **200 pts**.
+
+### Stamp Cards
+- 10-slot digital card; qualifying visit = spend above minimum; full card → fixed reward (free drink/snack). Campaign-specific cards (Ramadan, match nights).
+
+### Tiers
+| Tier | Criteria | Benefits |
+|---|---|---|
+| Bronze | default | — |
+| Silver | 2000 lifetime pts | Occasional free delivery, more frequent game access |
+| Gold | 5000 lifetime pts | Busy-hour priority, exclusive offers, lower delivery fee, extra birthday reward |
+
+---
+
+## 5. Gamification
+
+| Feature | Trigger | Outcomes/Rewards |
+|---|---|---|
+| **Spinner of Luck** | Every 3rd stamp; re-engagement campaigns | 5 pts / 10 pts / free topping / double-points-next-visit / nothing (rare big wins tuned low) |
+| **3-Card Match** | Unlocks after stamp-card completion or monthly quest | Small: pts · Medium: discount · Large (rare): free drink; themed symbols (cup, bean, Elkady icon) |
+| **Scratch & Win** | Inactive users; special days (Ramadan nights, Eid, Valentine's, match victories) | Same pool as spinner |
+| **Streaks** | Weekly streak (X consecutive weeks); short daily campaigns | Extra pts, game unlock token, one-time discount/free topping; flame/calendar indicator on home |
+| **Quests** | e.g. "Try 3 different drinks this month", "Order during a match night", "One delivery + one pickup this week" | Progress bar + deadline + defined reward (pts/stamp/game token) |
+| **Badges** | Identity/community: Match Night Regular, Exam Warrior, Ramadan Night Owl, Gold Tier Loyalist | Shown in profile, highlightable on home |
+
+---
+
+## 6. Staff Dashboard
+
+- **Orders list**: tabs All/Dine-in/Pickup/Delivery; card = ID, name+phone, mode+timing, items summary, status chip; actions accept/reject, advance status, adjust expected-ready time.
+- **Dine-in/pickup ops**: QR or phone check-in; attach table/area; mark pickup Ready (on counter).
+- **Delivery ops**: see assigned driver; edit address notes; Out for delivery / Delivered transitions.
+- **Customer lookup**: search by phone/name; visit/order history; manual reward apply (service recovery).
+- **Admin**: menu CRUD; opening hours & delivery availability per day; zones+fees; loyalty params (pts/EGP, thresholds); schedule quests/promos/streaks.
+
+Status vocabulary: New → Accepted → In prep → Ready → Out for delivery → Delivered/Served.
+
+---
+
+## 7. Driver App
+
+- Auth: phone + password (admin assigns orders).
+- Assigned list: pickup location, customer address, items summary.
+- Detail: map preview + external navigation handoff; statuses Accepted/Picked up/Delivered; delivery notes (building, floor, landmarks).
+- History: completed deliveries.
+
+---
+
+## 8. Notifications
+
+| Type | Examples |
+|---|---|
+| Transactional | Accepted / Ready / Out for delivery / Delivered; driver nearby |
+| Promotional | We-miss-you (inactivity), Ramadan quests launch, match-night specials, exam bundles, quiet-hours double points |
+| Loyalty/games | Streak reminders, quest progress/completion, game unlock (spinner/scratch available) |
+
+---
+
+## 9. Egyptian-Market Considerations
+
+- Arabic default, casual friendly tone; late-night availability surfaced explicitly.
+- Exam-season emphasis for students; football-match & holiday campaigns.
+- Group mechanics: bonus when 3+ users check in within a window; group delivery order bonus.
+
+---
+
+## 10. Constraints & Phasing
+
+- MVP: no POS; cash only; single branch; orders/payments tracked in-app.
+- Phase 1: dine-in/pickup + core loyalty + spinner. Phase 2: delivery + driver app + quests/badges/match/scratch. Phase 3: analytics, online payments, social sharing, multi-branch.
+
+---
+
+## 11. Open Questions (to resolve before/during build)
+
+1. **Missing screens**: design G1–G12 in Stitch first, or build directly in Flutter from the Heritage Hearth tokens?
+2. **Backend**: Firebase (Auth phone SMS + Firestore + FCM) vs Supabase vs custom? MVP mock layer locally?
+3. **State management**: Riverpod vs Bloc vs Provider preference?
+4. **OTP**: real SMS provider at MVP or simulated code for demo builds?
+5. **Driver app**: separate app later, or role-switch inside one binary for MVP?
+6. **Menu data**: who owns initial content entry (items, photos, AR names, prices)?
+7. **Delivery zones**: radius-based polygon? flat fee per zone table?
+8. **Minimum spend** for a stamp-qualifying visit — value?
+9. **Rewards catalog** v1 exact items + point costs?
+10. **Package/bundle naming**: app id (`com.elkadycafe.app`?), project name (`kady_app`)?
+
+---
+
+*Source: product plan provided Aug 2026 + Stitch project `12860480963451146010`. This doc is the implementation contract; update it when decisions land.*
