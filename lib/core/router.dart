@@ -7,6 +7,10 @@ import '../domain/session_controller.dart';
 import 'l10n/app_strings.dart';
 import '../ui/menu/menu_screen.dart';
 import '../ui/auth/phone_collection_screen.dart';
+import '../ui/cart/cart_screen.dart';
+import '../ui/cart/checkout_screen.dart';
+import '../ui/cart/order_confirmation_screen.dart';
+import '../ui/mode/mode_selection_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/placeholder_page.dart';
 import '../ui/screens/welcome_screen.dart';
@@ -83,7 +87,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           location == '/auth/phone') {
         return _homeFor(session.role);
       }
-      const customerPaths = ['/home', '/menu', '/games', '/profile'];
+      const customerPaths = [
+        '/home',
+        '/menu',
+        '/games',
+        '/profile',
+        '/cart',
+        '/mode-selection',
+        '/checkout',
+        '/confirmation',
+      ];
       if (customerPaths.any(location.startsWith)) {
         return session.role == AppRole.customer
             ? null
@@ -109,6 +122,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth/phone',
         builder: (context, state) => const PhoneCollectionScreen(),
+      ),
+      // Checkout flow (issue #003) — pushed above the customer shell.
+      GoRoute(
+        path: '/cart',
+        builder: (context, state) => const CartScreen(),
+      ),
+      GoRoute(
+        path: '/mode-selection',
+        builder: (context, state) => const ModeSelectionScreen(),
+      ),
+      GoRoute(
+        path: '/checkout',
+        builder: (context, state) => const CheckoutScreen(),
+      ),
+      GoRoute(
+        path: '/confirmation',
+        builder: (context, state) => const OrderConfirmationScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => _CustomerShell(shell: shell),

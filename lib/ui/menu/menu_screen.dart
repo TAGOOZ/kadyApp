@@ -2,6 +2,7 @@
 // cards. Catalog loads via a FutureProvider over MenuRepository.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_menu.dart';
@@ -89,7 +90,7 @@ class _StickyHeader extends ConsumerWidget {
             children: [
               IconButton(
                 tooltip: menuStrings.cartTooltip,
-                onPressed: () {},
+                onPressed: () => context.push('/cart'),
                 icon: const Icon(Icons.shopping_cart_outlined),
               ),
               if (totalQty > 0)
