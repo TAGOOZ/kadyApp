@@ -139,8 +139,8 @@ Mode-specific requirements before confirming:
 - Delivery → saved address or add-address prompt
 
 ### 3.5 Cart & Checkout
-Items with modifiers/quantities; order notes; subtotal + service charge + delivery fee (delivery only).
-Loyalty box: points to be earned preview; reward redemption ("Use 200 pts for free drink?").
+Items with modifiers/quantities; order notes; subtotal + delivery fee (delivery only, flat 15 EGP default, admin-editable). **No service-charge line in v1** (hidden; constant kept for later). All numerals rendered as Western `0123` in both Arabic and English (AR-Indic from Stitch normalized at render). Order display number shown as local increment `#NNNN` (e.g. `#1023`).
+Loyalty box: points to be earned preview (round half-up, after ×1.1 dine-in multiplier); reward redemption ("Use 200 pts for free drink?"); optional group-order bonus line if group rule applies (see §9).
 Payment: Pay at café (cash) / Cash on delivery. Confirmation screen: mode, items, slot/address, ETA.
 
 ### 3.6 Order Status
@@ -158,17 +158,21 @@ Name/phone/email/birthdate/student toggle/default area; saved addresses (Home/Wo
 
 ### Points
 - Earn: **1 pt / 10 EGP**; dine-in multiplier **+10%**; campaign double-point windows (quiet hours/exam season).
+- **Rounding: round half-up on the final earned value** (after multipliers) — e.g. 95 EGP → 9.5 → 10 pts; dine-in 90 EGP → 9×1.1=9.9 → 10 pts.
 - Spend: rewards catalog (free drink, discount, free topping); min redemption threshold **200 pts**.
+- Catalog v1 (MVP): free topping **100 pts** · free snack **150 pts** · free drink (any ≤60 EGP) **200 pts** — all thresholds admin-editable via #015 (loyalty params editor).
 
 ### Stamp Cards
-- 10-slot digital card; qualifying visit = spend above minimum; full card → fixed reward (free drink/snack). Campaign-specific cards (Ramadan, match nights).
+- 10-slot digital card; qualifying visit = spend ≥ **50 EGP**; full card → fixed reward (free snack); every 3rd stamp grants a Spinner Token. Campaign-specific cards (Ramadan, match nights) deferred post-MVP. All thresholds admin-editable (#015).
 
 ### Tiers
-| Tier | Criteria | Benefits |
-|---|---|---|
-| Bronze | default | — |
-| Silver | 2000 lifetime pts | Occasional free delivery, more frequent game access |
-| Gold | 5000 lifetime pts | Busy-hour priority, exclusive offers, lower delivery fee, extra birthday reward |
+| Tier | Criteria | Benefits | Admin-editable |
+|---|---|---|---|
+| Bronze | default | — | — |
+| Silver | 2000 lifetime pts | Occasional free delivery, more frequent game access | thresholds tunable via Admin |
+| Gold | 5000 lifetime pts | Busy-hour priority, exclusive offers, lower delivery fee, extra birthday reward | thresholds tunable via Admin |
+
+Delivery fee default **15 EGP flat citywide** for MVP; **admin-editable** via Admin → Campaign Management (#015). Zoned fee table (polygon / per-area fees) deferred to Phase 2 and built as an extension of the Admin zone editor, reusing the same orders-fee calculation hook.
 
 ---
 
@@ -220,7 +224,10 @@ Status vocabulary: New → Accepted → In prep → Ready → Out for delivery �
 
 - Arabic default, casual friendly tone; late-night availability surfaced explicitly.
 - Exam-season emphasis for students; football-match & holiday campaigns.
-- Group mechanics: bonus when 3+ users check in within a window; group delivery order bonus.
+- Group mechanics **in MVP**: staff check-in grants a bonus when ≥3 Customers check in within a short window (same table/area); a group delivery order (multiple Customers on one address) also grants bonus points/stamp. Tuned via loyalty config (group bonus = extra points configurable in #015).
+- Initial menu catalog is **seeded from an owner-provided sheet** (items, AR/EN names, prices, photos). Admin CRUD (#015) is the editor thereafter.
+- Project & bundle identity: `kady_app` (`com.elkadycafe.kady_app`) — kept as scaffolded.
+- Cart & group bonus, stamp, and tier rules all admin-editable defaults (see §4).
 
 ---
 
@@ -231,18 +238,25 @@ Status vocabulary: New → Accepted → In prep → Ready → Out for delivery �
 
 ---
 
-## 11. Open Questions (to resolve before/during build)
+## 11. Decisions (resolved Aug 2026 — grill-with-docs session)
 
-1. **Missing screens**: design G1–G12 in Stitch first, or build directly in Flutter from the Heritage Hearth tokens?
-2. **Backend**: Firebase (Auth phone SMS + Firestore + FCM) vs Supabase vs custom? MVP mock layer locally?
-3. **State management**: Riverpod vs Bloc vs Provider preference?
-4. **OTP**: real SMS provider at MVP or simulated code for demo builds?
-5. **Driver app**: separate app later, or role-switch inside one binary for MVP?
-6. **Menu data**: who owns initial content entry (items, photos, AR names, prices)?
-7. **Delivery zones**: radius-based polygon? flat fee per zone table?
-8. **Minimum spend** for a stamp-qualifying visit — value?
-9. **Rewards catalog** v1 exact items + point costs?
-10. **Package/bundle naming**: app id (`com.elkadycafe.app`?), project name (`kady_app`)?
+1. **Missing screens**: remaining unddesigned pages (customer lookup, order detail sheet variations, admin menu CRUD) **coded locally** in Flutter — Stitch set considered complete at 13 new screens.
+2. **Backend**: **local-only MVP** behind repository interfaces; **Supabase** chosen for the later real backend (replaces local stores; see ADR-0001).
+3. **State management**: **Riverpod** (plus `riverpod_generator`) — ADR-0002.
+4. **OTP**: **simulated** fixed code `123456` for MVP demos; real phone auth arrives with Supabase.
+5. **Driver app**: **single binary + hidden role switcher** (customer/staff/driver/admin) for MVP; shared in-memory orders store; separate binary deferred to Supabase/realtime phase.
+6. **Menu data**: **owner-provided sheet seeded** into `lib/data/menu_repository.dart`; Admin menu editor thereafter.
+7. **Delivery zones/fees**: **flat 15 EGP citywide**, **admin-editable** via Admin → Campaign Mgmt (#015); zoned/polygon fees deferred to Phase 2.
+8. **Minimum qualifying spend**: **50 EGP** for a stamp; admin-editable.
+9. **Rewards catalog v1**: **free topping 100 pts · free snack 150 pts · free drink (≤60 EGP) 200 pts**; each threshold **admin-editable**; min redemption 200 pts.
+10. **Package/bundle**: **keep `kady_app` / `com.elkadycafe.kady_app`** as scaffolded.
+11. **Numerals**: **Western `0123` in both Arabic and English** (Stitch Arabic-Indic normalized at render).
+12. **Order numbers**: **local `#NNNN` increment** (e.g. `#1023`), persisted in prefs.
+13. **Dine-in service charge**: **hidden row in v1** (constant kept for later).
+14. **Tiers**: **Bronze default · Silver 2000 · Gold 5000** lifetime pts; thresholds admin-editable.
+15. **Group mechanics**: **included in MVP** — ≥3 check-ins in window → bonus; group delivery order → bonus.
+
+Unresolved: none for MVP. New questions should be added here with their resolution date.
 
 ---
 
