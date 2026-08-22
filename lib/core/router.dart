@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../domain/session_controller.dart';
 import 'l10n/app_strings.dart';
+import '../ui/menu/menu_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/placeholder_page.dart';
 import '../ui/screens/welcome_screen.dart';
@@ -106,8 +107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/menu',
-                builder: (context, state) =>
-                    const _PlaceholderTab(_CustomerTab.menu),
+                builder: (context, state) => const MenuScreen(),
               ),
             ],
           ),
