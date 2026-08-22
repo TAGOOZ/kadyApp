@@ -116,10 +116,10 @@ Arabic fallback: *IBM Plex Sans Arabic* / *Amiri*. Arabic is default locale (`ar
 ## 3. Customer Flows
 
 ### 3.1 Onboarding & Auth
-- Welcome: value prop ("Earn points, play games, get rewards"), `Continue with phone`, `Skip for now`.
-- Phone registration: phone + name (+optional email) → SMS OTP.
-- Optional fields: birthdate, "Student?" toggle, city/area.
-- **Guest mode**: browse + one order allowed; after first order/stamp prompt to save profile to keep points.
+- Welcome: value prop ("Earn points, play games, get rewards"), `Continue with Google`, `Skip for now`. **Google OAuth is the anti-fake gate** (Supabase `signInWithOAuth(provider: google)`, free, verified — reduces fake accounts vs phone-OTP).
+- After Google sign-in: collect **phone number** (required, `+20…` format, DB `UNIQUE` constraint) + name (+optional email prefilled from Google) + optional birthdate / "Student?" / city. No SMS OTP in v1 — phone is validated by format + uniqueness only; real `verifyOtp` can re-enable later without changing loyalty logic.
+- **Identity remains phone** (`CONTEXT.md`: one Customer per phone). Google account is linked 1↔1 to that phone; all loyalty/orders still keyed by phone so Staff lookup by phone works. Google session simply prevents anonymous bulk account creation.
+- **Guest mode**: browse + one order allowed; after first order prompt to `Sign in with Google` to keep points (same phone prompt follows).
 
 ### 3.2 Home (hub)
 Greeting + tier chip (Bronze/Silver/Gold); points widget (`120 / 200 → Free drink`); stamp card widget (`7/10 visits → Free snack`); quick actions: Order · Scan & earn · Play game · Rewards; banner carousel (campaigns/quests).
@@ -241,9 +241,9 @@ Status vocabulary: New → Accepted → In prep → Ready → Out for delivery �
 ## 11. Decisions (resolved Aug 2026 — grill-with-docs session)
 
 1. **Missing screens**: remaining unddesigned pages (customer lookup, order detail sheet variations, admin menu CRUD) **coded locally** in Flutter — Stitch set considered complete at 13 new screens.
-2. **Backend**: **local-only MVP** behind repository interfaces; **Supabase** chosen for the later real backend (replaces local stores; see ADR-0001).
+2. **Backend**: **Supabase from day one** (`https://zrlhtwmzuljsqricpxbb.supabase.co`, `supabase_flutter` + Riverpod) — see ADR-0001. Repository interfaces stay but implementations are Supabase-backed from slice #001 onwards; cross-device sync works from day one.
 3. **State management**: **Riverpod** (plus `riverpod_generator`) — ADR-0002.
-4. **OTP**: **simulated** fixed code `123456` for MVP demos; real phone auth arrives with Supabase.
+4. **Auth**: **Google OAuth gate + phone collection** — Google `signInWithOAuth` is the anti-fake gate (free, verified); phone remains the canonical Customer key (`CONTEXT.md`) — collected after Google, validated by `+20…` format + DB `UNIQUE`, no SMS OTP in v1; `verifyOtp("123456")` path removed.
 5. **Driver app**: **single binary + hidden role switcher** (customer/staff/driver/admin) for MVP; shared in-memory orders store; separate binary deferred to Supabase/realtime phase.
 6. **Menu data**: **owner-provided sheet seeded** into `lib/data/menu_repository.dart`; Admin menu editor thereafter.
 7. **Delivery zones/fees**: **flat 15 EGP citywide**, **admin-editable** via Admin → Campaign Mgmt (#015); zoned/polygon fees deferred to Phase 2.
