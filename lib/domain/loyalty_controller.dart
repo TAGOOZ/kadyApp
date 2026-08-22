@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/supabase/supabase_config.dart';
+import 'loyalty_rules.dart';
 
 /// Voucher types granted by stamp cards and games.
 enum VoucherType { freeDrink, freeTopping, freeSnack }
@@ -56,6 +57,7 @@ class LoyaltyState {
     this.scratchTokens = 0,
     this.doubleNextOrder = false,
     this.vouchers = const [],
+    this.processedOrders = const [],
   });
 
   final int points;
@@ -67,6 +69,10 @@ class LoyaltyState {
   final int scratchTokens;
   final bool doubleNextOrder;
   final List<Voucher> vouchers;
+
+  /// Order ids already credited — mirrors the `loyalty_state.processed_orders`
+  /// jsonb guard list (idempotent crediting, #007).
+  final List<String> processedOrders;
 
   Tier get tier => derivedTier(lifetimePoints);
 
@@ -82,6 +88,9 @@ class LoyaltyState {
         vouchers: ((j['vouchers'] as List?) ?? [])
             .map((v) => Voucher.fromJson(v as Map<String, dynamic>))
             .toList(),
+        processedOrders: ((j['processed_orders'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
       );
 
   LoyaltyState copyWith({
@@ -94,6 +103,7 @@ class LoyaltyState {
     int? scratchTokens,
     bool? doubleNextOrder,
     List<Voucher>? vouchers,
+    List<String>? processedOrders,
   }) =>
       LoyaltyState(
         points: points ?? this.points,
@@ -105,6 +115,7 @@ class LoyaltyState {
         scratchTokens: scratchTokens ?? this.scratchTokens,
         doubleNextOrder: doubleNextOrder ?? this.doubleNextOrder,
         vouchers: vouchers ?? this.vouchers,
+        processedOrders: processedOrders ?? this.processedOrders,
       );
 }
 
@@ -121,7 +132,7 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     try {
       final rows = await _client
           .from('customers')
-          .select('phone, loyalty_state(points, lifetime_points, stamps, completed_cards, spinner_tokens, match_tokens, scratch_tokens, double_next_order, vouchers)')
+          .select('phone, loyalty_state(points, lifetime_points, stamps, completed_cards, spinner_tokens, match_tokens, scratch_tokens, double_next_order, vouchers, processed_orders)')
           .eq('google_user_id', googleUserId)
           .limit(1);
       if (rows.isNotEmpty) {
@@ -139,49 +150,122 @@ class LoyaltyController extends Notifier<LoyaltyState> {
 
   void reset() => state = const LoyaltyState();
 
-  /// DEV-ONLY boost used by debug affordances until slice #007 wires real crediting.
-  /// Applies the same math locally and best-effort persists to `loyalty_state`
-  /// (customer may UPDATE own row per RLS).
-  Future<void> applyDemoBoost() async {
-    var s = state.copyWith(
-      points: state.points + 9,
-      lifetimePoints: state.lifetimePoints + 9,
-    );
-    var stamps = s.stamps + 1;
-    var spinner = s.spinnerTokens;
-    var cards = s.completedCards;
-    var vouchers = List<Voucher>.of(s.vouchers);
-    if (stamps > 10) {
-      stamps = 1;
-      cards += 1;
-      vouchers.add(Voucher(type: VoucherType.freeSnack, grantedAt: DateTime.now().toUtc()));
-    }
-    if (stamps % 3 == 0) spinner += 1;
-    s = s.copyWith(stamps: stamps, spinnerTokens: spinner, completedCards: cards, vouchers: vouchers);
-    state = s;
+  // -- Admin-editable rules config (app_config) ------------------------------
+
+  Map<String, dynamic>? _configCache;
+
+  /// Flat `{key: scalar}` map of the `app_config` loyalty parameters
+  /// (points_per_10egp, dine_in_multiplier, stamp_min_spend, redeem_min_points,
+  /// reward_topping/snack/drink). Successful reads are cached for the session;
+  /// failures return an empty map so [LoyaltyRulesConfig.fromMap] falls back to
+  /// the seed constants (standard offline policy).
+  Future<Map<String, dynamic>> loadConfig() async {
+    final cached = _configCache;
+    if (cached != null) return cached;
     try {
-      final uid = _client.auth.currentUser?.id;
-      if (uid == null) return;
-      final rows = await _client
-          .from('customers')
-          .select('phone')
-          .eq('google_user_id', uid)
-          .limit(1);
-      if (rows.isNotEmpty) {
-        final phone = (rows.first as Map)['phone'] as String;
-        await _client.from('loyalty_state').update({
-          'points': s.points,
-          'lifetime_points': s.lifetimePoints,
-          'stamps': s.stamps,
-          'completed_cards': s.completedCards,
-          'spinner_tokens': s.spinnerTokens,
-          'vouchers': s.vouchers.map((v) => v.toJson()).toList(),
-        }).eq('phone', phone);
-      }
+      final rows =
+          await _client.from('app_config').select('key,value') as List;
+      final map = <String, dynamic>{
+        for (final row in rows.cast<Map>())
+          row['key'] as String: row['value'],
+      };
+      _configCache = map;
+      return map;
     } catch (_) {
-      // Offline/dev: local state already updated; real crediting lands with slice #007.
+      return const {};
+    }
+  }
+
+  /// Drops the cache and re-reads `app_config` (used after admin edits).
+  Future<void> refreshConfig() async {
+    _configCache = null;
+    await loadConfig();
+  }
+
+  // -- Real crediting (#007) -------------------------------------------------
+
+  /// Credits one placed order exactly once. Idempotent via the
+  /// `processed_orders` guard list: the current server row is read first and a
+  /// repeat call for the same [orderId] is a no-op (local-only guest sessions
+  /// get the same guarantee through the in-memory list). Earn/stamp/token math
+  /// lives in the pure [creditOrder]/[earnedFor] rules; state updates
+  /// optimistically before the full-row persist (RLS own-row UPDATE — accepted
+  /// MVP cheat vector per ADR-0007 note in FEATURES §4).
+  Future<void> creditProcessedOrder({
+    required String orderId,
+    required int subtotalEgp,
+    required bool dineIn,
+  }) async {
+    try {
+      var base = state;
+      String? phone;
+      final uid = _client.auth.currentUser?.id;
+      if (uid != null) {
+        final rows = await _client
+            .from('customers')
+            .select('phone, loyalty_state(points, lifetime_points, stamps, completed_cards, spinner_tokens, match_tokens, scratch_tokens, double_next_order, vouchers, processed_orders)')
+            .eq('google_user_id', uid)
+            .limit(1);
+        if (rows.isNotEmpty) {
+          final row = (rows.first as Map);
+          phone = row['phone'] as String?;
+          final inner = row['loyalty_state'];
+          if (inner != null) {
+            base = LoyaltyState.fromJson(
+                Map<String, dynamic>.from(inner as Map));
+          }
+        }
+      }
+
+      if (alreadyProcessed(base, orderId)) {
+        if (phone != null) state = base; // resync with the credited row
+        return;
+      }
+
+      final config = LoyaltyRulesConfig.fromMap(await loadConfig());
+      final doubleWindow = base.doubleNextOrder;
+      final earned = earnedFor(
+        subtotalEgp: subtotalEgp,
+        dineIn: dineIn,
+        pointsPer10: config.pointsPer10Egp,
+        dineInMultiplier: config.dineInMultiplier,
+        doubleWindow: doubleWindow,
+      );
+      var next = creditOrder(
+        base,
+        earned: earned,
+        subtotalEgp: subtotalEgp,
+        stampMinSpendEgp: config.stampMinSpendEgp,
+      );
+      next = markProcessed(next, orderId);
+      if (doubleWindow) next = next.copyWith(doubleNextOrder: false);
+
+      // Optimistic update first; persistence is best-effort.
+      state = next;
+      if (phone == null) return; // guest / customer row missing → local only
+      await _client.from('loyalty_state').update({
+        'points': next.points,
+        'lifetime_points': next.lifetimePoints,
+        'stamps': next.stamps,
+        'completed_cards': next.completedCards,
+        'spinner_tokens': next.spinnerTokens,
+        'match_tokens': next.matchTokens,
+        'scratch_tokens': next.scratchTokens,
+        'double_next_order': next.doubleNextOrder,
+        'vouchers': next.vouchers.map((v) => v.toJson()).toList(),
+        'processed_orders': next.processedOrders,
+      }).eq('phone', phone);
+    } catch (_) {
+      // Offline policy: optimistic local state stands.
     }
   }
 }
+
+/// Admin-tuned loyalty rules for checkout/games; seed constants while loading
+/// or offline.
+final loyaltyConfigProvider = FutureProvider<LoyaltyRulesConfig>((ref) async {
+  final raw = await ref.watch(loyaltyProvider.notifier).loadConfig();
+  return LoyaltyRulesConfig.fromMap(raw);
+});
 
 final loyaltyProvider = NotifierProvider<LoyaltyController, LoyaltyState>(LoyaltyController.new);

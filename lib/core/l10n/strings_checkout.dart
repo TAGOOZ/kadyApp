@@ -3,6 +3,7 @@
 // user-facing copy for cart, mode selection, checkout and confirmation).
 // ar default, en toggle. Numerals: Western 0123 in both languages.
 import 'app_strings.dart';
+import '../../domain/loyalty_rules.dart';
 
 class CheckoutStrings {
   const CheckoutStrings({
@@ -61,6 +62,13 @@ class CheckoutStrings {
     required this.trackCta,
     required this.trackingSoonStub,
     required this.backHomeCta,
+
+    // Loyalty redemption (#007).
+    required this.redeemToggleTemplate,
+    required this.redeemRemainingTemplate,
+    required this.redeemLabelFreeDrink,
+    required this.redeemLabelFreeTopping,
+    required this.redeemLabelFreeSnack,
   });
 
   final String cartTitle;
@@ -127,6 +135,17 @@ class CheckoutStrings {
   final String trackingSoonStub;
   final String backHomeCta;
 
+  /// Loyalty redemption (#007).
+  ///
+  /// `{cost}` → Western-digit points cost, `{label}` → reward label.
+  final String redeemToggleTemplate;
+
+  /// `{points}` → balance remaining after the redemption.
+  final String redeemRemainingTemplate;
+  final String redeemLabelFreeDrink;
+  final String redeemLabelFreeTopping;
+  final String redeemLabelFreeSnack;
+
   String egp(int valueEgp) => '$valueEgp $currencySuffix';
 
   String loyaltyBanner(int points) =>
@@ -134,6 +153,20 @@ class CheckoutStrings {
 
   String pointsBanner(int points) =>
       pointsBannerTemplate.replaceAll('{points}', '$points');
+
+  /// `استخدم 200 نقطة → مشروب مجاني`.
+  String redeemToggle(int cost, String label) => redeemToggleTemplate
+      .replaceAll('{cost}', '$cost')
+      .replaceAll('{label}', label);
+
+  String redeemRemaining(int points) =>
+      redeemRemainingTemplate.replaceAll('{points}', '$points');
+
+  String redemptionLabel(RedemptionType type) => switch (type) {
+        RedemptionType.freeDrink => redeemLabelFreeDrink,
+        RedemptionType.freeTopping => redeemLabelFreeTopping,
+        RedemptionType.freeSnack => redeemLabelFreeSnack,
+      };
 
   String orderChip(int displayNumber) => '#$displayNumber';
 
@@ -200,6 +233,11 @@ abstract final class CheckoutStringsCatalog {
       trackCta: 'تتبع الطلب',
       trackingSoonStub: 'تتبع الحالة المباشر هيوصل قريب',
       backHomeCta: 'رجوع للرئيسية',
+      redeemToggleTemplate: 'استخدم {cost} نقطة → {label}',
+      redeemRemainingTemplate: 'رصيدك بعد الاستخدام: {points} نقطة',
+      redeemLabelFreeDrink: 'مشروب مجاني',
+      redeemLabelFreeTopping: 'توبينج مجاني',
+      redeemLabelFreeSnack: 'سناك مجاني',
     ),
     AppLang.en: CheckoutStrings(
       cartTitle: 'Cart',
@@ -257,6 +295,11 @@ abstract final class CheckoutStringsCatalog {
       trackCta: 'Track order',
       trackingSoonStub: 'Live tracking is coming soon',
       backHomeCta: 'Back to home',
+      redeemToggleTemplate: 'Use {cost} pts → {label}',
+      redeemRemainingTemplate: 'Balance after: {points} pts',
+      redeemLabelFreeDrink: 'Free drink',
+      redeemLabelFreeTopping: 'Free topping',
+      redeemLabelFreeSnack: 'Free snack',
     ),
   };
 
