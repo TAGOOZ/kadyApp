@@ -12,6 +12,8 @@ import '../ui/cart/checkout_screen.dart';
 import '../ui/cart/order_confirmation_screen.dart';
 import '../ui/home/home_screen.dart';
 import '../ui/mode/mode_selection_screen.dart';
+import '../ui/orders/orders_list_screen.dart';
+import '../ui/orders/order_status_screen.dart';
 import '../ui/profile/profile_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/placeholder_page.dart';
@@ -98,6 +100,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         '/mode-selection',
         '/checkout',
         '/confirmation',
+        '/orders',
       ];
       if (customerPaths.any(location.startsWith)) {
         return session.role == AppRole.customer
@@ -141,6 +144,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/confirmation',
         builder: (context, state) => const OrderConfirmationScreen(),
+      ),
+      // Orders slice (#006): live list + per-order status timeline.
+      GoRoute(
+        path: '/orders',
+        builder: (context, state) => const OrdersListScreen(),
+      ),
+      GoRoute(
+        path: '/orders/:id',
+        builder: (context, state) => OrderStatusScreen(
+          orderId: state.pathParameters['id']!,
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => _CustomerShell(shell: shell),

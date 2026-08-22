@@ -1,0 +1,348 @@
+// Order status screen (#006): vertical timeline fed live by Supabase
+// Realtime (ADR-0006). Staff (#012) drives transitions server-side — this
+// screen only reflects them, no auto-advance timer. Delivery orders show
+// a driver card at في الطريق إليك; reaching done fires a one-shot confetti
+// burst plus an in-app banner.
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/l10n/app_strings.dart';
+import '../../core/l10n/strings_orders.dart';
+import '../../core/theme/app_theme.dart';
+import '../../domain/order_status_flow.dart';
+import '../../data/repos/order_status_repository.dart';
+import 'widgets/driver_card.dart';
+import 'widgets/status_timeline.dart';
+
+class OrderStatusScreen extends ConsumerStatefulWidget {
+  const OrderStatusScreen({super.key, required this.orderId});
+
+  final String orderId;
+
+  @override
+  ConsumerState<OrderStatusScreen> createState() => _OrderStatusScreenState();
+}
+
+class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen>
+    with TickerProviderStateMixin {
+  late final AnimationController _pulse;
+  late final AnimationController _confetti;
+
+  /// Celebrate exactly once even if Realtime re-emits `done`.
+  bool _celebrated = false;
+
+  /// Last seen status — used to refresh event timestamps on change.
+  OrderWireStatus? _lastStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+      lowerBound: 0,
+      upperBound: 1,
+    )..repeat(reverse: true);
+    _confetti = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    _confetti.dispose();
+    super.dispose();
+  }
+
+  void _onOrderData(CustomerOrder? order) {
+    if (order == null) return;
+    final changed = _lastStatus != null && _lastStatus != order.status;
+    _lastStatus = order.status;
+    // Fresh timestamps arrive as staff appends order_events rows.
+    if (changed) {
+      ref.invalidate(orderEventsProvider(widget.orderId));
+    }
+    if (!changed || order.status != OrderWireStatus.done || _celebrated) {
+      return;
+    }
+    _celebrated = true;
+    final mode = order.flowMode;
+    final doneStep =
+        mode == null ? null : OrderStatusFlow.stepFor(mode, order.status);
+    _confetti.forward(from: 0);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.primaryContainer,
+        content: Text(
+          OrdersStringsCatalog.of(AppLang.ar)
+              .deliveredBanner(doneStep?.labelAr ?? ''),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = OrdersStringsCatalog.of(AppLang.ar);
+    final orderAsync = ref.watch(watchOrderProvider(widget.orderId));
+
+    ref.listen(watchOrderProvider(widget.orderId), (_, next) {
+      next.whenData(_onOrderData);
+    });
+
+    return Scaffold(
+      appBar: AppBar(title: Text(strings.statusTitle)),
+      body: orderAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) => _RetryBanner(
+          message: strings.loadFailed,
+          cta: strings.retryCta,
+          onRetry: () {
+            ref.invalidate(watchOrderProvider(widget.orderId));
+            ref.invalidate(orderEventsProvider(widget.orderId));
+          },
+        ),
+        data: (order) {
+          if (order == null) {
+            return Center(child: Text(strings.orderNotFound));
+          }
+          return _Body(order: order, pulse: _pulse, confetti: _confetti);
+        },
+      ),
+    );
+  }
+}
+
+class _Body extends ConsumerWidget {
+  const _Body({
+    required this.order,
+    required this.pulse,
+    required this.confetti,
+  });
+
+  final CustomerOrder order;
+  final Animation<double> pulse;
+  final Animation<double> confetti;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = OrdersStringsCatalog.of(AppLang.ar);
+    final mode = order.flowMode;
+    if (mode == null) {
+      return Center(child: Text(strings.orderNotFound));
+    }
+
+    final steps = OrderStatusFlow.stepsFor(mode);
+    final cancelled = order.status == OrderWireStatus.cancelled;
+    final currentIndex = OrderStatusFlow.indexOfCurrent(mode, order.status);
+
+    final eventsAsync = ref.watch(orderEventsProvider(order.id));
+    final timestamps = eventsAsync.maybeWhen(
+      data: (events) => _resolveTimestamps(steps, events, order.createdAtUtc),
+      orElse: () => List<DateTime?>.filled(steps.length, null),
+    );
+
+    return Stack(
+      children: [
+        ListView(
+          padding: const EdgeInsets.all(AppSpacing.gutter16),
+          children: [
+            if (currentIndex >= 0 &&
+                steps[currentIndex].status == OrderWireStatus.done)
+              _DeliveredBanner(label: steps[currentIndex].labelAr),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.sm16),
+                child: StatusTimeline(
+                  steps: steps,
+                  currentIndex: currentIndex,
+                  timestamps: timestamps,
+                  pulse: pulse,
+                  cancelled: cancelled,
+                  cancelledLabel: strings.cancelledChip,
+                  cancelReasonPrefix: strings.cancelReasonLabel,
+                  rejectReason: order.rejectReason,
+                ),
+              ),
+            ),
+            // Driver extras appear only mid-delivery (§3.6).
+            if (mode == FlowMode.delivery &&
+                order.status == OrderWireStatus.outForDelivery &&
+                order.hasDriver)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm16),
+                child: DriverCard(
+                  onCallTap: () => _snack(context, strings.callSoonSnackbar),
+                  onDirectionsTap: () =>
+                      _snack(context, strings.directionsSoonSnackbar),
+                ),
+              ),
+          ],
+        ),
+        // One-shot confetti burst while the done celebration plays.
+        AnimatedBuilder(
+          animation: confetti,
+          builder: (context, _) => confetti.isAnimating
+              ? Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _ConfettiPainter(progress: confetti.value),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  void _snack(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Latest event time per step; the first step falls back to created_at
+  /// when staff never logged a `new` event explicitly.
+  static List<DateTime?> _resolveTimestamps(
+    List<FlowStep> steps,
+    List<OrderEventRow> events,
+    DateTime createdAtUtc,
+  ) {
+    final byStatus = <String, DateTime>{};
+    for (final event in events) {
+      final wire = event.statusWire;
+      if (wire != null && wire.isNotEmpty) {
+        byStatus[wire] = event.atUtc; // ascending order → last wins
+      }
+    }
+    return [
+      for (final step in steps)
+        byStatus[step.status.wireName] ??
+            (step.status == OrderWireStatus.received ? createdAtUtc : null),
+    ];
+  }
+}
+
+class _DeliveredBanner extends StatelessWidget {
+  const _DeliveredBanner({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = OrdersStringsCatalog.of(AppLang.ar);
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryContainer.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppRadii.md8),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.celebration_outlined, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              strings.deliveredBanner(label),
+              style: AppTextStyles.bodyLg.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Standard error policy: banner + explicit retry resubscribes the stream.
+class _RetryBanner extends StatelessWidget {
+  const _RetryBanner({
+    required this.message,
+    required this.cta,
+    required this.onRetry,
+  });
+
+  final String message;
+  final String cta;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.gutter16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.wifi_off_outlined, color: AppColors.outline),
+          const SizedBox(height: AppSpacing.xs8),
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: AppSpacing.sm16),
+          FilledButton.tonal(onPressed: onRetry, child: Text(cta)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dependency-free confetti burst: ~50 deterministic particles raining down
+/// over the 1.5s controller window, fading out near the end.
+class _ConfettiPainter extends CustomPainter {
+  const _ConfettiPainter({required this.progress});
+
+  final double progress;
+
+  static const _palette = [
+    AppColors.primary,
+    AppColors.secondary,
+    Color(0xFF1F7A3D),
+    AppColors.primaryFixedTint,
+    AppColors.coffeeBean,
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    const count = 54;
+    for (var i = 0; i < count; i++) {
+      final seedX = (i * 37 % 100) / 100;
+      final speed = 0.75 + (i % 5) * 0.12;
+      final fall = (progress * speed).clamp(0.0, 1.0);
+      final sway = swayOf(i, progress);
+      final dx = size.width * seedX + sway;
+      final dy = -24 + fall * (size.height + 48);
+      final opacity = progress < 0.8 ? 1.0 : (1 - progress) / 0.2;
+      paint.color = _palette[i % _palette.length]
+          .withValues(alpha: opacity.clamp(0.0, 1.0));
+      final side = 5.0 + (i % 4) * 2.0;
+      final rect = Rect.fromCenter(
+        center: Offset(dx, dy),
+        width: side,
+        height: side * 0.6,
+      );
+      canvas.save();
+      canvas.translate(rect.center.dx, rect.center.dy);
+      canvas.rotate(i + progress * 6);
+      canvas.translate(-rect.center.dx, -rect.center.dy);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(1.5)),
+        paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  static double swayOf(int i, double t) => 14 * math.cos(t * 6.28 + i);
+
+  @override
+  bool shouldRepaint(_ConfettiPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
