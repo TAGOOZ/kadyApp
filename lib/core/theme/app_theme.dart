@@ -1,0 +1,194 @@
+// Heritage Hearth design tokens — single source of truth for colors,
+// radii, spacing, shadows and typography (docs/FEATURES.md §0).
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+abstract final class AppColors {
+  static const primary = Color(0xFF003A2A);
+  static const primaryContainer = Color(0xFF00533E);
+  static const primaryFixedTint = Color(0xFFABF1D4);
+  static const secondary = Color(0xFFA53C00);
+  static const secondaryContainer = Color(0xFFFF7434);
+  static const parchment = Color(0xFFF9EBD7);
+  static const paperWhite = Color(0xFFFFF9F0);
+  static const coffeeBean = Color(0xFF4B2C20);
+  static const background = Color(0xFFF8FAF6);
+  static const error = Color(0xFFBA1A1A);
+  static const outline = Color(0xFF6F7974);
+}
+
+abstract final class AppRadii {
+  static const double sm4 = 4;
+  static const double md8 = 8;
+  static const double mdLg12 = 12;
+  static const double lg16 = 16;
+  static const double xl24 = 24;
+  static const double pill = 9999;
+}
+
+abstract final class AppSpacing {
+  static const double xs8 = 8;
+  static const double sm16 = 16;
+  static const double md24 = 24;
+  static const double lg32 = 32;
+  static const double xl48 = 48;
+  static const double gutter16 = 16;
+  static const double margin20 = 20;
+}
+
+abstract final class AppShadows {
+  static const _coffeeShadowColor = Color(0x144B2C20);
+
+  // "Coffee Shadows": soft, highly diffused warm tint (~8% coffee-bean).
+  static List<BoxShadow> coffeeShadows({
+    Offset offset = const Offset(0, 6),
+    double blurRadius = 18,
+  }) {
+    return [
+      BoxShadow(
+        color: _coffeeShadowColor,
+        offset: offset,
+        blurRadius: blurRadius,
+      ),
+    ];
+  }
+}
+
+abstract final class AppTextStyles {
+  static const _arabicFallback = ['IBM Plex Sans Arabic'];
+
+  static TextStyle get displayLg => GoogleFonts.beVietnamPro(
+        fontSize: 40,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.8,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  static TextStyle get headlineLg => GoogleFonts.beVietnamPro(
+        fontSize: 32,
+        fontWeight: FontWeight.w600,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  static TextStyle get headlineMobile => GoogleFonts.beVietnamPro(
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  static TextStyle get titleMd => GoogleFonts.workSans(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  static TextStyle get bodyLg => GoogleFonts.workSans(
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  static TextStyle get bodySm => GoogleFonts.workSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  static TextStyle get labelMd => GoogleFonts.ibmPlexSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.6,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+}
+
+TextTheme _heritageHearthTextTheme() {
+  return TextTheme(
+    displayLarge: AppTextStyles.displayLg,
+    displayMedium: AppTextStyles.headlineLg,
+    displaySmall: AppTextStyles.headlineMobile,
+    headlineLarge: AppTextStyles.headlineLg,
+    headlineMedium: AppTextStyles.headlineMobile,
+    headlineSmall: AppTextStyles.headlineMobile,
+    titleLarge: AppTextStyles.titleMd,
+    titleMedium: AppTextStyles.titleMd,
+    titleSmall: AppTextStyles.titleMd,
+    bodyLarge: AppTextStyles.bodyLg,
+    bodyMedium: AppTextStyles.bodySm,
+    bodySmall: AppTextStyles.bodySm,
+    labelLarge: AppTextStyles.labelMd,
+    labelMedium: AppTextStyles.labelMd,
+    labelSmall: AppTextStyles.labelMd,
+  );
+}
+
+ThemeData buildHeritageHearth(Brightness brightness) {
+  const scheme = ColorScheme.light(
+    primary: AppColors.primary,
+    onPrimary: Colors.white,
+    primaryContainer: AppColors.primaryContainer,
+    onPrimaryContainer: AppColors.parchment,
+    secondary: AppColors.secondary,
+    onSecondary: Colors.white,
+    secondaryContainer: AppColors.secondaryContainer,
+    onSecondaryContainer: AppColors.coffeeBean,
+    error: AppColors.error,
+    onError: Colors.white,
+    surface: AppColors.paperWhite,
+    onSurface: AppColors.coffeeBean,
+    surfaceContainerHighest: AppColors.parchment,
+    onSurfaceVariant: AppColors.coffeeBean,
+    outline: AppColors.outline,
+    surfaceTint: AppColors.parchment,
+  );
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: AppColors.background,
+    textTheme: _heritageHearthTextTheme(),
+    appBarTheme: AppBarTheme(
+      backgroundColor: AppColors.background,
+      foregroundColor: AppColors.primary,
+      elevation: 0,
+      centerTitle: true,
+      titleTextStyle: AppTextStyles.titleMd.copyWith(color: AppColors.primary),
+    ),
+    cardTheme: CardThemeData(
+      color: AppColors.paperWhite,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.md8),
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: AppColors.paperWhite,
+      indicatorColor: AppColors.primaryFixedTint,
+      height: 68,
+      labelTextStyle: WidgetStatePropertyAll(AppTextStyles.labelMd),
+      iconTheme: const WidgetStatePropertyAll(
+        IconThemeData(color: AppColors.primary),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        textStyle: AppTextStyles.bodyLg.copyWith(fontWeight: FontWeight.w600),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md24,
+          vertical: AppSpacing.sm16,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+        ),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: AppColors.parchment,
+      labelStyle: AppTextStyles.labelMd,
+      side: BorderSide(color: AppColors.outline.withValues(alpha: 0.25)),
+      shape: const StadiumBorder(),
+    ),
+    dividerTheme: DividerThemeData(
+      color: AppColors.outline.withValues(alpha: 0.25),
+      thickness: 1,
+      space: 1,
+    ),
+    iconTheme: const IconThemeData(color: AppColors.primary),
+  );
+}

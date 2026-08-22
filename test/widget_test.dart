@@ -1,17 +1,43 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kady_app/main.dart';
 
 void main() {
-  testWidgets('App boots', (WidgetTester tester) async {
-    await tester.pumpWidget(const KadyApp());
-    expect(find.textContaining('Elkady'), findsOneWidget);
+  setUpAll(() {
+    GoogleFonts.config.allowRuntimeFetching = false;
+  });
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
+  testWidgets('App boots to Arabic welcome screen in RTL',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const ProviderScope(child: KadyApp()));
+    await tester.pump();
+
+    expect(find.text('كافيه القاضي'), findsOneWidget);
+
+    final titleContext = tester.element(find.text('كافيه القاضي'));
+    expect(Directionality.of(titleContext), TextDirection.rtl);
+  });
+
+  testWidgets('Demo entry lands on the customer shell with 4 tabs',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const ProviderScope(child: KadyApp()));
+    await tester.pump();
+
+    await tester.tap(find.text('دخول تجريبي'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.text('الرئيسية'), findsWidgets);
+    expect(find.text('القائمة'), findsOneWidget);
+    expect(find.text('الألعاب'), findsOneWidget);
+    expect(find.text('حسابي'), findsOneWidget);
   });
 }

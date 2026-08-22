@@ -3,13 +3,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const supabaseUrl = 'https://zrlhtwmzuljsqricpxbb.supabase.co';
-const supabaseAnonKey = 'sb_publishable_7eznl_xMNGXmxHSzWVdaJQ_r4dj3Apf';
+const supabasePublishableKey = 'sb_publishable_7eznl_xMNGXmxHSzWVdaJQ_r4dj3Apf';
 
 Future<void> initSupabase() async {
   await Supabase.initialize(
     url: supabaseUrl,
-    anonKey: supabaseAnonKey,
-    // ignore: deprecated_member_use — supabase_flutter 2.x still exposes anonKey; publishableKey alias lands in next major
+    publishableKey: supabasePublishableKey,
   );
 }
 
