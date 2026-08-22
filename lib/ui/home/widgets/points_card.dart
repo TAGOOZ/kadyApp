@@ -1,12 +1,10 @@
 // Points widget card (#005): current points + progress toward the next
-// 200-pt free-drink reward. Tapping opens a DEV debug sheet wired to
-// `applyDemoBoost` until real crediting lands (#007/#008).
+// 200-pt free-drink reward. Real crediting flows from placed orders (#007).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/strings_home.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../domain/loyalty_controller.dart';
 import '../../auth/guest_save_prompt.dart';
 
 const int kNextRewardGoal = 200;
@@ -23,21 +21,9 @@ class PointsCard extends ConsumerWidget {
   final HomeStrings strings;
   final bool signedIn;
 
-  void _openDevSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (_) => _DevBoostSheet(strings: strings),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return InkWell(
-      borderRadius: const BorderRadius.all(Radius.circular(AppRadii.mdLg12)),
-      onTap:
-          signedIn ? () => _openDevSheet(context, ref) : null,
-      child: Container(
+    return Container(
         padding: const EdgeInsets.all(AppSpacing.sm16),
         decoration: BoxDecoration(
           color: AppColors.paperWhite,
@@ -94,21 +80,7 @@ class PointsCard extends ConsumerWidget {
                         .copyWith(color: AppColors.outline),
                   ),
                 ),
-                if (signedIn)
-                  TextButton(
-                    key: const Key('home_dev_boost_open'),
-                    onPressed: () => _openDevSheet(context, ref),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      textStyle: AppTextStyles.labelMd,
-                    ),
-                    child: Text(
-                      strings.devBoostCardLabel,
-                      style: AppTextStyles.labelMd
-                          .copyWith(color: AppColors.outline),
-                    ),
-                  )
-                else
+                if (!signedIn)
                   TextButton(
                     key: const Key('home_guest_register'),
                     onPressed: () => showGuestSavePrompt(context, points: points),
@@ -123,54 +95,9 @@ class PointsCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DevBoostSheet extends ConsumerWidget {
-  const _DevBoostSheet({required this.strings});
-
-  final HomeStrings strings;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.margin20,
-          AppSpacing.sm16,
-          AppSpacing.margin20,
-          AppSpacing.md24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              strings.devBoostSheetTitle,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.titleMd.copyWith(color: AppColors.primary),
-            ),
-            const SizedBox(height: AppSpacing.sm16),
-            FilledButton(
-              key: const Key('home_dev_boost_apply'),
-              onPressed: () async {
-                await ref.read(loyaltyProvider.notifier).applyDemoBoost();
-                if (!context.mounted) return;
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(strings.devBoostApplied)),
-                );
-              },
-              child: Text(strings.devBoostApplyLabel),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
