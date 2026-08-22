@@ -256,6 +256,13 @@ Status vocabulary: New → Accepted → In prep → Ready → Out for delivery �
 14. **Tiers**: **Bronze default · Silver 2000 · Gold 5000** lifetime pts; thresholds admin-editable.
 15. **Group mechanics**: **included in MVP** — ≥3 check-ins in window → bonus; group delivery order → bonus.
 
+16. **Storage** (Tech): **Supabase Storage bucket `menu-photos`** public; `menu_items.image_url` holds the URL — ADR-0005.
+17. **Realtime** (Tech): **Supabase Realtime on `orders`** via Riverpod `StreamProvider` — ADR-0006.
+18. **Error UX** (Tech): **online-only** — offline banner + snackbar `Failed — Retry` preserving cart/form; background auto-retry (3× exponential) — standard apps pattern.
+19. **RLS** (Tech): **`customers.google_user_id = auth.uid()`** with phone as business key — ADR-0007.
+20. **Testing** (Tech): **Full TDD + integration** per slice (unit for loyalty/cart math, widget goldens for flows, Patrol/integration for place-order → status).
+21. **Shipping** (Tech): **manual builds only** for web + APK in v1; no auto-deploy pipeline.
+
 Unresolved: none for MVP. New questions should be added here with their resolution date.
 
 ---
