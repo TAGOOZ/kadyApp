@@ -112,3 +112,18 @@ by updating `profiles.role` for the account (Admin does this after first login).
 - **Push notifications / FCM**, analytics, POS integration — post-MVP phases.
 - **Menu photos**: `image_url` is `null` for all seed items; upload photos to
   `menu-photos` and set URLs via the Admin menu editor (#015).
+
+## Elevate a test user to staff/admin (required for slices #012/#015)
+
+RLS gates staff/driver/admin visibility and writes on `profiles.role`.
+After signing in once with your Google account, promote yourself:
+
+```sql
+-- see who you are
+select id, email from auth.users order by created_at desc limit 5;
+update profiles set role = 'staff' where user_id = '<your-auth-user-id>';
+-- or 'admin' for the owner dashboard (#015)
+```
+
+The Flutter role switcher only changes the local shell; server permissions come
+from this row.
