@@ -273,7 +273,11 @@ Status vocabulary: New → Accepted → In prep → Ready → Out for delivery �
 29. **Throttle** (Tech): **Edge Function rate limit** (5/5min) + app 30s debounce — ADR-0010.
 30. **Time** (Tech): **store UTC (`timestamptz`), display `Africa/Cairo`** — ADR-0009.
 
-Unresolved: QR dine-in check-in flow, accessibility audit, and performance budgets still to grill if you want to continue.
+31. **Check-in** (Tech): **QR + manual fallback** — Customer QR (`phone` hash) scanned by Staff `mobile_scanner`; fallback phone/table entry.
+32. **A11y** (Tech): **basic semantics** — `semanticsLabel`, headings, contrast-checked tokens; no full WCAG audit in v1.
+33. **Perf** (Tech): **strict — web <1.5s + APK <20MB** — deferred imports, `cached_network_image` with downscaling, `--analyze-size` check.
+
+Unresolved: Deep links for shared orders, app icon/splash, and localization workflow — say `continue` to grill those, or `build` to start slice #001.
 
 ---
 
