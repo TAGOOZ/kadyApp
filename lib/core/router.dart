@@ -11,6 +11,7 @@ import '../ui/cart/cart_screen.dart';
 import '../ui/cart/checkout_screen.dart';
 import '../ui/cart/order_confirmation_screen.dart';
 import '../ui/mode/mode_selection_screen.dart';
+import '../ui/profile/profile_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/placeholder_page.dart';
 import '../ui/screens/welcome_screen.dart';
@@ -173,8 +174,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/profile',
-                builder: (context, state) =>
-                    const _PlaceholderTab(_CustomerTab.profile),
+                builder: (context, state) => const ProfileScreen(),
               ),
             ],
           ),
