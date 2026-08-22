@@ -15,31 +15,16 @@ import '../ui/mode/mode_selection_screen.dart';
 import '../ui/orders/orders_list_screen.dart';
 import '../ui/orders/order_status_screen.dart';
 import '../ui/profile/profile_screen.dart';
+import '../ui/games/games_hub_screen.dart';
+import '../ui/games/spinner/spinner_screen.dart';
+import '../ui/games/match/match_screen.dart';
+import '../ui/games/scratch/scratch_screen.dart';
+import '../ui/quests/quests_badges_screen.dart';
+import '../ui/staff/staff_board_screen.dart';
+import '../ui/admin/admin_dashboard_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/placeholder_page.dart';
 import '../ui/screens/welcome_screen.dart';
-
-enum _CustomerTab { home, menu, games, profile }
-
-extension _CustomerTabX on _CustomerTab {
-  String title(Strings s) {
-    return switch (this) {
-      _CustomerTab.home => s.tabHome,
-      _CustomerTab.menu => s.tabMenu,
-      _CustomerTab.games => s.tabGames,
-      _CustomerTab.profile => s.tabProfile,
-    };
-  }
-
-  String line(Strings s) {
-    return switch (this) {
-      _CustomerTab.home => s.homeLine,
-      _CustomerTab.menu => s.menuLine,
-      _CustomerTab.games => s.gamesLine,
-      _CustomerTab.profile => s.profileLine,
-    };
-  }
-}
 
 String _homeFor(AppRole role) {
   return switch (role) {
@@ -179,8 +164,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/games',
-                builder: (context, state) =>
-                    const _PlaceholderTab(_CustomerTab.games),
+                builder: (context, state) => const GamesHubScreen(),
               ),
             ],
           ),
@@ -195,8 +179,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: '/games',
+        builder: (context, state) => const GamesHubScreen(),
+      ),
+      GoRoute(
+        path: '/games/spinner',
+        builder: (context, state) => const SpinnerScreen(),
+      ),
+      GoRoute(
+        path: '/games/match',
+        builder: (context, state) => const MatchScreen(),
+      ),
+      GoRoute(
+        path: '/games/scratch',
+        builder: (context, state) => const ScratchScreen(),
+      ),
+      GoRoute(
+        path: '/games/quests',
+        builder: (context, state) => const QuestsBadgesScreen(),
+      ),
+      GoRoute(
         path: '/staff',
-        builder: (context, state) => const _RoleDashboardScreen(),
+        builder: (context, state) => const StaffBoardScreen(),
       ),
       GoRoute(
         path: '/driver',
@@ -204,7 +208,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/admin',
-        builder: (context, state) => const _RoleDashboardScreen(),
+        builder: (context, state) => const AdminDashboardScreen(),
       ),
     ],
   );
@@ -212,22 +216,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   return router;
 });
 
-class _PlaceholderTab extends ConsumerWidget {
-  const _PlaceholderTab(this.tab);
-
-  final _CustomerTab tab;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final lang = ref.watch(localeNotifierProvider);
-    final strings = AppStrings.of(lang);
-    return PlaceholderPage(
-      title: tab.title(strings),
-      line: tab.line(strings),
-      showRoleTile: tab == _CustomerTab.profile,
-    );
-  }
-}
 
 class _RoleDashboardScreen extends ConsumerWidget {
   const _RoleDashboardScreen();

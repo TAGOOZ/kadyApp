@@ -259,6 +259,82 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       // Offline policy: optimistic local state stands.
     }
   }
+  // -- Game tokens & grants (shared seam for slices #008/#009/#010) ----------
+
+  /// Best-effort persist of the current [state] to the signed-in Customer's
+  /// `loyalty_state` row (RLS own-row UPDATE). No-op when unauthenticated.
+  Future<void> _persist() async {
+    try {
+      final uid = _client.auth.currentUser?.id;
+      if (uid == null) return;
+      final rows = await _client
+          .from('customers')
+          .select('phone')
+          .eq('google_user_id', uid)
+          .limit(1);
+      if (rows.isEmpty) return;
+      final phone = (rows.first as Map)['phone'] as String;
+      await _client.from('loyalty_state').update({
+        'points': state.points,
+        'lifetime_points': state.lifetimePoints,
+        'stamps': state.stamps,
+        'completed_cards': state.completedCards,
+        'spinner_tokens': state.spinnerTokens,
+        'match_tokens': state.matchTokens,
+        'scratch_tokens': state.scratchTokens,
+        'double_next_order': state.doubleNextOrder,
+        'vouchers': state.vouchers.map((v) => v.toJson()).toList(),
+        'processed_orders': state.processedOrders,
+      }).eq('phone', phone);
+    } catch (_) {
+      // Offline policy: optimistic local state stands.
+    }
+  }
+
+  /// Consumes one game token; returns false when none available.
+  Future<bool> consumeSpinnerToken() async {
+    if (state.spinnerTokens <= 0) return false;
+    state = state.copyWith(spinnerTokens: state.spinnerTokens - 1);
+    await _persist();
+    return true;
+  }
+
+  Future<bool> consumeMatchToken() async {
+    if (state.matchTokens <= 0) return false;
+    state = state.copyWith(matchTokens: state.matchTokens - 1);
+    await _persist();
+    return true;
+  }
+
+  Future<bool> consumeScratchToken() async {
+    if (state.scratchTokens <= 0) return false;
+    state = state.copyWith(scratchTokens: state.scratchTokens - 1);
+    await _persist();
+    return true;
+  }
+
+  /// Adds earned points to both balances and persists.
+  Future<void> grantPoints(int n) async {
+    if (n <= 0) return;
+    state = state.copyWith(
+      points: state.points + n,
+      lifetimePoints: state.lifetimePoints + n,
+    );
+    await _persist();
+  }
+
+  Future<void> grantVoucher(VoucherType type) async {
+    state = state.copyWith(
+      vouchers: [...state.vouchers, Voucher(type: type, grantedAt: DateTime.now().toUtc())],
+    );
+    await _persist();
+  }
+
+  /// Arms the double-points-next-order prize (consumed on next credit).
+  Future<void> setDoubleNextOrder() async {
+    state = state.copyWith(doubleNextOrder: true);
+    await _persist();
+  }
 }
 
 /// Admin-tuned loyalty rules for checkout/games; seed constants while loading
