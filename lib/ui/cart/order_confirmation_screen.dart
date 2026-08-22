@@ -1,14 +1,18 @@
 // Order confirmation (issue #003): green check, DB display number chip,
 // mode badge + ETA, items summary, totals, points banner and cash payment
-// line. Tracking is a stub until the timeline lands in slice #006.
+// line. Tracking (#006) resolves the order uuid from its display number
+// and lands on /orders/:id.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_checkout.dart';
+import '../../core/l10n/strings_orders.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/orders_repository.dart';
+import '../../data/repos/order_status_repository.dart';
+import '../../domain/auth_controller.dart';
 import '../../domain/cart_controller.dart';
 
 class OrderConfirmationScreen extends ConsumerWidget {
@@ -18,6 +22,7 @@ class OrderConfirmationScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final lang = ref.watch(localeNotifierProvider);
     final strings = CheckoutStringsCatalog.of(lang);
+    final ordersStrings = OrdersStringsCatalog.of(lang);
     final args = GoRouterState.of(context).extra;
     if (args is! ConfirmationArgs) {
       // Direct deep-link without a placed order — nothing to show.
@@ -26,6 +31,16 @@ class OrderConfirmationScreen extends ConsumerWidget {
         body: Center(child: Text(strings.emptyTitle)),
       );
     }
+
+    // ConfirmationArgs carries only the display number; resolve the uuid
+    // from the customer's own orders so tracking deep-links correctly.
+    final googleUserId = ref.watch(authControllerProvider).googleUser?.id;
+    final ownOrders =
+        googleUserId == null ? null : ref.watch(ownOrdersOnceProvider(googleUserId)).valueOrNull;
+    final trackedOrderId = ownOrders
+        ?.where((order) => order.displayNumber == args.displayNumber)
+        .map((order) => order.id)
+        .firstOrNull;
 
     final modeName = switch (args.mode) {
       OrderMode.dineIn => strings.modeDineIn,
@@ -180,9 +195,18 @@ class OrderConfirmationScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               FilledButton(
-                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(strings.trackingSoonStub)),
-                ),
+                onPressed: () {
+                  final orderId = trackedOrderId;
+                  if (orderId != null) {
+                    context.push('/orders/$orderId');
+                  } else {
+                    // Order not resolvable yet (offline/guest edge) —
+                    // standard error policy keeps the user informed.
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(ordersStrings.trackOrderTooltip)),
+                    );
+                  }
+                },
                 child: Text(strings.trackCta),
               ),
               const SizedBox(height: AppSpacing.xs8),
