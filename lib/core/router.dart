@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../domain/auth_controller.dart';
 import '../domain/session_controller.dart';
 import 'l10n/app_strings.dart';
+import '../ui/auth/phone_collection_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/placeholder_page.dart';
 import '../ui/screens/welcome_screen.dart';
@@ -46,6 +48,11 @@ class _SessionRefresh extends ChangeNotifier {
         notifyListeners();
       }
     });
+    ref.listen(authControllerProvider, (_, _) {
+      if (!_disposed) {
+        notifyListeners();
+      }
+    });
     ref.onDispose(() => _disposed = true);
   }
 
@@ -59,12 +66,20 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     redirect: (context, state) {
       final session = ref.read(sessionControllerProvider);
+      final auth = ref.read(authControllerProvider);
       final location = state.matchedLocation;
 
-      if (!session.onboarded) {
+      // Google OAuth gate: post-sign-in phone collection is mandatory.
+      if (auth.phase == AuthPhase.authedWithoutPhone) {
+        return location == '/auth/phone' ? null : '/auth/phone';
+      }
+      // Welcome gate only applies while unauthenticated (idle).
+      if (!session.onboarded && auth.phase == AuthPhase.idle) {
         return location == '/welcome' ? null : '/welcome';
       }
-      if (location == '/' || location == '/welcome') {
+      if (location == '/' ||
+          location == '/welcome' ||
+          location == '/auth/phone') {
         return _homeFor(session.role);
       }
       const customerPaths = ['/home', '/menu', '/games', '/profile'];
@@ -89,6 +104,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth',
         builder: (context, state) => const AuthStubScreen(),
+      ),
+      GoRoute(
+        path: '/auth/phone',
+        builder: (context, state) => const PhoneCollectionScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => _CustomerShell(shell: shell),
