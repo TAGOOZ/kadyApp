@@ -44,7 +44,7 @@ class _GuestSaveSheet extends ConsumerWidget {
     final strings = AuthStringsCatalog.of(lang);
 
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.margin20,
           AppSpacing.sm16,
