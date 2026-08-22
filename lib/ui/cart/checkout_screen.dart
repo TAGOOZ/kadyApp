@@ -1,7 +1,12 @@
 // Checkout (issue #003 / FEATURES §3.5): mode-aware details form, totals
 // with the flat delivery fee (no service-charge row in v1, §11.13), real
-// loyalty earn preview and a fixed cash payment line. Submit inserts into
-// public.orders via OrdersRepo with a 30 s client debounce (ADR-0010);
+// loyalty earn preview (#007 rules) and a fixed cash payment line. The
+// loyalty box gains a points-redemption toggle when an affordable reward
+// exists (#007): free drink zeroes the highest-priced drink line, other
+// rewards ride along as a notes marker for staff. Submit inserts into
+// public.orders via OrdersRepo with a 30 s client debounce (ADR-0010),
+// encodes redemptions as a `[REDEEMED:{type}:{cost}]` notes prefix, then
+// credits loyalty exactly once through LoyaltyController.creditProcessedOrder;
 // guests are bounced to the save prompt because RLS forbids their orders.
 import 'dart:async';
 
@@ -15,6 +20,8 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repos/orders_repository.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/cart_controller.dart';
+import '../../domain/loyalty_controller.dart';
+import '../../domain/loyalty_rules.dart';
 import '../auth/guest_save_prompt.dart';
 
 /// Saved delivery addresses for the signed-in customer.
@@ -43,6 +50,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _savingAddress = false;
   bool _submitting = false;
   bool _locked = false;
+  bool _redeemed = false; // loyalty redemption toggle (#007)
   Timer? _unlockTimer;
   String? _validationError;
 
@@ -93,6 +101,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     required List<OrderItemPayload> items,
     required int subtotalEgp,
     required int feeEgp,
+    required int previewPoints,
+    Redemption? redemption,
   }) async {
     if (_submitting || _locked) return;
 
@@ -122,6 +132,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
     setState(() => _validationError = null);
 
+    // Redemption rides as a notes prefix — `[REDEEMED:{type}:{cost}]` — so no
+    // schema change is needed (accepted trade-off, see slice report).
+    final draftNotes = draftState.notes.trim();
+    final notes = [
+      if (redemption != null)
+        '[REDEEMED:${redemption.type.key}:${redemption.costPts}]',
+      if (draftNotes.isNotEmpty) draftNotes,
+    ].join(' ');
+
     final notifier = ref.read(checkoutDraftProvider.notifier);
     final googleUserId = auth.googleUser!.id;
     setState(() => _submitting = true);
@@ -134,12 +153,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             subtotalEgp: subtotalEgp,
             deliveryFeeEgp: feeEgp,
             totalEgp: totalOf(subtotalEgp: subtotalEgp, deliveryFeeEgp: feeEgp),
-            pointsPreview:
-                pointsPreviewFor(subtotalEgp: subtotalEgp, mode: mode),
+            pointsPreview: previewPoints,
             tableArea: candidate.tableArea,
             pickupSlotUtc: timing.isNow ? null : timing.slotUtc,
             addressId: candidate.addressId,
-            notes: draftState.notes.isEmpty ? null : draftState.notes,
+            notes: notes.isEmpty ? null : notes,
+          ));
+      // Real earn path (#007): credit exactly once for the placed order, on
+      // the discounted spend actually collected. Fire-and-forget so the
+      // confirmation navigation is never delayed by the loyalty round-trip.
+      unawaited(ref
+          .read(loyaltyProvider.notifier)
+          .creditProcessedOrder(
+            orderId: placed.id,
+            subtotalEgp: subtotalEgp,
+            dineIn: mode == OrderMode.dineIn,
           ));
       _unlockTimer?.cancel();
       _locked = true; // stay debounced for 30 s even after navigating away
@@ -157,8 +185,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           deliveryFeeEgp: feeEgp,
           totalEgp:
               totalOf(subtotalEgp: subtotalEgp, deliveryFeeEgp: feeEgp),
-          pointsPreview:
-              pointsPreviewFor(subtotalEgp: subtotalEgp, mode: mode),
+          pointsPreview: previewPoints,
         ),
       );
       notifier.reset();
@@ -191,8 +218,40 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final configuredFee =
         ref.watch(deliveryFeeProvider).asData?.value ?? defaultDeliveryFeeEgp;
     final fee = deliveryFeeFor(mode, configuredFeeEgp: configuredFee);
-    final total = totalOf(subtotalEgp: subtotal, deliveryFeeEgp: fee);
-    final points = pointsPreviewFor(subtotalEgp: subtotal, mode: mode);
+
+    // Loyalty (#007): admin-tuned rules (seed constants offline) + live state
+    // drive the redemption toggle, the discounted subtotal and the earn preview.
+    final loyalty = ref.watch(loyaltyProvider);
+    final rulesConfig =
+        ref.watch(loyaltyConfigProvider).asData?.value ?? LoyaltyRulesConfig.fallback;
+    final hasDrinkLine =
+        lines.any((line) => isDrinkCategorySlug(line.item.categorySlug));
+    final redemption = redeemable(
+      loyalty,
+      hasDrinkLine: hasDrinkLine,
+      config: rulesConfig,
+    );
+    final redeemed = _redeemed && redemption != null;
+    final discountEgp =
+        redeemed && redemption.type == RedemptionType.freeDrink
+            ? drinkLineDiscountEgp(lines
+                .map((line) => (
+                      categorySlug: line.item.categorySlug,
+                      lineTotalEgp: line.lineTotalEgp,
+                    ))
+                .toList())
+            : 0;
+    final subtotalAfterRedemption =
+        subtotal - discountEgp > 0 ? subtotal - discountEgp : 0;
+    final total = totalOf(
+        subtotalEgp: subtotalAfterRedemption, deliveryFeeEgp: fee);
+    final points = earnedFor(
+      subtotalEgp: subtotalAfterRedemption,
+      dineIn: mode == OrderMode.dineIn,
+      pointsPer10: rulesConfig.pointsPer10Egp,
+      dineInMultiplier: rulesConfig.dineInMultiplier,
+      doubleWindow: loyalty.doubleNextOrder,
+    );
 
     final items = [
       for (final line in lines)
@@ -280,13 +339,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 const SizedBox(height: AppSpacing.sm16),
                 _TotalsCard(
                   strings: s,
-                  subtotalEgp: subtotal,
+                  subtotalEgp: subtotalAfterRedemption,
                   feeEgp: fee,
                   totalEgp: total,
                   isDelivery: mode == OrderMode.delivery,
                 ),
                 const SizedBox(height: AppSpacing.sm16),
-                _LoyaltyBanner(strings: s, points: points),
+                _LoyaltyBanner(
+                  strings: s,
+                  points: points,
+                  redemption: redemption,
+                  redeemed: redeemed,
+                  remainingPoints: redeemed
+                      ? loyalty.points - redemption.costPts
+                      : loyalty.points,
+                  onToggleRedeem: redemption == null
+                      ? null
+                      : (value) =>
+                          setState(() => _redeemed = value ?? false),
+                ),
                 const SizedBox(height: AppSpacing.sm16),
                 Row(
                   children: [
@@ -307,8 +378,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               s: s,
               mode: mode,
               items: items,
-              subtotalEgp: subtotal,
+              subtotalEgp: subtotalAfterRedemption,
               feeEgp: fee,
+              previewPoints: points,
+              redemption: redeemed ? redemption : null,
             ),
           ),
         ],
@@ -714,29 +787,89 @@ class _TotalsRow extends StatelessWidget {
 }
 
 class _LoyaltyBanner extends StatelessWidget {
-  const _LoyaltyBanner({required this.strings, required this.points});
+  const _LoyaltyBanner({
+    required this.strings,
+    required this.points,
+    required this.redemption,
+    required this.redeemed,
+    required this.remainingPoints,
+    required this.onToggleRedeem,
+  });
 
   final CheckoutStrings strings;
+
+  /// Earn preview for this order (after redemption discount).
   final int points;
+
+  /// Affordable reward, or null when nothing applies (toggle hidden).
+  final Redemption? redemption;
+  final bool redeemed;
+  final int remainingPoints;
+  final ValueChanged<bool?>? onToggleRedeem;
 
   @override
   Widget build(BuildContext context) {
+    final redemption = this.redemption;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm16),
       decoration: BoxDecoration(
         color: AppColors.parchment,
         borderRadius: BorderRadius.circular(AppRadii.md8),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('☕', style: TextStyle(fontSize: 22)),
-          const SizedBox(width: AppSpacing.xs8),
-          Expanded(
-            child: Text(
-              strings.loyaltyBanner(points),
-              style: AppTextStyles.bodySm.copyWith(fontWeight: FontWeight.w600),
-            ),
+          Row(
+            children: [
+              const Text('☕', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: AppSpacing.xs8),
+              Expanded(
+                child: Text(
+                  strings.loyaltyBanner(points),
+                  style:
+                      AppTextStyles.bodySm.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
+          if (redemption != null) ...[
+            const SizedBox(height: AppSpacing.xs8),
+            InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.md8),
+              onTap: onToggleRedeem == null
+                  ? null
+                  : () => onToggleRedeem!(!redeemed),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: redeemed,
+                    onChanged: onToggleRedeem,
+                  ),
+                  Expanded(
+                    child: Text(
+                      strings.redeemToggle(
+                        redemption.costPts,
+                        strings.redemptionLabel(redemption.type),
+                      ),
+                      style: AppTextStyles.bodySm.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (redeemed)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: AppSpacing.lg32),
+                child: Text(
+                  strings.redeemRemaining(remainingPoints),
+                  style: AppTextStyles.bodySm
+                      .copyWith(color: AppColors.outline),
+                ),
+              ),
+          ],
         ],
       ),
     );
