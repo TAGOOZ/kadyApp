@@ -1,3 +1,0 @@
-# Local-only data layer for v1, Supabase later
-
-v1 runs entirely on local/mock repositories (in-memory orders store, shared_preferences persistence) so UI and product flows can be built and demoed offline without backend setup. All data access goes through repository/provider interfaces (`MenuRepository`, `OrdersStore`, auth service, `LoyaltyProvider`) so **Supabase** (chosen over Firebase) can replace the implementations later without touching feature code. Consequences: no cross-device sync in v1 demos (staff/driver/customer share one device via role switcher), OTP is simulated (fixed code) until Supabase phone auth lands.
