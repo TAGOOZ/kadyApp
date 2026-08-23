@@ -145,8 +145,15 @@ class SupabaseAuthGateway implements AuthGateway {
   Future<void> signOut() => _client()!.signOut();
 }
 
-String oauthRedirectTarget() =>
-    kIsWeb ? Uri.base.origin : 'kadyapp://login-callback';
+/// Web goes through the CF Worker so we never use localhost as Site URL.
+/// Set --dart-define=WORKER_CALLBACK_URL=https://kady-api.example.workers.dev/auth/callback?next=/
+String oauthRedirectTarget() => kIsWeb
+    ? const String.fromEnvironment(
+        'WORKER_CALLBACK_URL',
+        defaultValue:
+            'https://kady-api.mostafatageldeen588.workers.dev/auth/callback?next=/',
+      )
+    : 'kadyapp://login-callback';
 
 final authGatewayProvider =
     Provider<AuthGateway>((ref) => SupabaseAuthGateway());

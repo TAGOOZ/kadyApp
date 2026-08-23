@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kady_app/data/repos/customers_repository.dart';
@@ -75,10 +74,6 @@ class _NeverRepo implements CustomersRepo {
 }
 
 void main() {
-  setUpAll(() {
-    GoogleFonts.config.allowRuntimeFetching = false;
-  });
-
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });
