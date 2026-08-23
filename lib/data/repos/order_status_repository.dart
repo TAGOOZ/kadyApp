@@ -9,6 +9,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/supabase/supabase_config.dart';
 import '../../domain/order_status_flow.dart';
 
+/// One-shot history fetch cap (§11.27 bounded reads): the active list screen
+/// is UI-capped anyway, so `/orders` history never downloads more than this
+/// newest slice.
+const ownOrdersFetchLimit = 50;
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -122,7 +127,8 @@ class SupabaseOrderStatusRepo implements OrderStatusRepo {
           'total, assigned_driver, created_at',
         )
         .eq('google_user_id', googleUserId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .limit(ownOrdersFetchLimit);
     return [
       for (final row in List<Map<String, dynamic>>.from(rows as List))
         CustomerOrder.fromRow(row),

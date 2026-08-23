@@ -61,6 +61,10 @@ class CheckInInput {
 const stampMinSpendDefaultEgp = 50; // §4/§11.8 — admin-editable fallback.
 const fallbackAvgPrepMinutes = 8;
 
+/// Board page size shared by the realtime feed and the phone→name input
+/// page (§11.27 bounded reads — never an unbounded table scan).
+const staffBoardPageLimit = 60;
+
 /// One flattened line of the `orders.items` jsonb snapshot.
 class OrderItemLine {
   const OrderItemLine({required this.name, required this.qty});
@@ -236,7 +240,16 @@ String formatPickupSlotCairo(DateTime utcInstant) {
 abstract class StaffOrdersDb {
   Stream<List<Map<String, dynamic>>> watchOrders();
 
-  Future<List<Map<String, dynamic>>> fetchCustomers();
+  /// `orders.phone` column of the newest board page (≤ [staffBoardPageLimit]
+  /// rows) — bounded input for the name-map fetch (audit #5: never pull the
+  /// whole `customers` table).
+  Future<List<Map<String, dynamic>>> fetchPagePhones();
+
+  /// `customers where phone in [phones]` (PostgREST `in.(...)`) — targeted
+  /// name lookup for exactly the phones on the board page.
+  Future<List<Map<String, dynamic>>> fetchCustomersByPhones(
+    Set<String> phones,
+  );
 
   Future<List<Map<String, dynamic>>> fetchAddresses(Set<String> ids);
 
@@ -279,7 +292,7 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
         .from('orders')
         .stream(primaryKey: ['id'])
         .order('created_at', ascending: false)
-        .limit(60)
+        .limit(staffBoardPageLimit)
         .map((rows) => [
               for (final row in rows)
                 Map<String, dynamic>.from(row as Map),
@@ -287,10 +300,29 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchCustomers() async {
+  Future<List<Map<String, dynamic>>> fetchPagePhones() async {
     try {
-      final rows =
-          await _client.from('customers').select('phone, name');
+      final rows = await _client //
+          .from('orders')
+          .select('phone')
+          .order('created_at', ascending: false)
+          .limit(staffBoardPageLimit);
+      return List<Map<String, dynamic>>.from(rows as List);
+    } on PostgrestException catch (error) {
+      return rethrowAsTyped(error);
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchCustomersByPhones(
+    Set<String> phones,
+  ) async {
+    if (phones.isEmpty) return const [];
+    try {
+      final rows = await _client //
+          .from('customers')
+          .select('phone, name')
+          .inFilter('phone', phones.toList());
       return List<Map<String, dynamic>>.from(rows as List);
     } on PostgrestException catch (error) {
       return rethrowAsTyped(error);
@@ -417,7 +449,9 @@ abstract class StaffOrdersRepo {
   Stream<List<StaffOrder>> streamAll();
 
   /// Phone → Customer name map (staff read-all policy); missing phones are
-  /// simply absent and render as the phone itself.
+  /// simply absent and render as the phone itself. Bounded (audit #5): the
+  /// input is the distinct phones off the ≤60-row board page, fetched via
+  /// `in.(...)` — the full `customers` table is never downloaded.
   Future<Map<String, String>> fetchCustomerNames();
 
   /// Delivery target text for an `orders.address_id`.
@@ -457,7 +491,12 @@ class SupabaseStaffOrdersRepo implements StaffOrdersRepo {
 
   @override
   Future<Map<String, String>> fetchCustomerNames() async {
-    final rows = await _db.fetchCustomers();
+    final phoneRows = await _db.fetchPagePhones();
+    final phones = <String>{
+      for (final row in phoneRows)
+        if (row['phone'] is String) row['phone'] as String,
+    };
+    final rows = await _db.fetchCustomersByPhones(phones);
     return {
       for (final row in rows)
         if (row['phone'] is String && row['name'] is String)

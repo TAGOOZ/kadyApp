@@ -21,6 +21,10 @@ class FakeAdminDb implements AdminDbClient {
 
   /// Scripted SELECT results keyed by table name.
   final Map<String, List<Map<String, dynamic>>> tables;
+
+  /// Scripted head-count results keyed by table name; falls back to
+  /// filtering [tables] client-side.
+  final Map<String, int> scriptedCounts = {};
   final List<RecordedOp> ops = [];
   bool denyReads = false;
 
@@ -42,6 +46,40 @@ class FakeAdminDb implements AdminDbClient {
       if (gte != null) 'gte': '${gte.column}@${gte.value}',
     }));
     return [for (final row in tables[table] ?? const []) Map.of(row)];
+  }
+
+  @override
+  Future<int> count(
+    String table, {
+    List<({String column, Object value})> eq = const [],
+    ({String column, Object value})? gte,
+  }) async {
+    if (denyReads) _denied();
+    ops.add(RecordedOp('count', table, {
+      if (gte != null) 'gte': '${gte.column}@${gte.value}',
+      'eq': [for (final f in eq) '${f.column}@${f.value}'],
+    }));
+    final scripted = scriptedCounts[table];
+    if (scripted != null) return scripted;
+    return _filterRows(tables[table] ?? const [], eq: eq, gte: gte).length;
+  }
+
+  static List<Map<String, dynamic>> _filterRows(
+    List<Map<String, dynamic>> rows, {
+    required List<({String column, Object value})> eq,
+    required ({String column, Object value})? gte,
+  }) {
+    DateTime? asDate(Object? v) =>
+        v is DateTime ? v : v is String ? DateTime.tryParse(v) : null;
+    return [
+      for (final row in rows)
+        if (eq.every((f) => row[f.column] == f.value))
+          if (gte == null ||
+              (asDate(row[gte.column]) != null &&
+                  asDate(gte.value) != null &&
+                  !asDate(row[gte.column])!.isBefore(asDate(gte.value)!)))
+            row
+    ];
   }
 
   @override
@@ -94,53 +132,101 @@ class FakeAdminDb implements AdminDbClient {
 }
 
 void main() {
-  group('computeKpis', () {
-    test('ordersToday, distinct-phone reach and mean basket', () {
-      final now = DateTime(2026, 8, 23, 18, 30);
-      final rows = [
-        // Today — phone A.
-        {
-          'phone': '01000000001',
-          'subtotal': 50,
-          'total': null,
-          'created_at': '2026-08-23T09:00:00Z',
-        },
-        // Yesterday — phone A again (still one distinct Customer).
-        {
-          'phone': '01000000001',
-          'subtotal': 70,
-          'total': 85,
-          'created_at': '2026-08-22T20:00:00Z',
-        },
-        // Today — phone B.
-        {
-          'phone': '01000000002',
-          'subtotal': 100,
-          'total': 115,
-          'created_at': '2026-08-23T11:00:00Z',
-        },
-        // Guest order without phone.
-        {
-          'phone': null,
-          'subtotal': 30,
-          'total': 45,
-          'created_at': '2026-08-23T12:00:00Z',
-        },
-      ];
+  final kpiRows = [
+    // Today — phone A.
+    {
+      'phone': '01000000001',
+      'subtotal': 50,
+      'total': null,
+      'created_at': '2026-08-23T09:00:00Z',
+    },
+    // Yesterday — phone A again (still one distinct Customer).
+    {
+      'phone': '01000000001',
+      'subtotal': 70,
+      'total': 85,
+      'created_at': '2026-08-22T20:00:00Z',
+    },
+    // Today — phone B.
+    {
+      'phone': '01000000002',
+      'subtotal': 100,
+      'total': 115,
+      'created_at': '2026-08-23T11:00:00Z',
+    },
+    // Guest order without phone.
+    {
+      'phone': null,
+      'subtotal': 30,
+      'total': 45,
+      'created_at': '2026-08-23T12:00:00Z',
+    },
+  ];
 
-      final kpis = computeKpis(rows, now);
+  group('KPI pure math over bounded rows', () {
+    test('distinct-phone reach ignores guests and duplicates', () {
+      expect(distinctPhones(kpiRows), 2);
+      expect(distinctPhones(const []), 0);
+    });
+
+    test('mean basket = total ?? subtotal across every priced row', () {
+      // Basket = total ?? subtotal over every priced row: 50 + 85 + 115 + 45.
+      expect(averageBasketEgp(kpiRows), closeTo(295 / 4, 0.001));
+      expect(averageBasketEgp(const []), 0);
+    });
+  });
+
+  group('AdminKpiRepository.fetchKpis — bounded probes (audit #6)', () {
+    test('today rides a head-count; reach + basket are 30-day selects',
+        () async {
+      final db = FakeAdminDb(tables: {'orders': kpiRows})
+        ..scriptedCounts['orders'] = 3;
+      final now = DateTime(2026, 8, 23, 18, 30);
+
+      final kpis = await AdminKpiRepository(db).fetchKpis(now);
 
       expect(kpis.ordersToday, 3);
       expect(kpis.activeCustomers, 2);
-      // Basket = total ?? subtotal over every priced row: 50 + 85 + 115 + 45.
       expect(kpis.avgBasketEgp, closeTo(295 / 4, 0.001));
+
+      // Exactly one head-count probe, gte-bounded to the local day start.
+      final counts = db.where('count', 'orders').toList();
+      expect(counts, hasLength(1));
+      expect(counts.single.values['gte'], startsWith('created_at@2026-08-2'));
+
+      // Two windowed selects with column-bounded payloads (no `*`).
+      final selects = db.where('select', 'orders').toList();
+      expect(selects, hasLength(2));
+      expect(selects.map((s) => s.values['columns']), contains('phone'));
+      expect(
+          selects.map((s) => s.values['columns']),
+          contains('subtotal, total'));
+      for (final s in selects) {
+        expect(s.values['columns'], isNot('*'));
+        expect(s.values['gte'], startsWith('created_at@2026-07-'));
+      }
     });
 
-    test('empty table degrades to zeros', () {
-      final kpis = computeKpis(const [], DateTime(2026, 8, 23));
+    test('empty window degrades to zeros', () async {
+      final db = FakeAdminDb()..scriptedCounts['orders'] = 0;
+
+      final kpis =
+          await AdminKpiRepository(db).fetchKpis(DateTime(2026, 8, 23));
+
       expect(kpis.ordersToday, 0);
       expect(kpis.activeCustomers, 0);
       expect(kpis.avgBasketEgp, 0);
+    });
+
+    test('unscripted count derives from seeded rows via the day-start filter',
+        () async {
+      final db = FakeAdminDb(tables: {'orders': kpiRows});
+
+      final kpis =
+          await AdminKpiRepository(db).fetchKpis(DateTime(2026, 8, 23));
+
+      // Only the three same-day rows count toward orders-today.
+      expect(kpis.ordersToday, 3);
     });
   });
 

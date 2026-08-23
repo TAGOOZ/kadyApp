@@ -268,6 +268,8 @@ abstract class CustomerLookupDb {
   /// Last [limit] orders of one phone, newest first.
   Future<List<Map<String, dynamic>>> fetchRecentOrders(String phone, int limit);
 
+  /// Visit count via a server-side HEAD `count=exact` probe (audit #7) —
+  /// no rows transferred.
   Future<int> fetchVisitsCount(String phone);
 
   Future<void> updateLoyalty(String phone, Map<String, dynamic> patch);
@@ -359,9 +361,12 @@ class SupabaseCustomerLookupDb implements CustomerLookupDb {
   @override
   Future<int> fetchVisitsCount(String phone) async {
     try {
-      final rows =
-          await _client.from('visits').select('id').eq('phone', phone);
-      return (rows as List).length;
+      // HEAD + `Prefer: count=exact` — the count is computed server-side and
+      // no visit rows ever leave the db (audit #7: no id-column downloads).
+      return await _client //
+          .from('visits')
+          .count(CountOption.exact)
+          .eq('phone', phone);
     } on PostgrestException catch (error) {
       return rethrowAsTyped(error);
     }

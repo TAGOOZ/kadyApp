@@ -24,6 +24,10 @@ class _FakeCustomerLookupDb implements CustomerLookupDb {
   Object? loyaltyUpdateError;
   Object? stampUpdateError;
 
+  // Visit-count probe recording (audit #7).
+  String? visitsCountArg;
+  int visitsCountResult = 0;
+
   @override
   Future<List<Map<String, dynamic>>> searchCustomers(
     String phoneLike,
@@ -52,7 +56,10 @@ class _FakeCustomerLookupDb implements CustomerLookupDb {
   ) async => const [];
 
   @override
-  Future<int> fetchVisitsCount(String phone) async => 0;
+  Future<int> fetchVisitsCount(String phone) async {
+    visitsCountArg = phone;
+    return visitsCountResult;
+  }
 
   @override
   Future<void> updateLoyalty(
@@ -291,6 +298,20 @@ void main() {
       );
       expect(result.loyaltyPending, isFalse);
       expect(db.stampWrites, isEmpty);
+    });
+  });
+
+  group('loadProfile — visits count probe (audit #7)', () {
+    test('profile carries the seam-provided count; phone is passed through',
+        () async {
+      final db = _FakeCustomerLookupDb()..visitsCountResult = 12;
+      final repo = SupabaseCustomerLookupRepo(db);
+
+      final profile = await repo.loadProfile('+201001234567');
+
+      expect(db.visitsCountArg, '+201001234567');
+      expect(profile.visits, 12);
+      expect(profile.phone, '+201001234567');
     });
   });
 

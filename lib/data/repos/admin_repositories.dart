@@ -46,6 +46,14 @@ abstract interface class AdminDbClient {
     int? limit,
   });
 
+  /// Server-side row count (`HEAD` + `Prefer: count=exact`) honoring the
+  /// eq/gte filters — zero rows transferred (audit #6).
+  Future<int> count(
+    String table, {
+    List<({String column, Object value})> eq = const [],
+    ({String column, Object value})? gte,
+  });
+
   Future<void> insert(String table, Map<String, dynamic> values);
 
   Future<void> update(
@@ -110,6 +118,26 @@ class SupabaseAdminDb implements AdminDbClient {
         for (final row in (rows as List).cast<Map>())
           Map<String, dynamic>.from(row),
       ];
+    } catch (e) {
+      _mapError(e);
+    }
+  }
+
+  @override
+  Future<int> count(
+    String table, {
+    List<({String column, Object value})> eq = const [],
+    ({String column, Object value})? gte,
+  }) async {
+    try {
+      var filtered = _client.from(table).count(CountOption.exact);
+      for (final f in eq) {
+        filtered = filtered.eq(f.column, f.value);
+      }
+      if (gte != null) {
+        return await filtered.gte(gte.column, gte.value);
+      }
+      return await filtered;
     } catch (e) {
       _mapError(e);
     }
@@ -184,6 +212,18 @@ Future<List<Map<String, dynamic>>> _readOrEmpty(
     rethrow;
   } catch (_) {
     return const [];
+  }
+}
+
+/// Same degradation policy for head-count probes: ordinary failures → 0,
+/// access denial rethrown so the lock panel shows.
+Future<int> _readCountOrZero(Future<int> Function() op) async {
+  try {
+    return await op();
+  } on AdminAccessDeniedException {
+    rethrow;
+  } catch (_) {
+    return 0;
   }
 }
 
@@ -557,7 +597,7 @@ class RulesRepository {
 }
 
 // ---------------------------------------------------------------------------
-// KPI aggregates (computed client-side from an admin-wide orders select)
+// KPI aggregates (bounded probes — audit #6: never an all-time table scan)
 // ---------------------------------------------------------------------------
 
 class AdminKpis {
@@ -572,29 +612,29 @@ class AdminKpis {
   final double avgBasketEgp;
 }
 
-/// Pure math over raw order rows — unit-tested without any db.
-AdminKpis computeKpis(List<Map<String, dynamic>> rows, DateTime now) {
-  final dayStart = DateTime(now.year, now.month, now.day);
-  var ordersToday = 0;
-  final phones = <String>{};
+/// Pure math over bounded rows — unit-tested without any db.
+
+/// Distinct Customer phones across [rows] (non-empty strings only).
+int distinctPhones(List<Map<String, dynamic>> rows) {
+  return {
+    for (final row in rows)
+      if (row['phone'] is String && (row['phone'] as String).isNotEmpty)
+        row['phone'] as String,
+  }.length;
+}
+
+/// Rolling mean of `total ?? subtotal` over [rows]; 0 when nothing is priced.
+double averageBasketEgp(List<Map<String, dynamic>> rows) {
   var basketSum = 0;
   var basketCount = 0;
   for (final row in rows) {
-    final created = parseAdminTimestamp(row['created_at']);
-    if (created != null && !created.isBefore(dayStart)) ordersToday++;
-    final phone = row['phone'];
-    if (phone is String && phone.isNotEmpty) phones.add(phone);
     final amount = row['total'] ?? row['subtotal'];
     if (amount is num) {
       basketSum += amount.toInt();
       basketCount++;
     }
   }
-  return AdminKpis(
-    ordersToday: ordersToday,
-    activeCustomers: phones.length,
-    avgBasketEgp: basketCount == 0 ? 0 : basketSum / basketCount,
-  );
+  return basketCount == 0 ? 0 : basketSum / basketCount;
 }
 
 class AdminKpiRepository {
@@ -602,16 +642,43 @@ class AdminKpiRepository {
 
   final AdminDbClient _db;
 
-  /// All-time orders probe (RLS lets admins read every Customer's rows):
-  /// orders-today count, distinct-phone reach and mean basket.
+  /// Bounded KPI probes (audit #6): orders-today via a server-side HEAD
+  /// `count=exact` request; active Customers = distinct phones over a
+  /// phone-column-only select of the last 30 days (PostgREST cannot count
+  /// DISTINCT head-only — documented trade-off, payload stays one column);
+  /// mean basket over the same 30-day window. Mode counts in the reports
+  /// tab were already windowed by [fetchRecentOrders].
   Future<AdminKpis> fetchKpis(DateTime now) async {
-    final rows = await _readOrEmpty(
-      () => _db.select(
+    final dayStartUtc =
+        DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+    final monthCutoff =
+        now.subtract(const Duration(days: 30)).toUtc().toIso8601String();
+
+    final ordersToday = await _readCountOrZero(
+      () => _db.count(
         'orders',
-        columns: 'phone, subtotal, total, created_at',
+        gte: (column: 'created_at', value: dayStartUtc),
       ),
     );
-    return computeKpis(rows, now);
+    final phoneRows = await _readOrEmpty(
+      () => _db.select(
+        'orders',
+        columns: 'phone',
+        gte: (column: 'created_at', value: monthCutoff),
+      ),
+    );
+    final basketRows = await _readOrEmpty(
+      () => _db.select(
+        'orders',
+        columns: 'subtotal, total',
+        gte: (column: 'created_at', value: monthCutoff),
+      ),
+    );
+    return AdminKpis(
+      ordersToday: ordersToday,
+      activeCustomers: distinctPhones(phoneRows),
+      avgBasketEgp: averageBasketEgp(basketRows),
+    );
   }
 
   /// Last-30-days rows feeding the reports tab (mode share + top item).
