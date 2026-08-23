@@ -36,7 +36,7 @@ class OrderConfirmationScreen extends ConsumerWidget {
     // from the customer's own orders so tracking deep-links correctly.
     final googleUserId = ref.watch(authControllerProvider).googleUser?.id;
     final ownOrders =
-        googleUserId == null ? null : ref.watch(ownOrdersOnceProvider(googleUserId)).valueOrNull;
+        googleUserId == null ? null : ref.watch(ownOrdersOnceProvider(googleUserId)).value;
     final trackedOrderId = ownOrders
         ?.where((order) => order.displayNumber == args.displayNumber)
         .map((order) => order.id)
