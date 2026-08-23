@@ -223,7 +223,8 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       }
 
       final config = LoyaltyRulesConfig.fromMap(await loadConfig());
-      final doubleWindow = base.doubleNextOrder;
+      final doubleWindow = base.doubleNextOrder ||
+          (await loadConfig())['double_window_active'] == true;
       final earned = earnedFor(
         subtotalEgp: subtotalEgp,
         dineIn: dineIn,
