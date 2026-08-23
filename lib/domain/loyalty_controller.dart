@@ -195,6 +195,7 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     required String orderId,
     required int subtotalEgp,
     required bool dineIn,
+    Redemption? redemption,
   }) async {
     try {
       var base = state;
@@ -232,8 +233,9 @@ class LoyaltyController extends Notifier<LoyaltyState> {
         dineInMultiplier: config.dineInMultiplier,
         doubleWindow: doubleWindow,
       );
-      var next = creditOrder(
+      var next = creditRedeemedOrder(
         base,
+        redemption: redemption,
         earned: earned,
         subtotalEgp: subtotalEgp,
         stampMinSpendEgp: config.stampMinSpendEgp,

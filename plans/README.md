@@ -19,7 +19,7 @@ Every plan's done criteria build on these two gates.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001 | Redeemed Points actually deducted at checkout (`applyRedemption` wired through crediting) | P1 | M | — | TODO |
+| 001 | Redeemed Points actually deducted at checkout (`applyRedemption` wired through crediting) | P1 | M | — | DONE |
 | 002 | Stamp-card math unified behind one pure rule (3 divergent implementations → 1) | P2 | M | none (re-check drift vs 001 if landed after it; both touch `loyalty_rules.dart`) | TODO |
 | 003 | Banner carousel reduce-motion honored after touch + data-driven page count | P2 | S | — | TODO |
 | 004 | Order-status surfaces follow the language toggle (ar/en routing) | P2 | S | — | TODO |

@@ -429,6 +429,61 @@ void main() {
     });
   });
 
+  group('creditRedeemedOrder — deduction rides the credit', () {
+    test('free drink: 200 pts spent, earn added on discounted spend', () {
+      // 15 EGP discounted spend earns 2 pts (15×1/10=1.5 → round half-up 2)
+      // but sits below the 50 EGP stamp threshold → no stamp movement.
+      final s = creditRedeemedOrder(
+        _state(points: 250, lifetime: 250),
+        redemption: const Redemption(
+            type: RedemptionType.freeDrink, costPts: 200),
+        earned: 2,
+        subtotalEgp: 15,
+      );
+      expect(s.points, 52); // 250 − 200 spent + 2 earned
+      expect(
+        s.lifetimePoints,
+        252, // lifetime grows by EARN only — applyRedemption touches points
+      ); // only; the redemption cost never spends down lifetime/tier.
+    });
+
+    test('null redemption behaves exactly like creditOrder', () {
+      final base = _state(points: 30, lifetime: 100, stamps: 9);
+      final combined = creditRedeemedOrder(
+        base,
+        redemption: null,
+        earned: 5,
+        subtotalEgp: 55, // ≥ 50 threshold → qualifies for a stamp
+      );
+      final plain = creditOrder(base, earned: 5, subtotalEgp: 55);
+      expect(combined.points, plain.points);
+      expect(combined.lifetimePoints, plain.lifetimePoints);
+      expect(combined.stamps, plain.stamps);
+      expect(combined.completedCards, plain.completedCards);
+      expect(combined.spinnerTokens, plain.spinnerTokens);
+      expect(combined.vouchers, plain.vouchers);
+      expect(combined.processedOrders, plain.processedOrders);
+      // Sanity: the qualifying visit filled the 10th stamp slot in BOTH
+      // transitions; stamp 10 is NOT an every-3rd-stamp grant (10 % 3 ≠ 0),
+      // so spinner tokens stay put.
+      expect(combined.stamps, 10);
+      expect(combined.spinnerTokens, base.spinnerTokens);
+    });
+
+    test('balance floors at 0 when cost exceeds balance', () {
+      // applyRedemption clamps before crediting: max(0, 30−150)=0, then +3.
+      final s = creditRedeemedOrder(
+        _state(points: 30),
+        redemption:
+            const Redemption(type: RedemptionType.freeSnack, costPts: 150),
+        earned: 3,
+        subtotalEgp: 60,
+      );
+      expect(s.points, 3); // floored at 0, then earn applied
+      expect(s.lifetimePoints, 3);
+    });
+  });
+
   group('drinkLineDiscountEgp', () {
     test('highest-priced drink LINE wins (unit × qty)', () {
       final discount = drinkLineDiscountEgp([

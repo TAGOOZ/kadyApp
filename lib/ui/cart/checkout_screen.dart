@@ -168,6 +168,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             orderId: placed.id,
             subtotalEgp: subtotalEgp,
             dineIn: mode == OrderMode.dineIn,
+            redemption: redemption,
           ));
       _unlockTimer?.cancel();
       _locked = true; // stay debounced for 30 s even after navigating away
