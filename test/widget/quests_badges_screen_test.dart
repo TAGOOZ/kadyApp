@@ -78,7 +78,7 @@ void main() {
 
   testWidgets('renders both tabs and reflects fake feed progress (٢/٣)',
       (tester) async {
-    final now = DateTime.now();
+    final now = DateTime(2026, 8, 15, 12);
     final feed = _FakeQuestFeed(
       orders: [
         _order('o1', 'pickup', now.subtract(const Duration(days: 2)),

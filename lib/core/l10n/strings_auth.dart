@@ -6,6 +6,11 @@ class AuthStrings {
     required this.welcomeGoogleCta,
     required this.welcomeSkip,
     required this.googleUnavailable,
+    required this.welcomeGreeting,
+    required this.welcomeHeadline,
+    required this.benefitPoints,
+    required this.benefitFreeCup,
+    required this.benefitGames,
     required this.phoneTitle,
     required this.phoneSubtitle,
     required this.phoneLabel,
@@ -32,6 +37,11 @@ class AuthStrings {
   final String welcomeGoogleCta;
   final String welcomeSkip;
   final String googleUnavailable;
+  final String welcomeGreeting;
+  final String welcomeHeadline;
+  final String benefitPoints;
+  final String benefitFreeCup;
+  final String benefitGames;
   final String phoneTitle;
   final String phoneSubtitle;
   final String phoneLabel;
@@ -64,6 +74,11 @@ abstract final class AuthStringsCatalog {
       welcomeGoogleCta: 'المتابعة بحساب Google',
       welcomeSkip: 'تخطي الآن',
       googleUnavailable: 'تسجيل الدخول بجوجل غير مفعّل بعد',
+      welcomeGreeting: 'أهلاً وسهلاً بك في تطبيقنا!',
+      welcomeHeadline: 'اطلب أسرع، واكسب نقاط ومكافآت',
+      benefitPoints: 'نقاط على كل طلب',
+      benefitFreeCup: 'أكواب مجانية',
+      benefitGames: 'ألعاب وجوائز',
       phoneTitle: 'إكمال التسجيل',
       phoneSubtitle: 'اربط نقاطك برقم موبايلك عشان تقدر تستخدمها في الفرع',
       phoneLabel: 'رقم الموبايل',
@@ -91,6 +106,11 @@ abstract final class AuthStringsCatalog {
       welcomeGoogleCta: 'Continue with Google',
       welcomeSkip: 'Skip for now',
       googleUnavailable: 'Google sign-in isn\'t enabled yet',
+      welcomeGreeting: 'Welcome — great to have you here!',
+      welcomeHeadline: 'Order faster, earn points & rewards',
+      benefitPoints: 'Points every order',
+      benefitFreeCup: 'Free drinks',
+      benefitGames: 'Games & prizes',
       phoneTitle: 'Finish signing up',
       phoneSubtitle: 'Link your loyalty points to your phone number',
       phoneLabel: 'Mobile number',

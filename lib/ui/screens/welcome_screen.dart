@@ -37,186 +37,215 @@ class WelcomeScreen extends ConsumerWidget {
     final auth = ref.watch(authControllerProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.parchment,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.margin20,
-                  AppSpacing.md24,
-                  AppSpacing.margin20,
-                  AppSpacing.sm16,
+      backgroundColor: AppColors.coffeeBean,
+      body: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/menu_hero.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppColors.parchment,
+                          AppColors.primaryFixedTint,
+                        ],
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.local_cafe,
+                        size: 64,
+                        color: AppColors.coffeeBean,
+                      ),
+                    ),
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    // Hero — Stitch-inspired rounded coffee image with soft shadow
-                    GestureDetector(
-                      onLongPress: () => showRoleSwitcher(context),
-                      child: Container(
-                        height: 220,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(AppRadii.xl24),
-                          boxShadow: AppShadows.coffeeShadows(
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        AppColors.coffeeBean.withValues(alpha: 0.55),
+                        AppColors.coffeeBean.withValues(alpha: 0.75),
+                      ],
+                      stops: const [0.4, 0.8, 1.0],
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  bottom: false,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.margin20,
+                        AppSpacing.md24,
+                        AppSpacing.margin20,
+                        AppSpacing.lg32,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onLongPress: () => showRoleSwitcher(context),
+                            child: const AppLogo(size: 72),
                           ),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Image.asset(
-                              'assets/images/menu_hero.png',
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                decoration: const BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      AppColors.parchment,
-                                      AppColors.primaryFixedTint,
-                                    ],
-                                  ),
-                                ),
-                                child: const Center(
-                                  child: Text('☕', style: TextStyle(fontSize: 64)),
-                                ),
+                          const SizedBox(height: AppSpacing.sm16),
+                          GestureDetector(
+                            onLongPress: () => showRoleSwitcher(context),
+                            child: Text(
+                              strings.appName,
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.headlineLg.copyWith(
+                                color: AppColors.paperWhite,
                               ),
                             ),
-                            // Subtle parchment vignette
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    AppColors.coffeeBean.withValues(alpha: 0.08),
-                                  ],
-                                ),
-                              ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs8),
+                          Text(
+                            authStrings.welcomeGreeting,
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.titleSm.copyWith(
+                              color: AppColors.paperWhite.withValues(alpha: 0.92),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs8),
+                          Text(
+                            strings.tagline,
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.paperWhite.withValues(alpha: 0.78),
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.md24),
-                    GestureDetector(
-                      onLongPress: () => showRoleSwitcher(context),
-                      child: const AppLogo(size: 72),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppColors.paperWhite,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppRadii.xl24),
+              ),
+              boxShadow: AppShadows.coffeeShadows(
+                offset: const Offset(0, -6),
+                blurRadius: 18,
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.margin20,
+              AppSpacing.md24,
+              AppSpacing.margin20,
+              AppSpacing.lg32,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  authStrings.welcomeHeadline,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.titleSm.copyWith(
+                    color: AppColors.coffeeBean,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _Benefit(
+                      icon: Icons.stars_rounded,
+                      label: authStrings.benefitPoints,
                     ),
-                    const SizedBox(height: AppSpacing.sm16),
-                    GestureDetector(
-                      onLongPress: () => showRoleSwitcher(context),
-                      child: Text(
-                        strings.appName,
-                        style: AppTextStyles.headlineLg.copyWith(
-                          color: AppColors.coffeeBean,
-                        ),
-                      ),
+                    _Benefit(
+                      icon: Icons.local_cafe_rounded,
+                      label: authStrings.benefitFreeCup,
                     ),
-                    const SizedBox(height: AppSpacing.xs8),
-                    Text(
-                      'أهلاً وسهلاً بك في تطبيقنا!',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.titleMd.copyWith(
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs8),
-                    Text(
-                      strings.tagline,
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.textMuted,
-                        height: 1.5,
-                      ),
+                    _Benefit(
+                      icon: Icons.sports_esports_rounded,
+                      label: authStrings.benefitGames,
                     ),
                   ],
                 ),
-              ),
-            ),
-            // Bottom card — Stitch rounded-top sheet
-            Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: AppColors.paperWhite,
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(AppRadii.xl24),
+                const SizedBox(height: AppSpacing.md24),
+                SizedBox(
+                  width: double.infinity,
+                  child: _GoogleButton(
+                    busy: auth.busy,
+                    label: authStrings.welcomeGoogleCta,
+                    onPressed: () => _signInWithGoogle(context, ref, authStrings),
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x144B2C20),
-                    offset: Offset(0, -4),
-                    blurRadius: 16,
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.margin20,
-                AppSpacing.md24,
-                AppSpacing.margin20,
-                AppSpacing.lg32,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Handle
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.parchment,
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md24),
-                  // Google — primary, branded with G logo
-                  SizedBox(
-                    width: double.infinity,
-                    child: _GoogleButton(
-                      busy: auth.busy,
-                      label: authStrings.welcomeGoogleCta,
-                      onPressed: () => _signInWithGoogle(context, ref, authStrings),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs8),
-                  TextButton(
-                    onPressed: () => ref
-                        .read(authControllerProvider.notifier)
-                        .continueAsGuest(),
-                    child: Text(authStrings.welcomeSkip),
-                  ),
-                  const SizedBox(height: AppSpacing.xs8),
-                  TextButton(
-                    onPressed: () => ref
-                        .read(sessionControllerProvider.notifier)
-                        .markOnboarded(),
-                    child: Text(
-                      strings.demoButton,
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs8),
-                  Text(
-                    strings.welcomeHint,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.labelMd.copyWith(
+                const SizedBox(height: AppSpacing.xs8),
+                TextButton(
+                  onPressed: () => ref
+                      .read(authControllerProvider.notifier)
+                      .continueAsGuest(),
+                  child: Text(authStrings.welcomeSkip),
+                ),
+                TextButton(
+                  onPressed: () => ref
+                      .read(sessionControllerProvider.notifier)
+                      .markOnboarded(),
+                  child: Text(
+                    strings.demoButton,
+                    style: AppTextStyles.bodySm.copyWith(
                       color: AppColors.textMuted,
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: AppSpacing.xs8),
+                Text(
+                  strings.welcomeHint,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.labelMd.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Benefit extends StatelessWidget {
+  const _Benefit({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 22, color: AppColors.primary),
+          const SizedBox(height: AppSpacing.xs8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.labelMd.copyWith(
+              color: AppColors.textMuted,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -238,7 +267,7 @@ class _GoogleButton extends StatelessWidget {
     return FilledButton(
       onPressed: busy ? null : onPressed,
       style: FilledButton.styleFrom(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.paperWhite,
         foregroundColor: AppColors.coffeeBean,
         side: BorderSide(color: AppColors.outline.withValues(alpha: 0.25)),
         padding: const EdgeInsets.symmetric(
@@ -259,22 +288,15 @@ class _GoogleButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Google G — inline SVG-free colored text
-                Container(
+                Image.asset(
+                  'assets/images/google_g.png',
                   width: 20,
                   height: 20,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Text(
-                    'G',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF4285F4),
-                    ),
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const Icon(
+                    Icons.g_mobiledata,
+                    size: 20,
+                    color: AppColors.coffeeBean,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs8),
