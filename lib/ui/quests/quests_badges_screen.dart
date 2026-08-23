@@ -66,7 +66,7 @@ class _QuestsBadgesScreenState extends ConsumerState<QuestsBadgesScreen> {
   /// Evaluates badge rules against the latest snapshot; persists newly
   /// earned badges and fires the one-time celebration banner.
   void _syncBadges() {
-    final snapshot = ref.read(questSnapshotProvider).valueOrNull;
+    final snapshot = ref.read(questSnapshotProvider).value;
     if (!_storeLoaded || snapshot == null || !mounted) return;
 
     final loyalty = ref.read(loyaltyProvider);
@@ -164,7 +164,7 @@ class _QuestsBadgesScreenState extends ConsumerState<QuestsBadgesScreen> {
   }
 
   QuestProgress _progressOf(QuestId id) {
-    final snapshot = ref.read(questSnapshotProvider).valueOrNull;
+    final snapshot = ref.read(questSnapshotProvider).value;
     return evaluate(
       id,
       orders: snapshot?.orders ?? const [],
