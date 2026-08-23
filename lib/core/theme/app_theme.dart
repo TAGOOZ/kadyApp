@@ -173,14 +173,14 @@ ThemeData buildHeritageHearth(Brightness brightness) {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: AppColors.background,
+    scaffoldBackgroundColor: AppColors.parchment,
     textTheme: _heritageHearthTextTheme(),
     appBarTheme: AppBarTheme(
-      backgroundColor: AppColors.background,
-      foregroundColor: AppColors.primary,
+      backgroundColor: AppColors.primaryContainer,
+      foregroundColor: AppColors.paperWhite,
       elevation: 0,
       centerTitle: true,
-      titleTextStyle: AppTextStyles.titleMd.copyWith(color: AppColors.primary),
+      titleTextStyle: AppTextStyles.titleMd.copyWith(color: AppColors.paperWhite),
     ),
     cardTheme: CardThemeData(
       color: AppColors.paperWhite,
@@ -191,12 +191,14 @@ ThemeData buildHeritageHearth(Brightness brightness) {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: AppColors.paperWhite,
+      backgroundColor: AppColors.primaryContainer,
       indicatorColor: AppColors.primaryFixedTint,
       height: 68,
-      labelTextStyle: WidgetStatePropertyAll(AppTextStyles.labelMd),
+      labelTextStyle: WidgetStatePropertyAll(
+        AppTextStyles.labelMd.copyWith(color: AppColors.paperWhite),
+      ),
       iconTheme: const WidgetStatePropertyAll(
-        IconThemeData(color: AppColors.primary),
+        IconThemeData(color: AppColors.paperWhite),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
