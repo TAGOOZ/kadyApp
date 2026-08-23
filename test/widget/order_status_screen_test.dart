@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kady_app/core/l10n/app_strings.dart';
+import 'package:kady_app/core/riverpod_retry.dart';
 import 'package:kady_app/data/repos/order_status_repository.dart';
 import 'package:kady_app/domain/order_status_flow.dart';
 import 'package:kady_app/ui/orders/order_status_screen.dart';
@@ -71,7 +72,7 @@ Future<void> _pump(
   AppLang lang = AppLang.ar,
 }) async {
   await tester.pumpWidget(
-    ProviderScope(
+    ProviderScope(retry: noAutoRetry,
       overrides: [
         orderStatusRepoProvider.overrideWithValue(repo),
         localeNotifierProvider.overrideWith(() => _FixedLocale(lang)),

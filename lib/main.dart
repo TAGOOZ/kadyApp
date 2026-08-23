@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/l10n/app_strings.dart';
+import 'core/riverpod_retry.dart';
 import 'core/l10n/kady_localizations.dart';
 import 'core/router.dart';
 import 'core/supabase/supabase_config.dart';
@@ -11,7 +12,7 @@ import 'domain/session_controller.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initSupabase();
-  runApp(const ProviderScope(child: KadyApp()));
+  runApp(const ProviderScope(retry: noAutoRetry, child: KadyApp()));
 }
 
 class KadyApp extends ConsumerWidget {

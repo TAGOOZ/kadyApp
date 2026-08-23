@@ -53,3 +53,10 @@ Recorded so the next audit doesn't re-surface them:
 - **[perf]** Unbounded reads vs the documented paginate-20 decision (§11.27): `fetchOwnOrders` has no limit (`order_status_repository.dart:117-130`); visit counting downloads every visit id (`customer_lookup_repository.dart:360-368`).
 - **[security/hardening]** `orders_status_ops_update` policy lets staff/driver/admin update every column of every order (`0001_init.sql:590-595`); consider a transition-guard trigger + driver scoping when the Edge Function phase starts (needs a live DB to verify — poor fit for local-only execution).
 - **[correctness/narrow]** `refreshFor()` zeroes displayed loyalty state on ANY fetch error including transient network (`loyalty_controller.dart:146-148`); later grants would persist from the wiped base. Exposure limited to the profile refresh button today.
+
+## Audit follow-through
+- #5–#7 perf bounds: fixed (merge of fix/perf-bounds)
+- #3,#4 UI fixes: fixed (fix/ui-small)
+- #8: migration `supabase/migrations/0003_order_update_hardening.sql` written (live-DB verification pending owner run)
+- #9: refreshFor keeps last-known state on failure
+- #10: riverpod 3.x migration DONE (ADR-0012, global no-auto-retry)

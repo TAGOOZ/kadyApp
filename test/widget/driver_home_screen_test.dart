@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kady_app/data/repos/driver_orders_repository.dart';
+import 'package:kady_app/core/riverpod_retry.dart';
 import 'package:kady_app/data/repos/orders_repository.dart' show cairoUtcOffset;
 import 'package:kady_app/domain/order_status_flow.dart';
 import 'package:kady_app/ui/driver/driver_home_screen.dart';
@@ -95,7 +96,7 @@ Future<_FakeDriverOrdersRepo> _pumpHome(
 ]) async {
   final repo = injected ?? _FakeDriverOrdersRepo();
   await tester.pumpWidget(
-    ProviderScope(
+    ProviderScope(retry: noAutoRetry,
       overrides: [driverOrdersRepoProvider.overrideWithValue(repo)],
       child: const MaterialApp(
         home: Directionality(
