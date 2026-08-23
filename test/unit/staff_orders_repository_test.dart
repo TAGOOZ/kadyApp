@@ -248,6 +248,17 @@ void main() {
       expect(db.stampWrites.single.value, 4); // 3 on file + 1
     });
 
+    test('check-in on a full card completes it — writes 0, never 11+', () async {
+      // Plan 002 unification: the persisted value respects the canonical
+      // card rule (reaching 10 completes & resets) instead of raw +1.
+      final db = _FakeStaffOrdersDb()..stampsOnFile = 9;
+      final result = await SupabaseStaffOrdersRepo(db).registerVisit(
+        const CheckInInput(phone: '+201001234567', spendEgp: 60),
+      );
+      expect(result.loyaltyPending, isFalse);
+      expect(db.stampWrites.single.value, 0); // completed card resets to 0
+    });
+
     test('below threshold skips the stamp entirely (nothing pending)',
         () async {
       final db = _FakeStaffOrdersDb();

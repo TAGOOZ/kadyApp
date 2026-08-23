@@ -87,7 +87,8 @@ class _FakeCustomerLookupDb implements CustomerLookupDb {
   Future<int?> fetchStampMinSpend() async => 50;
 
   @override
-  Future<int?> fetchStamps(String phone) async => 3;
+  Future<int?> fetchStamps(String phone) async =>
+      (loyaltyRow?['stamps'] as int?) ?? 3;
 
   @override
   Future<void> updateStamps(String phone, int stamps) async {
@@ -276,6 +277,18 @@ void main() {
       expect(db.visits.single['source'], 'checkin');
       expect(db.visits.single['spend_egp'], 60);
       expect(db.stampWrites.single.value, 4);
+    });
+
+    test('check-in on a full card completes it — writes 0, never 11+',
+        () async {
+      // Plan 002 unification: the persisted value respects the canonical
+      // card rule (reaching 10 completes & resets) instead of raw +1.
+      final db = _FakeCustomerLookupDb()..loyaltyRow = const {'stamps': 9};
+      final result = await SupabaseCustomerLookupRepo(db).registerVisit(
+        const CheckInInput(phone: '+201001234567', spendEgp: 60),
+      );
+      expect(result.loyaltyPending, isFalse);
+      expect(db.stampWrites.single.value, 0); // completed card resets to 0
     });
 
     test('stamp write blocked by RLS → visit recorded, loyalty PENDING',
