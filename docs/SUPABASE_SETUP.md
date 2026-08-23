@@ -127,3 +127,9 @@ update profiles set role = 'staff' where user_id = '<your-auth-user-id>';
 
 The Flutter role switcher only changes the local shell; server permissions come
 from this row.
+
+## Migration 2 — driver RLS (run after 0001)
+
+Paste `supabase/migrations/0002_driver_rls.sql` the same way as migration 1.
+It grants `driver` role read access to customers and insert access to
+order_events (needed by the delivery stepper in slice #014).
