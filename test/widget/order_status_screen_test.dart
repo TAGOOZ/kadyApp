@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:kady_app/core/l10n/app_strings.dart';
 import 'package:kady_app/data/repos/order_status_repository.dart';
 import 'package:kady_app/domain/order_status_flow.dart';
 import 'package:kady_app/ui/orders/order_status_screen.dart';
@@ -55,10 +56,26 @@ class _FakeOrderStatusRepo implements OrderStatusRepo {
   Future<List<OrderEventRow>> fetchEvents(String orderId) async => const [];
 }
 
-Future<void> _pump(WidgetTester tester, OrderStatusRepo repo) async {
+class _FixedLocale extends LocaleNotifier {
+  _FixedLocale(this._lang);
+
+  final AppLang _lang;
+
+  @override
+  AppLang build() => _lang;
+}
+
+Future<void> _pump(
+  WidgetTester tester,
+  OrderStatusRepo repo, {
+  AppLang lang = AppLang.ar,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [orderStatusRepoProvider.overrideWithValue(repo)],
+      overrides: [
+        orderStatusRepoProvider.overrideWithValue(repo),
+        localeNotifierProvider.overrideWith(() => _FixedLocale(lang)),
+      ],
       child: MaterialApp(
         home: Directionality(
           textDirection: TextDirection.rtl,
@@ -203,5 +220,77 @@ void main() {
 
     expect(find.text('حصلت مشكلة في تحميل الطلبات'), findsOneWidget);
     expect(find.text('إعادة المحاولة'), findsOneWidget);
+  });
+
+  testWidgets('english locale renders english timeline labels and driver copy',
+      (tester) async {
+    final repo = _FakeOrderStatusRepo();
+    await _pump(tester, repo, lang: AppLang.en);
+
+    expect(find.text('Track order'), findsOneWidget);
+
+    repo.emit(_order(modeWire: 'dine_in', status: OrderWireStatus.inPrep));
+    await tester.pump();
+    expect(find.text('Received'), findsOneWidget);
+    expect(find.text('In preparation'), findsOneWidget);
+    expect(find.text('Ready'), findsOneWidget);
+
+    // Driver card copy comes from the EN catalog entries.
+    repo.emit(_order(
+      modeWire: 'delivery',
+      status: OrderWireStatus.outForDelivery,
+      hasDriver: true,
+    ));
+    await tester.pump();
+    expect(find.text('Driver'), findsOneWidget);
+    expect(find.text('Karim M.'), findsOneWidget);
+    expect(find.text('Out for delivery'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.phone_outlined));
+    await tester.pump();
+    expect(find.text('Calling is coming soon'), findsOneWidget);
+
+    // Run the snack through entrance → duration → exit.
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.ensureVisible(find.text('Open directions'));
+    await tester.pump();
+    await tester.tap(find.text('Open directions'));
+    await tester.pump();
+    expect(find.text('Live directions coming soon'), findsOneWidget);
+  });
+
+  testWidgets('arabic locale keeps arabic timeline labels and driver copy',
+      (tester) async {
+    final repo = _FakeOrderStatusRepo();
+    await _pump(tester, repo, lang: AppLang.ar);
+
+    repo.emit(_order(
+      modeWire: 'delivery',
+      status: OrderWireStatus.outForDelivery,
+      hasDriver: true,
+    ));
+    await tester.pump();
+
+    expect(find.text('في الطريق إليك'), findsOneWidget);
+    expect(find.text('السائق'), findsOneWidget);
+    expect(find.text('كريم م.'), findsOneWidget);
+  });
+
+  testWidgets('english delivered banner uses the english done-step label',
+      (tester) async {
+    final repo = _FakeOrderStatusRepo();
+    await _pump(tester, repo, lang: AppLang.en);
+
+    repo.emit(_order(
+      modeWire: 'dine_in',
+      status: OrderWireStatus.done,
+    ));
+    await tester.pump();
+
+    expect(find.text('Served 🎉'), findsWidgets);
   });
 }
