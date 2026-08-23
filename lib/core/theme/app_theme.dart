@@ -63,26 +63,26 @@ abstract final class AppShadows {
 abstract final class AppTextStyles {
   static const _arabicFallback = ['IBM Plex Sans Arabic'];
 
-  static TextStyle get displayLg => GoogleFonts.beVietnamPro(
+  static TextStyle get displayLg => GoogleFonts.ibmPlexSans(
         fontSize: 40,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.8,
         height: 1.15,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
-  static TextStyle get headlineLg => GoogleFonts.beVietnamPro(
+  static TextStyle get headlineLg => GoogleFonts.ibmPlexSans(
         fontSize: 32,
         fontWeight: FontWeight.w600,
         height: 1.2,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
-  static TextStyle get headlineMobile => GoogleFonts.beVietnamPro(
+  static TextStyle get headlineMobile => GoogleFonts.ibmPlexSans(
         fontSize: 24,
         fontWeight: FontWeight.w600,
         height: 1.25,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
-  static TextStyle get titleMd => GoogleFonts.workSans(
+  static TextStyle get titleMd => GoogleFonts.ibmPlexSans(
         fontSize: 20,
         fontWeight: FontWeight.w600,
         height: 1.25,
@@ -90,19 +90,19 @@ abstract final class AppTextStyles {
 
   /// Card/list-item titles and in-card section headers (16px step between
   /// bodyLg and titleMd).
-  static TextStyle get titleSm => GoogleFonts.workSans(
+  static TextStyle get titleSm => GoogleFonts.ibmPlexSans(
         fontSize: 16,
         fontWeight: FontWeight.w600,
         height: 1.25,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
-  static TextStyle get bodyLg => GoogleFonts.workSans(
+  static TextStyle get bodyLg => GoogleFonts.ibmPlexSans(
         fontSize: 16,
         fontWeight: FontWeight.w400,
         height: 1.35,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
-  static TextStyle get bodySm => GoogleFonts.workSans(
+  static TextStyle get bodySm => GoogleFonts.ibmPlexSans(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         height: 1.35,
