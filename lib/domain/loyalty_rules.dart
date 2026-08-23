@@ -113,49 +113,73 @@ int earnedFor({
 // Credit
 // ---------------------------------------------------------------------------
 
+/// The single canonical Stamp Card transition for ONE qualifying Visit
+/// (plan 002 unification): filling a slot moves the position up by 1;
+/// REACHING 10 completes the card — completedCards+1 plus a free-snack
+/// Voucher — and resets the position to 0; every 3rd stamp POSITION grants a
+/// Spinner Token. Shared by [creditOrder], [grantStampsPure] and both staff
+/// Check-in repos so the three paths can never diverge again.
+LoyaltyState _applyQualifyingStamp(LoyaltyState s, DateTime grantedAt) {
+  final newStamps = s.stamps + 1;
+  var stamps = newStamps;
+  var completedCards = s.completedCards;
+  var vouchers = s.vouchers;
+  if (newStamps >= 10) {
+    completedCards += 1;
+    vouchers = [
+      ...vouchers,
+      Voucher(type: VoucherType.freeSnack, grantedAt: grantedAt),
+    ];
+    stamps = newStamps - 10;
+  }
+  var spinnerTokens = s.spinnerTokens;
+  if (stamps % 3 == 0 && stamps > 0) spinnerTokens += 1;
+  return s.copyWith(
+    stamps: stamps,
+    completedCards: completedCards,
+    spinnerTokens: spinnerTokens,
+    vouchers: vouchers,
+  );
+}
+
 /// Applies one processed order to the state: points + lifetime go up by
 /// [earned]; when the subtotal meets [stampMinSpendEgp] the visit qualifies
-/// and fills one stamp slot. Every 3rd stamp grants a Spinner Token (§5).
-/// Overflowing a full card (10 slots) completes it — completedCards+1 and a
-/// free-snack Voucher — and the overflow visit opens the next card at its
-/// wrapped position (`newStamps % 10`, never 0 mid-card → shown as 10).
+/// and fills one stamp slot through the canonical card rule
+/// ([_applyQualifyingStamp]): reaching 10 completes the card (snack Voucher)
+/// and resets to 0; every 3rd stamp grants a Spinner Token (§5).
 LoyaltyState creditOrder(
   LoyaltyState s, {
   required int earned,
   required int subtotalEgp,
   int stampMinSpendEgp = kStampMinSpendEgp,
 }) {
-  var stamps = s.stamps;
-  var completedCards = s.completedCards;
-  var spinnerTokens = s.spinnerTokens;
-  var vouchers = s.vouchers;
-
+  var next = s;
   if (subtotalEgp >= stampMinSpendEgp) {
-    final newStamps = stamps + 1;
-    if (newStamps > 10) {
-      completedCards += 1;
-      vouchers = [
-        ...vouchers,
-        Voucher(
-          type: VoucherType.freeSnack,
-          grantedAt: DateTime.now().toUtc(),
-        ),
-      ];
-      stamps = newStamps % 10 == 0 ? 10 : newStamps % 10;
-    } else {
-      stamps = newStamps;
-    }
-    if (stamps % 3 == 0) spinnerTokens += 1;
+    next = _applyQualifyingStamp(next, DateTime.now().toUtc());
   }
-
-  return s.copyWith(
-    points: s.points + earned,
-    lifetimePoints: s.lifetimePoints + earned,
-    stamps: stamps,
-    completedCards: completedCards,
-    spinnerTokens: spinnerTokens,
-    vouchers: vouchers,
+  return next.copyWith(
+    points: next.points + earned,
+    lifetimePoints: next.lifetimePoints + earned,
   );
+}
+
+/// Applies [n] already-qualifying stamps (quest rewards, manual grants)
+/// through the same canonical card rule as [creditOrder]:
+/// [_applyQualifyingStamp]. Reaching 10 completes the card — completedCards+1
+/// and a free-snack Voucher — and resets to 0; every 3rd stamp position
+/// grants a Spinner Token. Single source of truth so order credit, quest
+/// grants and staff check-ins can never diverge again.
+LoyaltyState grantStampsPure(
+  LoyaltyState s,
+  int n, {
+  DateTime? nowUtc, // injectable clock for voucher timestamps (tests)
+}) {
+  final grantedAt = nowUtc ?? DateTime.now().toUtc();
+  var next = s;
+  for (var i = 0; i < n; i++) {
+    next = _applyQualifyingStamp(next, grantedAt);
+  }
+  return next;
 }
 
 /// True when [orderId] is already in the state's processed guard list —

@@ -198,11 +198,14 @@ void main() {
   });
 
   group('creditOrder — card completion edges', () {
-    test('9→10 fills the card WITHOUT completing it', () {
+    test('9→10 REACHES 10: card completes and resets to 0', () {
+      // Plan 002 unification: park-at-10 retired — a full card grants the
+      // reward immediately (canonical rule = reaching 10 completes & resets,
+      // matching grantStamps / FEATURES §4 "full card → fixed reward").
       final s = creditOrder(_state(stamps: 9), earned: 5, subtotalEgp: 80);
-      expect(s.stamps, 10);
-      expect(s.completedCards, 0);
-      expect(s.vouchers, isEmpty);
+      expect(s.stamps, 0);
+      expect(s.completedCards, 1);
+      expect(s.vouchers.single.type, VoucherType.freeSnack);
     });
 
     test('10→11 wraps: card+1, free-snack voucher, new card at 1', () {
@@ -232,7 +235,8 @@ void main() {
     });
 
     test('defensive wrap: overflow landing on a decade shows a full card', () {
-      // Corrupted row with stamps=19 → 20 > 10 → wrap must show 10, never 0.
+      // Corrupted row with stamps=19 → 20 ≥ 10 → one completion, remainder
+      // wraps by −10 to 10 (never negative, never 11+).
       final s = LoyaltyState(stamps: 19);
       final next = creditOrder(s, earned: 5, subtotalEgp: 80);
       expect(next.completedCards, 1);
@@ -248,6 +252,110 @@ void main() {
       expect(before.lifetimePoints, 10);
       expect(before.stamps, 2);
       expect(before.spinnerTokens, 0);
+    });
+  });
+
+  group('grantStampsPure — the unified card rule (plan 002)', () {
+    test('n ≤ 0 is a no-op', () {
+      final s = _state(stamps: 5, cards: 1, spinner: 1);
+      for (final n in [0, -1, -7]) {
+        final next = grantStampsPure(s, n);
+        expect(next.stamps, 5);
+        expect(next.completedCards, 1);
+        expect(next.spinnerTokens, 1);
+        expect(next.vouchers, isEmpty);
+      }
+    });
+
+    test('9→10 REACHES 10: card completes, resets to 0, free-snack voucher',
+        () {
+      final s = grantStampsPure(
+        _state(stamps: 9),
+        1,
+        nowUtc: DateTime.parse('2026-08-23T10:00:00Z'),
+      );
+      expect(s.stamps, 0);
+      expect(s.completedCards, 1);
+      expect(s.vouchers.single.type, VoucherType.freeSnack);
+      // Position 0 is not an every-3rd position — no token from completing.
+      expect(s.spinnerTokens, 0);
+      // Injected clock lands on the voucher timestamp.
+      expect(
+        s.vouchers.single.grantedAt,
+        DateTime.parse('2026-08-23T10:00:00Z'),
+      );
+    });
+
+    test('8 → grant 2 → completes & resets (quest-grant edge)', () {
+      // Plan 002 unification pin: quest-granted stamps follow the SAME
+      // reaching-10-completes-and-resets rule as order credit.
+      final s = grantStampsPure(_state(stamps: 8), 2);
+      expect(s.stamps, 0);
+      expect(s.completedCards, 1);
+      expect(s.vouchers.single.type, VoucherType.freeSnack);
+    });
+
+    test('legacy full row 10 → one more completes again, wraps to 1', () {
+      final s = grantStampsPure(_state(stamps: 10, cards: 1), 1);
+      expect(s.completedCards, 2);
+      expect(s.stamps, 1);
+      expect(s.spinnerTokens, 0); // 1 % 3 ≠ 0 — no spurious token
+    });
+
+    test('every-3rd token fires on post-wrap positions only', () {
+      // From 8 with 2 tokens: 9 (token →3) · 10 completes → 0 · 1 · 2.
+      final s = grantStampsPure(_state(stamps: 8, spinner: 2), 4);
+      expect(s.stamps, 2);
+      expect(s.completedCards, 1);
+      expect(s.vouchers.single.type, VoucherType.freeSnack);
+      expect(s.spinnerTokens, 3);
+    });
+
+    test('existing vouchers preserved; input state untouched', () {
+      final existing = Voucher(
+        type: VoucherType.freeDrink,
+        grantedAt: DateTime.parse('2026-01-01T00:00:00Z'),
+      );
+      final before = _state(stamps: 8, vouchers: [existing]);
+      final s = grantStampsPure(before, 2);
+      expect(s.vouchers, hasLength(2));
+      expect(s.vouchers.first.type, VoucherType.freeDrink);
+      expect(s.vouchers.last.type, VoucherType.freeSnack);
+      // Purity.
+      expect(before.stamps, 8);
+      expect(before.completedCards, 0);
+      expect(before.spinnerTokens, 0);
+      expect(before.vouchers, hasLength(1));
+    });
+
+    test('identical inputs → identical states as creditOrder (unification)',
+        () {
+      // The whole point of plan 002: the order-credit path and the
+      // grant path must produce identical stamp outcomes.
+      const base = LoyaltyState(stamps: 8, spinnerTokens: 2, completedCards: 1);
+      final viaCredit = creditOrder(base, earned: 5, subtotalEgp: 80);
+      final viaGrant = grantStampsPure(base, 1);
+      expect(viaGrant.stamps, viaCredit.stamps);
+      expect(viaGrant.completedCards, viaCredit.completedCards);
+      expect(viaGrant.spinnerTokens, viaCredit.spinnerTokens);
+      // 8→9 completes nothing — voucher lists stay empty on BOTH paths.
+      expect(viaGrant.vouchers, isEmpty);
+      expect(viaCredit.vouchers, isEmpty);
+      // …and a long grant matches repeated credits stamp-for-stamp
+      // (voucher timestamps are wall-clock per call, so compare shape).
+      var credited = base;
+      for (var i = 0; i < 6; i++) {
+        credited = creditOrder(credited, earned: 5, subtotalEgp: 80);
+      }
+      final granted6 = grantStampsPure(base, 6);
+      expect(granted6.stamps, credited.stamps);
+      expect(granted6.completedCards, credited.completedCards);
+      expect(granted6.spinnerTokens, credited.spinnerTokens);
+      expect(granted6.vouchers.length, credited.vouchers.length);
+      expect(
+        granted6.vouchers.map((v) => v.type),
+        credited.vouchers.map((v) => v.type),
+      );
     });
   });
 
@@ -461,12 +569,19 @@ void main() {
       expect(combined.stamps, plain.stamps);
       expect(combined.completedCards, plain.completedCards);
       expect(combined.spinnerTokens, plain.spinnerTokens);
-      expect(combined.vouchers, plain.vouchers);
+      // Plan 002 unification: both paths now complete the card at the 10th
+      // stamp, each stamping its own wall-clock grantedAt on the new voucher
+      // — so compare length/type here instead of full list equality.
+      expect(combined.vouchers.length, plain.vouchers.length);
       expect(combined.processedOrders, plain.processedOrders);
-      // Sanity: the qualifying visit filled the 10th stamp slot in BOTH
-      // transitions; stamp 10 is NOT an every-3rd-stamp grant (10 % 3 ≠ 0),
-      // so spinner tokens stay put.
-      expect(combined.stamps, 10);
+      // Plan 002 unification: the qualifying visit is the 10th stamp → the
+      // card completes and resets to 0 in BOTH transitions; 0 is not an
+      // every-3rd-stamp position, so spinner tokens stay put. Voucher shape
+      // is compared by type — each call stamps its own wall-clock grantedAt.
+      expect(combined.stamps, 0);
+      expect(combined.completedCards, 1);
+      expect(combined.vouchers.single.type, VoucherType.freeSnack);
+      expect(plain.vouchers.single.type, VoucherType.freeSnack);
       expect(combined.spinnerTokens, base.spinnerTokens);
     });
 

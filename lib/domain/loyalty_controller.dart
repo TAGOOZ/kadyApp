@@ -353,28 +353,11 @@ class LoyaltyController extends Notifier<LoyaltyState> {
 
   /// Adds [n] stamps (no points): reaching 10 completes the card (snack
   /// voucher) and resets; every 3rd stamp also grants a spinner token.
+  /// Delegates to the canonical pure rule (plan 002) shared with order
+  /// credit and staff check-ins.
   Future<void> grantStamps(int n) async {
     if (n <= 0) return;
-    var s = state;
-    for (var i = 0; i < n; i++) {
-      final newStamps = s.stamps + 1;
-      var stamps = newStamps;
-      var cards = s.completedCards;
-      var vouchers = List<Voucher>.of(s.vouchers);
-      if (newStamps >= 10) {
-        cards += 1;
-        vouchers = [
-          ...vouchers,
-          Voucher(type: VoucherType.freeSnack, grantedAt: DateTime.now().toUtc()),
-        ];
-        stamps = newStamps - 10;
-      }
-      if (stamps % 3 == 0 && stamps > 0) {
-        s = s.copyWith(spinnerTokens: s.spinnerTokens + 1);
-      }
-      s = s.copyWith(stamps: stamps, completedCards: cards, vouchers: vouchers);
-    }
-    state = s;
+    state = grantStampsPure(state, n);
     await _persist();
   }
 }

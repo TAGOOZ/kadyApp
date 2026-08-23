@@ -14,6 +14,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
+import '../../domain/loyalty_controller.dart' show LoyaltyState;
+import '../../domain/loyalty_rules.dart' show grantStampsPure;
 import '../repos/orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
 import 'staff_orders_repository.dart';
 
@@ -569,7 +571,10 @@ class SupabaseCustomerLookupRepo implements CustomerLookupRepo {
         if (current == null) {
           loyaltyPending = true; // row not visible — cannot verify
         } else {
-          await _db.updateStamps(input.phone, current + 1);
+          // Canonical stamp-card rule (plan 002 unification) — the value
+          // written respects card wrap, so no 11+ counts can persist.
+          final next = grantStampsPure(LoyaltyState(stamps: current), 1);
+          await _db.updateStamps(input.phone, next.stamps);
         }
       }
     } on Exception {
