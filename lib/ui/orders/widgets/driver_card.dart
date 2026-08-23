@@ -73,8 +73,7 @@ class DriverCard extends StatelessWidget {
                   const SizedBox(height: AppSpacing.xs8),
                   Text(
                     strings.mapHint,
-                    style:
-                        AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+                    style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
                   ),
                 ],
               ),

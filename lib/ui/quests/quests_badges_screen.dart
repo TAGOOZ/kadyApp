@@ -480,7 +480,7 @@ class QuestCard extends StatelessWidget {
                     backgroundColor:
                         claimed ? AppColors.parchment : AppColors.primary,
                     foregroundColor:
-                        claimed ? AppColors.outline : Colors.white,
+                        claimed ? AppColors.textMuted : Colors.white,
                   ),
                   child: Text(claimed ? s.claimedLabel : s.claimButton),
                 ),
@@ -556,7 +556,7 @@ class BadgeMedallion extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: AppTextStyles.bodySm.copyWith(
             fontWeight: FontWeight.w600,
-            color: earned ? AppColors.coffeeBean : AppColors.outline,
+            color: earned ? AppColors.coffeeBean : AppColors.textMuted,
           ),
         ),
       ],

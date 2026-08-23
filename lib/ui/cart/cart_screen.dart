@@ -98,7 +98,7 @@ class _EmptyCart extends StatelessWidget {
           Text(
             strings.emptyBody,
             textAlign: TextAlign.center,
-            style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(height: AppSpacing.md24),
           FilledButton(
@@ -152,7 +152,7 @@ class _CartLineTile extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style:
-                              AppTextStyles.titleMd.copyWith(fontSize: 15),
+                              AppTextStyles.titleSm,
                         ),
                       ),
                       IconButton(
@@ -171,7 +171,7 @@ class _CartLineTile extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodySm
-                          .copyWith(color: AppColors.outline),
+                          .copyWith(color: AppColors.textMuted),
                     ),
                   if (line.config.note != null &&
                       line.config.note!.trim().isNotEmpty)
@@ -180,7 +180,7 @@ class _CartLineTile extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.outline,
+                        color: AppColors.textMuted,
                         fontStyle: FontStyle.italic,
                       ),
                     ),
@@ -199,7 +199,7 @@ class _CartLineTile extends ConsumerWidget {
                         child: Text(
                           '${line.qty}',
                           textAlign: TextAlign.center,
-                          style: AppTextStyles.titleMd.copyWith(fontSize: 16),
+                          style: AppTextStyles.titleSm,
                         ),
                       ),
                       _StepperIcon(
@@ -212,11 +212,9 @@ class _CartLineTile extends ConsumerWidget {
                       const Spacer(),
                       Text(
                         checkout.egp(line.lineTotalEgp),
-                        style: AppTextStyles.labelMd.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.secondary,
-                        ),
+                        style: AppTextStyles.priceSm.copyWith(
+                           color: AppColors.secondary,
+                         ),
                       ),
                     ],
                   ),
@@ -344,7 +342,7 @@ class _StickyFooter extends StatelessWidget {
                 Text(strings.subtotalRow, style: AppTextStyles.bodyLg),
                 Text(
                   strings.egp(subtotalEgp),
-                  style: AppTextStyles.titleMd.copyWith(fontSize: 18),
+                  style: AppTextStyles.titleSm,
                 ),
               ],
             ),

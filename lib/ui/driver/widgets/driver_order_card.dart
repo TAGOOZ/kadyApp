@@ -87,8 +87,8 @@ class DriverOrderCard extends StatelessWidget {
                     child: Text(
                       strings.pickupLine,
                       style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.outline,
-                      ),
+                         color: AppColors.textMuted,
+                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -186,7 +186,7 @@ class DriverHistoryRow extends StatelessWidget {
           const SizedBox(width: AppSpacing.xs8),
           Text(
             timeLabel,
-            style: AppTextStyles.labelMd.copyWith(color: AppColors.outline),
+            style: AppTextStyles.labelMd.copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(width: AppSpacing.sm16 - 4),
           Text(

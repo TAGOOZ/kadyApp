@@ -147,7 +147,7 @@ class _StepRow extends StatelessWidget {
                             ? FontWeight.w400
                             : FontWeight.w700,
                         color: state == _StepState.upcoming
-                            ? AppColors.outline
+                            ? AppColors.textMuted
                             : AppColors.coffeeBean,
                       ),
                     ),
@@ -156,8 +156,8 @@ class _StepRow extends StatelessWidget {
                     Text(
                       OrdersStrings.hhmmOf(timestamp!),
                       style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.outline,
-                      ),
+                         color: AppColors.textMuted,
+                       ),
                     ),
                 ],
               ),

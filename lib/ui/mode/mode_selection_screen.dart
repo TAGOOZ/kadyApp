@@ -98,7 +98,7 @@ class _ModeCard extends StatelessWidget {
                     Text(
                       helper,
                       style: AppTextStyles.bodySm
-                          .copyWith(color: AppColors.outline),
+                          .copyWith(color: AppColors.textMuted),
                     ),
                   ],
                 ),

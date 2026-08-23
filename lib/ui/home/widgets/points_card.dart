@@ -48,13 +48,17 @@ class PointsCard extends ConsumerWidget {
                 Text(
                   strings.pointsSuffix,
                   style: AppTextStyles.bodySm
-                      .copyWith(color: AppColors.outline),
+                      .copyWith(color: AppColors.textMuted),
                 ),
                 const Spacer(),
-                Text(
-                  strings.pointsProgress(points, kNextRewardGoal),
-                  style: AppTextStyles.labelMd.copyWith(
-                    color: AppColors.outline,
+                Flexible(
+                  child: Text(
+                    strings.pointsProgress(points, kNextRewardGoal),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelMd.copyWith(
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ),
               ],
@@ -77,7 +81,7 @@ class PointsCard extends ConsumerWidget {
                   child: Text(
                     strings.freeDrinkCaption,
                     style: AppTextStyles.bodySm
-                        .copyWith(color: AppColors.outline),
+                        .copyWith(color: AppColors.textMuted),
                   ),
                 ),
                 if (!signedIn)

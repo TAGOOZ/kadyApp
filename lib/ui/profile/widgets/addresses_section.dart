@@ -147,11 +147,9 @@ class _AddAddressButton extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelMd.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryContainer,
-                ),
+                style: AppTextStyles.priceSm.copyWith(
+                   color: AppColors.primaryContainer,
+                 ),
               ),
             ),
           ],

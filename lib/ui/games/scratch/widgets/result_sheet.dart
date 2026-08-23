@@ -97,7 +97,7 @@ class ResultSheet extends StatelessWidget {
                   ),
                   Text(
                     voucherHint ?? '',
-                    style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+                    style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
                   ),
                 ],
               ),

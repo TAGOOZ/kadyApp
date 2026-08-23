@@ -80,7 +80,7 @@ class _TierChip extends StatelessWidget {
       Tier.gold => (
           const LinearGradient(colors: [Color(0xFFF6D365), Color(0xFFB8860B)]),
           AppColors.paperWhite,
-          const Color(0xFF9C6F0A),
+          const Color(0xFF8A6200),
         ),
       Tier.silver => (
           null,

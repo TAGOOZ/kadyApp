@@ -22,7 +22,7 @@ class GamesHubScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.margin20),
         children: [
-          Text(s.hubSubtitle, style: AppTextStyles.bodySm.copyWith(color: AppColors.outline)),
+          Text(s.hubSubtitle, style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted)),
           const SizedBox(height: AppSpacing.sm16),
           _GameTile(
             icon: Icons.casino_outlined,

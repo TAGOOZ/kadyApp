@@ -24,7 +24,7 @@ class AuthStubScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.md24),
             FilledButton(
               onPressed: () => Navigator.of(context).maybePop(),
-              child: Text(strings.ok),
+              child: Text(strings.close),
             ),
           ],
         ),

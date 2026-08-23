@@ -486,7 +486,7 @@ class _DineInDetails extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs8),
           child: Text(strings.orSeparator,
               style:
-                  AppTextStyles.labelMd.copyWith(color: AppColors.outline)),
+                  AppTextStyles.labelMd.copyWith(color: AppColors.textMuted)),
         ),
         Wrap(
           spacing: AppSpacing.xs8,
@@ -593,20 +593,20 @@ class _DeliveryDetails extends ConsumerWidget {
           ),
           error: (_, _) => Text(
             strings.noAddressesLine,
-            style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
           ),
           data: (addresses) => addresses.isEmpty
               ? Text(
                   strings.noAddressesLine,
                   style:
-                      AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+                      AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(strings.savedAddressesLabel,
                         style: AppTextStyles.labelMd
-                            .copyWith(color: AppColors.outline)),
+                            .copyWith(color: AppColors.textMuted)),
                     const SizedBox(height: AppSpacing.xs8),
                     for (final address in addresses)
                       _AddressOption(
@@ -680,38 +680,44 @@ class _AddressOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: selected ? AppColors.primaryFixedTint : AppColors.paperWhite,
-      margin: const EdgeInsets.only(bottom: AppSpacing.xs8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadii.md8),
-        side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.outline.withValues(alpha: 0.25),
+    // Flat selectable row (border only, no shadow): nested cards inside the
+    // mode-details card would double the chrome.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs8),
+      child: Material(
+        color: selected ? AppColors.primaryFixedTint : AppColors.paperWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md8),
+          side: BorderSide(
+            color: selected
+                ? AppColors.primary
+                : AppColors.outline.withValues(alpha: 0.25),
+          ),
         ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.md8),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xs8),
-          child: Row(
-            children: [
-              Icon(
-                selected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
-                size: 20,
-              ),
-              const SizedBox(width: AppSpacing.xs8),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodySm,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadii.md8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xs8),
+            child: Row(
+              children: [
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  size: 20,
                 ),
-              ),
-            ],
+                const SizedBox(width: AppSpacing.xs8),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodySm,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -777,7 +783,7 @@ class _TotalsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = emphasized
-        ? AppTextStyles.titleMd.copyWith(fontSize: 17)
+        ? AppTextStyles.titleSm
         : AppTextStyles.bodyLg;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -866,7 +872,7 @@ class _LoyaltyBanner extends StatelessWidget {
                 child: Text(
                   strings.redeemRemaining(remainingPoints),
                   style: AppTextStyles.bodySm
-                      .copyWith(color: AppColors.outline),
+                      .copyWith(color: AppColors.textMuted),
                 ),
               ),
           ],

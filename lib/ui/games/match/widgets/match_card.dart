@@ -31,7 +31,7 @@ class MatchCard extends StatelessWidget {
         aspectRatio: 0.78,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
-          switchInCurve: Curves.easeOutBack,
+          switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeIn,
           transitionBuilder: (child, animation) {
             // Entering children swing in from -90°, leaving ones out to 90° —
@@ -66,10 +66,11 @@ class _FaceFront extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // Shadow only — pairing the hairline border with a soft wide shadow
+      // reads as a ghost card.
       decoration: BoxDecoration(
         color: AppColors.paperWhite,
         borderRadius: BorderRadius.circular(AppRadii.mdLg12),
-        border: Border.all(color: AppColors.parchment, width: 2),
         boxShadow: AppShadows.coffeeShadows(),
       ),
       padding: const EdgeInsets.all(AppSpacing.xs8),

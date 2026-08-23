@@ -501,7 +501,7 @@ class _Section extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (title != null) ...[
-          Text(title!, style: AppTextStyles.titleMd.copyWith(fontSize: 16)),
+          Text(title!, style: AppTextStyles.titleSm),
           const SizedBox(height: AppSpacing.sm16 - 4),
         ],
         child,
@@ -559,9 +559,7 @@ class _SummaryStrip extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: AppTextStyles.labelMd.copyWith(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                style: AppTextStyles.priceSm.copyWith(
                   color: Colors.white,
                 ),
               ),
@@ -604,10 +602,9 @@ class _FieldRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: AppTextStyles.bodySm.copyWith(
-                    color: AppColors.outline,
-                    fontSize: 12,
-                  ),
+                  style: AppTextStyles.labelMd.copyWith(
+                     color: AppColors.textMuted,
+                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -616,7 +613,7 @@ class _FieldRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyLg.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: muted ? AppColors.outline : AppColors.coffeeBean,
+                    color: muted ? AppColors.textMuted : AppColors.coffeeBean,
                   ),
                 ),
               ],
@@ -671,14 +668,14 @@ class _GuestPanel extends StatelessWidget {
           Text(
             strings.guestPanelTitle,
             textAlign: TextAlign.center,
-            style: AppTextStyles.titleMd.copyWith(fontSize: 18),
+            style: AppTextStyles.titleMd,
           ),
           const SizedBox(height: AppSpacing.xs8),
           Text(
             strings.guestPanelBody,
             textAlign: TextAlign.center,
-            style:
-                AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+            style: AppTextStyles.bodySm
+                 .copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(height: AppSpacing.md24),
           FilledButton.icon(

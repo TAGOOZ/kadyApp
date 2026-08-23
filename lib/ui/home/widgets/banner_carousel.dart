@@ -1,5 +1,6 @@
-// Campaign banner carousel (#005): 3 orange-tinted gradient cards,
-// auto-advances every 5s, pauses while the pointer is down, tap → snack-bar.
+// Campaign banner carousel (#005): 3 deep-ember gradient cards,
+// auto-advances every 5s (paused under reduce-motion), stops while the
+// pointer is down, tap → snack-bar.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -43,7 +44,19 @@ class _BannerCarouselState extends State<BannerCarousel> {
   void initState() {
     super.initState();
     _controller = PageController(viewportFraction: 0.88);
-    _startTimer();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced-motion customers get a static first banner: no timer, no
+    // auto-advance animation.
+    if (MediaQuery.of(context).disableAnimations) {
+      _timer?.cancel();
+      _timer = null;
+    } else if (_timer == null || !_timer!.isActive) {
+      _startTimer();
+    }
   }
 
   @override
@@ -105,22 +118,23 @@ class _BannerCarouselState extends State<BannerCarousel> {
     );
   }
 
-  // Orange secondary-container tints per #005 spec.
+  // Deep-ember orange ramps per #005 spec — every stop holds white text at
+  // ≥4.5:1 (the original bright stops FF7434/FFB27A measured 2.7:1/1.8:1).
   static LinearGradient _gradientFor(int index) => switch (index % 3) {
         0 => const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFFF7434), Color(0xFFA53C00)],
+            colors: [Color(0xFFC24A00), Color(0xFF8F3300)],
           ),
         1 => const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFFF9A62), Color(0xFFE85D04)],
+            colors: [Color(0xFFB84500), Color(0xFF803000)],
           ),
         _ => const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFFFB27A), Color(0xFFF4762B)],
+            colors: [Color(0xFFC24A00), Color(0xFF8A3000)],
           ),
       };
 }

@@ -37,6 +37,7 @@ class Strings {
     required this.langAr,
     required this.langEn,
     required this.ok,
+    required this.close,
     required this.homeLine,
     required this.menuLine,
     required this.gamesLine,
@@ -64,6 +65,7 @@ class Strings {
   final String langAr;
   final String langEn;
   final String ok;
+  final String close;
   final String homeLine;
   final String menuLine;
   final String gamesLine;
@@ -96,6 +98,7 @@ abstract final class AppStrings {
       langAr: 'العربية',
       langEn: 'English',
       ok: 'حسناً',
+      close: 'إغلاق',
       homeLine: 'الصفحة الرئيسية للعميل — النقاط والطوابع تظهر هنا لاحقاً',
       menuLine: 'قائمة الكافي — المشروبات والسناكس تُضاف في شريحة قادمة',
       gamesLine: 'مركز الألعاب — عجلة الحظ وبطاقات المطابقة قادمان',
@@ -123,6 +126,7 @@ abstract final class AppStrings {
       langAr: 'العربية',
       langEn: 'English',
       ok: 'OK',
+      close: 'Close',
       homeLine: 'Customer home — points and stamps land here soon',
       menuLine: 'Café menu — drinks and snacks arrive in a coming slice',
       gamesLine: 'Games hub — spinner and match cards are coming',

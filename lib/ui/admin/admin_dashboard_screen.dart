@@ -185,7 +185,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
             avatar: const Icon(Icons.receipt_long, size: 18),
             label: Text(strings.staffBoardChip),
             side: const BorderSide(color: Colors.white54),
-            labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+            labelStyle: AppTextStyles.labelMd.copyWith(color: Colors.white),
             backgroundColor: AppColors.primaryContainer,
             onPressed: () => context.go('/staff'),
           ),
@@ -233,7 +233,7 @@ class _LockPanel extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.outline),
+                  ?.copyWith(color: AppColors.textMuted),
             ),
             const SizedBox(height: AppSpacing.xs8),
             OutlinedButton.icon(
@@ -591,7 +591,7 @@ class _MenuTabState extends ConsumerState<_MenuTab> {
                       item.nameAr,
                       style: TextStyle(
                         color:
-                            item.isAvailable ? null : AppColors.outline,
+                            item.isAvailable ? null : AppColors.textMuted,
                         decoration: item.isAvailable
                             ? null
                             : TextDecoration.lineThrough,

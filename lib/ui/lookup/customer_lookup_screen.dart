@@ -292,7 +292,7 @@ class _CustomerLookupScreenState extends ConsumerState<CustomerLookupScreen> {
                   Text(
                     strings.recentTitle,
                     style: AppTextStyles.bodySm
-                        .copyWith(color: AppColors.outline),
+                        .copyWith(color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 4),
                   Wrap(
@@ -348,7 +348,7 @@ class _CustomerLookupScreenState extends ConsumerState<CustomerLookupScreen> {
         child: Text(
           _searched ? strings.noResults : strings.emptyTermHint,
           textAlign: TextAlign.center,
-          style: AppTextStyles.bodyLg.copyWith(color: AppColors.outline),
+          style: AppTextStyles.bodyLg.copyWith(color: AppColors.textMuted),
         ),
       );
     }
@@ -397,7 +397,7 @@ class _LockPanel extends StatelessWidget {
             Text(
               strings.lockHint,
               style:
-                  AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+                  AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.sm16),
@@ -506,7 +506,7 @@ class _ActivityLogSheet extends StatelessWidget {
                         child: Text(
                           strings.activityEmpty,
                           style: AppTextStyles.bodySm
-                              .copyWith(color: AppColors.outline),
+                              .copyWith(color: AppColors.textMuted),
                         ),
                       ),
                     );
@@ -535,7 +535,7 @@ class _ActivityLogSheet extends StatelessWidget {
                         trailing: Text(
                           formatLookupWhenUtc(entry.atUtc),
                           style: AppTextStyles.labelMd
-                              .copyWith(color: AppColors.outline),
+                              .copyWith(color: AppColors.textMuted),
                         ),
                       );
                     },

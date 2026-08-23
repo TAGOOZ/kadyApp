@@ -68,7 +68,7 @@ class CustomerResultCard extends StatelessWidget {
                       Text(
                         profile.phone,
                         style: AppTextStyles.bodySm
-                            .copyWith(color: AppColors.outline),
+                            .copyWith(color: AppColors.textMuted),
                       ),
                     ],
                   ),
@@ -116,7 +116,7 @@ class CustomerResultCard extends StatelessWidget {
               Text(
                 strings.recentOrdersEmpty,
                 style:
-                    AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+                    AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
               )
             else
               for (final order in profile.recentOrders)
@@ -204,7 +204,7 @@ class _Stat extends StatelessWidget {
           ),
           Text(
             label,
-            style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
           ),
         ],
       ),

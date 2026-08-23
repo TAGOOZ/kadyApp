@@ -179,19 +179,31 @@ class _OrderCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Chip(
-                    visualDensity: VisualDensity.compact,
-                    labelPadding: EdgeInsets.zero,
-                    label: Text(_modeLabel, style: AppTextStyles.labelMd),
+                  Flexible(
+                    child: Chip(
+                      visualDensity: VisualDensity.compact,
+                      labelPadding: EdgeInsets.zero,
+                      label: Text(
+                        _modeLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelMd,
+                      ),
+                    ),
                   ),
                   const Spacer(),
-                  Text(
-                    order.totalEgp == null
-                        ? ''
-                        : '${order.totalEgp} '
-                            '${CheckoutStringsCatalog.of(lang).currencySuffix}',
-                    style: AppTextStyles.bodyLg
-                        .copyWith(fontWeight: FontWeight.w700),
+                  Flexible(
+                    child: Text(
+                      order.totalEgp == null
+                          ? ''
+                          : '${order.totalEgp} '
+                              '${CheckoutStringsCatalog.of(lang).currencySuffix}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: AppTextStyles.bodyLg
+                          .copyWith(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ],
               ),
@@ -202,8 +214,8 @@ class _OrderCard extends StatelessWidget {
                     child: Text(
                       strings.itemsCount(order.itemCount),
                       style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.outline,
-                      ),
+                         color: AppColors.textMuted,
+                       ),
                     ),
                   ),
                   Container(
