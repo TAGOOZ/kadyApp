@@ -133,3 +133,10 @@ from this row.
 Paste `supabase/migrations/0002_driver_rls.sql` the same way as migration 1.
 It grants `driver` role read access to customers and insert access to
 order_events (needed by the delivery stepper in slice #014).
+
+## Migration 3 — order update hardening (run after 0002)
+
+Paste `supabase/migrations/0003_order_update_hardening.sql`. Adds a guard
+trigger: money/items/identity columns become immutable (admin exempt);
+drivers may only flip `out_for_delivery → done`; staff/admin keep the full
+status vocabulary. Verify by attempting a money edit as staff — it must fail.
