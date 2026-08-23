@@ -1,0 +1,26 @@
+/**
+ * Root Wrangler config — delegates to worker/src/index.ts
+ * Cloudflare builds run `npx wrangler versions upload` from repo root,
+ * so the config must be discoverable here. The canonical config remains
+ * `worker/wrangler.jsonc` for `wrangler dev` inside worker/.
+ */
+{
+	"$schema": "worker/node_modules/wrangler/config-schema.json",
+	"name": "kady-api",
+	"main": "worker/src/index.ts",
+	"compatibility_date": "2026-08-20",
+	"compatibility_flags": [
+		"global_fetch_strictly_public"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"vars": {
+		"SUPABASE_URL": "https://zrlhtwmzuljsqricpxbb.supabase.co",
+		"FRONTEND_URL": "https://kady.pages.dev"
+	},
+	"triggers": {
+		"crons": ["0 2 * * *"]
+	}
+}
