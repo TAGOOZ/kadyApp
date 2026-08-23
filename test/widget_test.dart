@@ -21,12 +21,12 @@ void main() {
     expect(Directionality.of(titleContext), TextDirection.rtl);
   });
 
-  testWidgets('Demo entry lands on the customer shell with 4 tabs',
+  testWidgets('Guest skip lands on the customer shell with 4 tabs',
       (WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: KadyApp()));
     await tester.pump();
 
-    await tester.tap(find.text('دخول تجريبي'));
+    await tester.tap(find.text('تخطي الآن'));
     await tester.pumpAndSettle();
 
     expect(find.byType(NavigationBar), findsOneWidget);

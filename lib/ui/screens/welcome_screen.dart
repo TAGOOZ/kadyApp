@@ -197,17 +197,6 @@ class WelcomeScreen extends ConsumerWidget {
                       .continueAsGuest(),
                   child: Text(authStrings.welcomeSkip),
                 ),
-                TextButton(
-                  onPressed: () => ref
-                      .read(sessionControllerProvider.notifier)
-                      .markOnboarded(),
-                  child: Text(
-                    strings.demoButton,
-                    style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                ),
                 const SizedBox(height: AppSpacing.xs8),
                 Text(
                   strings.welcomeHint,
