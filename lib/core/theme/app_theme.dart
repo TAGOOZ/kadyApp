@@ -1,7 +1,6 @@
 // Heritage Hearth design tokens — single source of truth for colors,
 // radii, spacing, shadows and typography (docs/FEATURES.md §0).
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 abstract final class AppColors {
   static const primary = Color(0xFF003A2A);
@@ -60,74 +59,66 @@ abstract final class AppShadows {
   }
 }
 
+/// Bundled families (pubspec `fonts:`): IBM Plex Sans is variable (wght),
+/// Arabic ships as static weights. Latin glyphs resolve in IBM Plex Sans;
+/// Arabic glyphs fall through to IBM Plex Sans Arabic.
 abstract final class AppTextStyles {
+  static const _fontFamily = 'IBM Plex Sans';
   static const _arabicFallback = ['IBM Plex Sans Arabic'];
 
-  static TextStyle get displayLg => GoogleFonts.ibmPlexSans(
+  static TextStyle _style({
+    double? fontSize,
+    FontWeight fontWeight = FontWeight.w400,
+    double? letterSpacing,
+    double? height,
+  }) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontFamilyFallback: _arabicFallback,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      letterSpacing: letterSpacing,
+      height: height,
+    );
+  }
+
+  static TextStyle get displayLg => _style(
         fontSize: 40,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.8,
         height: 1.15,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+      );
 
-  static TextStyle get headlineLg => GoogleFonts.ibmPlexSans(
-        fontSize: 32,
-        fontWeight: FontWeight.w600,
-        height: 1.2,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get headlineLg =>
+      _style(fontSize: 32, fontWeight: FontWeight.w600, height: 1.2);
 
-  static TextStyle get headlineMobile => GoogleFonts.ibmPlexSans(
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
-        height: 1.25,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get headlineMobile =>
+      _style(fontSize: 24, fontWeight: FontWeight.w600, height: 1.25);
 
-  static TextStyle get titleMd => GoogleFonts.ibmPlexSans(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        height: 1.25,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get titleMd =>
+      _style(fontSize: 20, fontWeight: FontWeight.w600, height: 1.25);
 
   /// Card/list-item titles and in-card section headers (16px step between
   /// bodyLg and titleMd).
-  static TextStyle get titleSm => GoogleFonts.ibmPlexSans(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        height: 1.25,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get titleSm =>
+      _style(fontSize: 16, fontWeight: FontWeight.w600, height: 1.25);
 
-  static TextStyle get bodyLg => GoogleFonts.ibmPlexSans(
-        fontSize: 16,
-        fontWeight: FontWeight.w400,
-        height: 1.35,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get bodyLg =>
+      _style(fontSize: 16, height: 1.35);
 
-  static TextStyle get bodySm => GoogleFonts.ibmPlexSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w400,
-        height: 1.35,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get bodySm =>
+      _style(fontSize: 14, height: 1.35);
 
-  static TextStyle get labelMd => GoogleFonts.ibmPlexSans(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.6,
-        height: 1.3,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get labelMd =>
+      _style(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.6, height: 1.3);
 
   /// Inline prices / money emphasis at list scale (menu rows, cart lines).
-  static TextStyle get priceSm => GoogleFonts.ibmPlexSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w700,
-        height: 1.3,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get priceSm =>
+      _style(fontSize: 14, fontWeight: FontWeight.w700, height: 1.3);
 
   /// Large price display (item detail sheet).
-  static TextStyle get priceLg => GoogleFonts.ibmPlexSans(
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        height: 1.25,
-      ).copyWith(fontFamilyFallback: _arabicFallback);
+  static TextStyle get priceLg =>
+      _style(fontSize: 18, fontWeight: FontWeight.w700, height: 1.25);
 }
 
 TextTheme _heritageHearthTextTheme() {

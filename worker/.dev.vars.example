@@ -1,0 +1,4 @@
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_... # `wrangler secret put SUPABASE_SERVICE_ROLE_KEY` for prod
+# SUPABASE_URL and FRONTEND_URL are in wrangler.jsonc vars; override here for local dev if needed:
+# SUPABASE_URL=https://zrlhtwmzuljsqricpxbb.supabase.co
+# FRONTEND_URL=http://localhost:8080
