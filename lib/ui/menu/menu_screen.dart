@@ -19,7 +19,16 @@ final menuCatalogProvider = FutureProvider<CatalogSnapshot>((ref) async {
 });
 
 /// null = auto-select the first category once data arrives.
-final selectedCategoryProvider = StateProvider<String?>((ref) => null);
+class SelectedCategoryNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void select(String? slug) => state = slug;
+}
+
+final selectedCategoryProvider =
+    NotifierProvider<SelectedCategoryNotifier, String?>(
+        SelectedCategoryNotifier.new);
 
 class MenuScreen extends ConsumerWidget {
   const MenuScreen({super.key});
@@ -156,7 +165,7 @@ class _CatalogList extends ConsumerWidget {
           lang: lang,
           activeSlug: effectiveSlug,
           onChanged: (slug) =>
-              ref.read(selectedCategoryProvider.notifier).state = slug,
+              ref.read(selectedCategoryProvider.notifier).select(slug),
         ),
         Expanded(
           child: items.isEmpty
