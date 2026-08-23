@@ -22,9 +22,9 @@ import '../ui/games/scratch/scratch_screen.dart';
 import '../ui/quests/quests_badges_screen.dart';
 import '../ui/staff/staff_board_screen.dart';
 import '../ui/lookup/customer_lookup_screen.dart';
+import '../ui/driver/driver_home_screen.dart';
 import '../ui/admin/admin_dashboard_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
-import '../ui/screens/placeholder_page.dart';
 import '../ui/screens/welcome_screen.dart';
 
 String _homeFor(AppRole role) {
@@ -210,7 +210,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/driver',
-        builder: (context, state) => const _RoleDashboardScreen(),
+        builder: (context, state) => const DriverHomeScreen(),
       ),
       GoRoute(
         path: '/admin',
@@ -222,22 +222,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   return router;
 });
 
-
-class _RoleDashboardScreen extends ConsumerWidget {
-  const _RoleDashboardScreen();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionControllerProvider);
-    final strings = AppStrings.of(session.lang);
-    final roleLabel = roleNameOf(session.role, strings);
-
-    return PlaceholderPage(
-      title: strings.dashboardTitle(roleLabel),
-      line: strings.dashboardHint,
-    );
-  }
-}
 
 class _CustomerShell extends ConsumerWidget {
   const _CustomerShell({required this.shell});
