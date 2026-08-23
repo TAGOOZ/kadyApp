@@ -128,6 +128,11 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   SupabaseClient get _client => supabase;
 
   /// Loads state for the given authenticated google_user_id.
+  ///
+  /// Audit finding #9: a network/permission failure must NOT be conflated
+  /// with "customer has no state" — keep the last-known state and surface
+  /// [lastRefreshFailed] instead of wiping displayed balances to zeros
+  /// (a later grant would otherwise persist from the wiped base).
   Future<void> refreshFor(String googleUserId) async {
     try {
       final rows = await _client
@@ -143,12 +148,21 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       } else {
         state = const LoyaltyState();
       }
+      _lastRefreshFailed = false;
     } catch (_) {
-      state = const LoyaltyState();
+      // Keep last-known state; only a genuine empty row zeroes it above.
+      _lastRefreshFailed = true;
     }
   }
 
-  void reset() => state = const LoyaltyState();
+  /// True when the most recent [refreshFor] failed (stale data on screen).
+  bool get lastRefreshFailed => _lastRefreshFailed;
+  bool _lastRefreshFailed = false;
+
+  void reset() {
+    state = const LoyaltyState();
+    _lastRefreshFailed = false;
+  }
 
   // -- Admin-editable rules config (app_config) ------------------------------
 
