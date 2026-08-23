@@ -3,12 +3,13 @@
 // real driver profiles land with #007; call + directions are MVP
 // snackbars (no url_launcher dependency).
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/l10n/strings_orders.dart';
 import '../../../core/theme/app_theme.dart';
 
-class DriverCard extends StatelessWidget {
+class DriverCard extends ConsumerWidget {
   const DriverCard({
     super.key,
     required this.onCallTap,
@@ -23,8 +24,9 @@ class DriverCard extends StatelessWidget {
   final String? driverName;
 
   @override
-  Widget build(BuildContext context) {
-    final strings = OrdersStringsCatalog.of(AppLang.ar);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings =
+        OrdersStringsCatalog.of(ref.watch(localeNotifierProvider));
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm16),

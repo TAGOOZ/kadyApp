@@ -4,6 +4,7 @@
 // orders render a red terminal row instead of any step progress.
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/app_strings.dart';
 import '../../../core/l10n/strings_orders.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/order_status_flow.dart';
@@ -15,6 +16,7 @@ class StatusTimeline extends StatefulWidget {
     required this.currentIndex,
     required this.timestamps,
     required this.pulse,
+    this.lang = AppLang.ar,
     this.cancelled = false,
     this.cancelledLabel = 'مُلغي',
     this.cancelReasonPrefix = '',
@@ -34,6 +36,9 @@ class StatusTimeline extends StatefulWidget {
   /// Repeating pulse animation (0..1); driven by the parent screen so a
   /// single controller animates the whole timeline.
   final Animation<double> pulse;
+
+  /// Picks labelAr vs labelEn from [FlowStep]; defaults to ar.
+  final AppLang lang;
   final bool cancelled;
   final String cancelledLabel;
   final String cancelReasonPrefix;
@@ -71,6 +76,7 @@ class _StatusTimelineState extends State<StatusTimeline> {
             connectorFilled: !widget.cancelled &&
                 widget.currentIndex >= 0 &&
                 i < widget.currentIndex,
+            lang: widget.lang,
           ),
           if (i < widget.steps.length - 1)
             const SizedBox(height: _rowGap - 12),
@@ -98,6 +104,7 @@ class _StepRow extends StatelessWidget {
     required this.pulse,
     required this.showConnector,
     required this.connectorFilled,
+    required this.lang,
   });
 
   final FlowStep step;
@@ -106,6 +113,9 @@ class _StepRow extends StatelessWidget {
   final Animation<double> pulse;
   final bool showConnector;
   final bool connectorFilled;
+  final AppLang lang;
+
+  String get label => lang == AppLang.ar ? step.labelAr : step.labelEn;
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +151,7 @@ class _StepRow extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      step.labelAr,
+                      label,
                       style: AppTextStyles.bodyLg.copyWith(
                         fontWeight: state == _StepState.upcoming
                             ? FontWeight.w400

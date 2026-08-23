@@ -90,12 +90,13 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen>
     if (!reduceMotion) {
       _confetti.forward(from: 0);
     }
+    final lang = ref.read(localeNotifierProvider);
+    final label = _stepLabel(doneStep, lang);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: AppColors.primaryContainer,
         content: Text(
-          OrdersStringsCatalog.of(AppLang.ar)
-              .deliveredBanner(doneStep?.labelAr ?? ''),
+          OrdersStringsCatalog.of(lang).deliveredBanner(label),
           style: AppTextStyles.bodySm.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -107,7 +108,8 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen>
 
   @override
   Widget build(BuildContext context) {
-    final strings = OrdersStringsCatalog.of(AppLang.ar);
+    final strings =
+        OrdersStringsCatalog.of(ref.watch(localeNotifierProvider));
     final orderAsync = ref.watch(watchOrderProvider(widget.orderId));
 
     ref.listen(watchOrderProvider(widget.orderId), (_, next) {
@@ -137,6 +139,13 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen>
   }
 }
 
+/// Per-language step label; the pure flow carries both translations.
+String _stepLabel(FlowStep? step, AppLang lang) => step == null
+    ? ''
+    : lang == AppLang.ar
+        ? step.labelAr
+        : step.labelEn;
+
 class _Body extends ConsumerWidget {
   const _Body({
     required this.order,
@@ -150,7 +159,8 @@ class _Body extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final strings = OrdersStringsCatalog.of(AppLang.ar);
+    final lang = ref.watch(localeNotifierProvider);
+    final strings = OrdersStringsCatalog.of(lang);
     final mode = order.flowMode;
     if (mode == null) {
       return Center(child: Text(strings.orderNotFound));
@@ -173,7 +183,10 @@ class _Body extends ConsumerWidget {
           children: [
             if (currentIndex >= 0 &&
                 steps[currentIndex].status == OrderWireStatus.done)
-              _DeliveredBanner(label: steps[currentIndex].labelAr),
+              _DeliveredBanner(
+                label: _stepLabel(steps[currentIndex], lang),
+                lang: lang,
+              ),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.sm16),
@@ -182,6 +195,7 @@ class _Body extends ConsumerWidget {
                   currentIndex: currentIndex,
                   timestamps: timestamps,
                   pulse: pulse,
+                  lang: lang,
                   cancelled: cancelled,
                   cancelledLabel: strings.cancelledChip,
                   cancelReasonPrefix: strings.cancelReasonLabel,
@@ -248,13 +262,14 @@ class _Body extends ConsumerWidget {
 }
 
 class _DeliveredBanner extends StatelessWidget {
-  const _DeliveredBanner({required this.label});
+  const _DeliveredBanner({required this.label, required this.lang});
 
   final String label;
+  final AppLang lang;
 
   @override
   Widget build(BuildContext context) {
-    final strings = OrdersStringsCatalog.of(AppLang.ar);
+    final strings = OrdersStringsCatalog.of(lang);
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm16),
       padding: const EdgeInsets.all(12),

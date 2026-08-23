@@ -40,6 +40,11 @@ class _BannerCarouselState extends State<BannerCarousel> {
   Timer? _timer;
   int _index = 0;
 
+  /// Derived from MediaQuery in [didChangeDependencies]; every timer start
+  /// path checks it so a pointer interaction can never resurrect
+  /// auto-advance for reduce-motion customers.
+  bool _autoAdvanceEnabled = true;
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +56,8 @@ class _BannerCarouselState extends State<BannerCarousel> {
     super.didChangeDependencies();
     // Reduced-motion customers get a static first banner: no timer, no
     // auto-advance animation.
-    if (MediaQuery.of(context).disableAnimations) {
+    _autoAdvanceEnabled = !MediaQuery.of(context).disableAnimations;
+    if (!_autoAdvanceEnabled) {
       _timer?.cancel();
       _timer = null;
     } else if (_timer == null || !_timer!.isActive) {
@@ -67,10 +73,14 @@ class _BannerCarouselState extends State<BannerCarousel> {
   }
 
   void _startTimer() {
+    if (!_autoAdvanceEnabled) return;
     _timer?.cancel();
     _timer = Timer.periodic(widget.autoAdvance, (_) {
       if (!_controller.hasClients) return;
-      final target = nextBannerIndex(current: _index, count: 3);
+      final target = nextBannerIndex(
+        current: _index,
+        count: widget.strings.banners.length,
+      );
       _controller.animateToPage(
         target,
         duration: const Duration(milliseconds: 400),
