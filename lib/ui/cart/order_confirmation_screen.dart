@@ -79,7 +79,7 @@ class OrderConfirmationScreen extends ConsumerWidget {
             child: Text(
               strings.confirmedTitle,
               textAlign: TextAlign.center,
-              style: AppTextStyles.headlineMobile.copyWith(fontSize: 26),
+              style: AppTextStyles.headlineMobile,
             ),
           ),
           const SizedBox(height: AppSpacing.sm16),
@@ -245,7 +245,7 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = emphasized
-        ? AppTextStyles.titleMd.copyWith(fontSize: 17)
+        ? AppTextStyles.titleSm
         : AppTextStyles.bodyLg;
     return Padding(
       padding: const EdgeInsets.only(top: 6),

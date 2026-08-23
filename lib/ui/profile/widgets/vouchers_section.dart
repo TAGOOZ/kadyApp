@@ -28,7 +28,7 @@ class VouchersSection extends StatelessWidget {
           Expanded(
             child: Text(
               strings.vouchersEmpty,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+              style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
             ),
           ),
         ],

@@ -35,7 +35,7 @@ class StampCardWidget extends StatelessWidget {
                 child: Text(
                   strings.stampCaption(stamps),
                   style: AppTextStyles.bodySm.copyWith(
-                    color: AppColors.outline,
+                    color: AppColors.textMuted,
                   ),
                 ),
               ),

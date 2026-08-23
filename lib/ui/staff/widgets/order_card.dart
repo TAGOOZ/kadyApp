@@ -203,8 +203,8 @@ class OrderCard extends StatelessWidget {
                     elapsedMinutesSince(order.createdAtUtc, nowUtc),
                   ),
                   style: AppTextStyles.labelMd.copyWith(
-                    color: AppColors.outline,
-                  ),
+                     color: AppColors.textMuted,
+                   ),
                 ),
               ],
             ),
@@ -226,7 +226,7 @@ class OrderCard extends StatelessWidget {
                   Text(
                     order.phone!,
                     style: AppTextStyles.bodySm
-                        .copyWith(color: AppColors.outline),
+                         .copyWith(color: AppColors.textMuted),
                   ),
                 ],
               ],
@@ -245,7 +245,7 @@ class OrderCard extends StatelessWidget {
                     child: Text(
                       timing,
                       style: AppTextStyles.bodySm
-                          .copyWith(color: AppColors.outline),
+                         .copyWith(color: AppColors.textMuted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

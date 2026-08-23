@@ -85,7 +85,7 @@ class RoleSwitcherSheet extends ConsumerWidget {
             ),
             child: FilledButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(strings.ok),
+              child: Text(strings.close),
             ),
           ),
         ],

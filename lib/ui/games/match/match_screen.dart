@@ -289,7 +289,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                     // Locked hint comes from the shared games catalog.
                     Text(games.matchLockedHint,
                         style: AppTextStyles.bodySm
-                            .copyWith(color: AppColors.outline)),
+                            .copyWith(color: AppColors.textMuted)),
                     Text(s.lockedFootnote,
                         style: AppTextStyles.bodySm
                             .copyWith(color: AppColors.secondary)),
@@ -301,7 +301,8 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
             Text(
               s.roundHint,
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+              style:
+                  AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
             ),
         ],
       ),

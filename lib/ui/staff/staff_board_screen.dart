@@ -404,7 +404,7 @@ class _LockPanel extends StatelessWidget {
             Text(
               strings.lockHint,
               style: AppTextStyles.bodySm
-                  .copyWith(color: AppColors.outline),
+                   .copyWith(color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.sm16),

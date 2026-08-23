@@ -241,8 +241,7 @@ class _CategoryPill extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: AppTextStyles.labelMd.copyWith(
-            fontSize: 14,
+          style: AppTextStyles.bodySm.copyWith(
             fontWeight: FontWeight.w600,
             color: active ? Colors.white : AppColors.coffeeBean,
           ),
@@ -273,14 +272,14 @@ class _ItemCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 item.name(lang),
-                style: AppTextStyles.titleMd.copyWith(fontSize: 16),
+                style: AppTextStyles.titleSm,
               ),
               Text(
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 item.nameEn,
                 style: AppTextStyles.bodySm.copyWith(
-                  color: AppColors.outline.withValues(alpha: 0.8),
+                  color: AppColors.textMuted,
                 ),
               ),
               const SizedBox(height: 2),
@@ -294,11 +293,9 @@ class _ItemCard extends StatelessWidget {
                 Text(
                   // Orange IBM Plex price, Western digits.
                   strings.price(item.priceEgp),
-                  style: AppTextStyles.labelMd.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.secondary,
-                  ),
+                  style: AppTextStyles.priceSm.copyWith(
+                     color: AppColors.secondary,
+                   ),
                 ),
             ],
           ),
@@ -348,6 +345,14 @@ class _LoadingShimmerState extends State<_LoadingShimmer>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.of(context).disableAnimations && _controller.isAnimating) {
+      _controller.stop();
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -355,9 +360,12 @@ class _LoadingShimmerState extends State<_LoadingShimmer>
 
   @override
   Widget build(BuildContext context) {
+    // Reduce-motion customers get a static skeleton — no pulsing.
+    final animate = !MediaQuery.of(context).disableAnimations;
+
     Widget block(double height, {double? width}) {
       return FadeTransition(
-        opacity: _opacity,
+        opacity: animate ? _opacity : const AlwaysStoppedAnimation(0.6),
         child: Container(
           height: height,
           width: width,

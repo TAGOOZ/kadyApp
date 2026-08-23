@@ -151,7 +151,7 @@ class _ItemDetailSheetState extends ConsumerState<_ItemDetailSheet> {
                   Text(
                     widget.item.nameEn,
                     style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.outline.withValues(alpha: 0.8),
+                      color: AppColors.textMuted,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs8),
@@ -164,11 +164,9 @@ class _ItemDetailSheetState extends ConsumerState<_ItemDetailSheet> {
                   ],
                   Text(
                     strings.price(_unitPriceEgp),
-                    style: AppTextStyles.labelMd.copyWith(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.secondary,
-                    ),
+                    style: AppTextStyles.priceLg.copyWith(
+                       color: AppColors.secondary,
+                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm16),
                   _SectionTitle(strings.sizeLabel),
@@ -324,10 +322,9 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: AppTextStyles.titleMd.copyWith(
-        fontSize: 16,
-        color: AppColors.primary,
-      ),
+      style: AppTextStyles.titleSm.copyWith(
+         color: AppColors.primary,
+       ),
     );
   }
 }
@@ -359,9 +356,8 @@ class _OptionChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: AppTextStyles.labelMd.copyWith(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+          style: AppTextStyles.bodySm.copyWith(
+             fontWeight: FontWeight.w600,
             color: active ? Colors.white : AppColors.coffeeBean,
           ),
         ),
@@ -396,9 +392,7 @@ class _AddonRow extends StatelessWidget {
             Expanded(child: Text(label, style: AppTextStyles.bodyLg)),
             Text(
               delta,
-              style: AppTextStyles.labelMd.copyWith(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+              style: AppTextStyles.priceSm.copyWith(
                 color: AppColors.secondary,
               ),
             ),
@@ -456,7 +450,7 @@ class _StickyFooter extends ConsumerWidget {
                   onPressed: qty > 1 ? () => onQtyChanged(qty - 1) : null,
                   icon: const Icon(Icons.remove_circle_outline),
                 ),
-                Text('$qty', style: AppTextStyles.titleMd.copyWith(fontSize: 16)),
+                Text('$qty', style: AppTextStyles.titleSm),
                 IconButton(
                   onPressed: () => onQtyChanged(qty + 1),
                   icon: const Icon(Icons.add_circle_outline),

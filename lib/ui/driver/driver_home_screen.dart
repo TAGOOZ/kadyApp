@@ -87,7 +87,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             indicatorColor: Colors.white,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
-            labelStyle: AppTextStyles.labelMd.copyWith(fontSize: 15),
+            labelStyle: AppTextStyles.bodySm.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
             tabs: [
               Tab(text: strings.tabMyDeliveries),
               Tab(text: strings.tabHistory),
@@ -516,7 +518,7 @@ class _DriverOrderDetailScreenState
                                   Text(
                                     order.phone!,
                                     style: AppTextStyles.bodySm.copyWith(
-                                      color: AppColors.outline,
+                                      color: AppColors.textMuted,
                                     ),
                                   ),
                               ],
@@ -570,7 +572,7 @@ class _DriverOrderDetailScreenState
                               TextSpan(
                                 text: _notesDisplay,
                                 style: AppTextStyles.bodySm.copyWith(
-                                  color: AppColors.outline,
+                                  color: AppColors.textMuted,
                                 ),
                               ),
                             ],
@@ -720,7 +722,7 @@ class _LockPanel extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs8),
             Text(
               strings.lockHint,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+              style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.sm16),

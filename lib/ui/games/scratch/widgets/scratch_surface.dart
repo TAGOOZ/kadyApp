@@ -157,7 +157,7 @@ class _ScratchSurfaceState extends State<ScratchSurface> {
               child: AnimatedScale(
                 scale: 1,
                 duration: Duration(milliseconds: 350),
-                curve: Curves.easeOutBack,
+                curve: Curves.easeOutCubic,
                 child: Center(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,

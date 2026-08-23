@@ -80,7 +80,7 @@ class _GuestSaveSheet extends ConsumerWidget {
             Text(
               strings.guestSaveBody(points),
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+              style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
             ),
             const SizedBox(height: AppSpacing.sm16),
             Wrap(

@@ -156,7 +156,7 @@ class _ScratchScreenState extends ConsumerState<ScratchScreen> {
             Text(
               s.scratchHint,
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+              style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
             ),
             const SizedBox(height: AppSpacing.sm16),
             Row(
@@ -190,7 +190,7 @@ class _ScratchScreenState extends ConsumerState<ScratchScreen> {
                     // Locked hint comes from the shared games catalog.
                     Text(games.scratchLockedHint,
                         style: AppTextStyles.bodySm
-                            .copyWith(color: AppColors.outline)),
+                            .copyWith(color: AppColors.textMuted)),
                   ],
                 ),
               ),
@@ -218,7 +218,7 @@ class _ScratchScreenState extends ConsumerState<ScratchScreen> {
                         Text(
                           s.upcomingCaption,
                           style:
-                              AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+                              AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
                         ),
                       ],
                     ),
@@ -272,7 +272,7 @@ class _PrizeLayer extends StatelessWidget {
                       ),
                       Text(
                         strings.voucherHint,
-                        style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+                        style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
                       ),
                     ],
                   ),

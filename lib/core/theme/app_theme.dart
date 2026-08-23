@@ -9,6 +9,12 @@ abstract final class AppColors {
   static const primaryFixedTint = Color(0xFFABF1D4);
   static const secondary = Color(0xFFA53C00);
   static const secondaryContainer = Color(0xFFFF7434);
+
+  /// Muted ink for body/caption text on paper-white, parchment and
+  /// background. [outline] keeps its role as a decorative stroke/divider
+  /// color only — at #6F7974 it measures 4.30:1 on paper-white (below the
+  /// 4.5:1 AA floor for body text), so it must not carry copy.
+  static const textMuted = Color(0xFF55605B);
   static const parchment = Color(0xFFF9EBD7);
   static const paperWhite = Color(0xFFFFF9F0);
   static const coffeeBean = Color(0xFF4B2C20);
@@ -61,37 +67,66 @@ abstract final class AppTextStyles {
         fontSize: 40,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.8,
+        height: 1.15,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
   static TextStyle get headlineLg => GoogleFonts.beVietnamPro(
         fontSize: 32,
         fontWeight: FontWeight.w600,
+        height: 1.2,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
   static TextStyle get headlineMobile => GoogleFonts.beVietnamPro(
         fontSize: 24,
         fontWeight: FontWeight.w600,
+        height: 1.25,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
   static TextStyle get titleMd => GoogleFonts.workSans(
         fontSize: 20,
         fontWeight: FontWeight.w600,
+        height: 1.25,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  /// Card/list-item titles and in-card section headers (16px step between
+  /// bodyLg and titleMd).
+  static TextStyle get titleSm => GoogleFonts.workSans(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        height: 1.25,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
   static TextStyle get bodyLg => GoogleFonts.workSans(
         fontSize: 16,
         fontWeight: FontWeight.w400,
+        height: 1.35,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
   static TextStyle get bodySm => GoogleFonts.workSans(
         fontSize: 14,
         fontWeight: FontWeight.w400,
+        height: 1.35,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 
   static TextStyle get labelMd => GoogleFonts.ibmPlexSans(
         fontSize: 12,
         fontWeight: FontWeight.w500,
         letterSpacing: 0.6,
+        height: 1.3,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  /// Inline prices / money emphasis at list scale (menu rows, cart lines).
+  static TextStyle get priceSm => GoogleFonts.ibmPlexSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        height: 1.3,
+      ).copyWith(fontFamilyFallback: _arabicFallback);
+
+  /// Large price display (item detail sheet).
+  static TextStyle get priceLg => GoogleFonts.ibmPlexSans(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        height: 1.25,
       ).copyWith(fontFamilyFallback: _arabicFallback);
 }
 

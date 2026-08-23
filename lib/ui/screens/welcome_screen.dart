@@ -91,7 +91,7 @@ class WelcomeScreen extends ConsumerWidget {
                   child: Text(
                     strings.demoButton,
                     style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.outline,
+                      color: AppColors.textMuted,
                     ),
                   ),
                 ),
@@ -100,8 +100,8 @@ class WelcomeScreen extends ConsumerWidget {
                   strings.welcomeHint,
                   textAlign: TextAlign.center,
                   style: AppTextStyles.bodySm.copyWith(
-                    color: AppColors.outline,
-                  ),
+                      color: AppColors.textMuted,
+                    ),
                 ),
               ],
             ),

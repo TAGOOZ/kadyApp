@@ -104,13 +104,12 @@ class _StepDot extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: AppTextStyles.labelMd.copyWith(
-              fontSize: 11,
               fontWeight: state == _StepState.upcoming
                   ? FontWeight.w400
                   : FontWeight.w700,
               color: state == _StepState.upcoming
-                  ? AppColors.outline
-                  : AppColors.coffeeBean,
+                   ? AppColors.textMuted
+                   : AppColors.coffeeBean,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,

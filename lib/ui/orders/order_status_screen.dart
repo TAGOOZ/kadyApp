@@ -58,6 +58,17 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen>
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduce-motion customers get a static timeline: no breathing halo.
+    if (MediaQuery.of(context).disableAnimations) {
+      if (_pulse.isAnimating) _pulse.stop();
+    } else if (!_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    }
+  }
+
   void _onOrderData(CustomerOrder? order) {
     if (order == null) return;
     final changed = _lastStatus != null && _lastStatus != order.status;
@@ -73,14 +84,22 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen>
     final mode = order.flowMode;
     final doneStep =
         mode == null ? null : OrderStatusFlow.stepFor(mode, order.status);
-    _confetti.forward(from: 0);
+    // Confetti is skipped entirely under reduce-motion; the banner carries
+    // the celebration instead.
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (!reduceMotion) {
+      _confetti.forward(from: 0);
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: AppColors.primaryContainer,
         content: Text(
           OrdersStringsCatalog.of(AppLang.ar)
               .deliveredBanner(doneStep?.labelAr ?? ''),
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          style: AppTextStyles.bodySm.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );

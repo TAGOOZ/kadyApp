@@ -14,9 +14,11 @@ abstract final class StaffStatusColors {
         OrderWireStatus.received => AppColors.secondary,
         OrderWireStatus.accepted => AppColors.primary,
         OrderWireStatus.inPrep => AppColors.coffeeBean,
-        OrderWireStatus.ready => const Color(0xFF1B7A4B),
-        OrderWireStatus.outForDelivery => AppColors.secondaryContainer,
-        OrderWireStatus.done => AppColors.outline,
+        OrderWireStatus.ready => const Color(0xFF156B41),
+        // #9E3900 keeps the burnt-orange identity and clears 4.5:1 on its own
+        // 12% tint; secondaryContainer (#FF7434) measured only 2.3:1 as text.
+        OrderWireStatus.outForDelivery => const Color(0xFF9E3900),
+        OrderWireStatus.done => AppColors.textMuted,
         OrderWireStatus.cancelled => AppColors.error,
       };
 }

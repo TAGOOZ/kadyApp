@@ -161,8 +161,8 @@ class _PhoneCollectionScreenState extends ConsumerState<PhoneCollectionScreen> {
                   decoration:
                       InputDecoration(labelText: authStrings.emailLabel),
                   style: AppTextStyles.bodyLg.copyWith(
-                    color: AppColors.outline,
-                  ),
+                     color: AppColors.textMuted,
+                   ),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,

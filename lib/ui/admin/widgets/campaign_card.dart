@@ -71,7 +71,7 @@ class CampaignCard extends StatelessWidget {
             Text(
               '${_formatDate(campaign.startsAt)} → ${_formatDate(campaign.endsAt)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.outline,
+                    color: AppColors.textMuted,
                   ),
             ),
             SwitchListTile(
