@@ -21,6 +21,7 @@ import '../ui/games/match/match_screen.dart';
 import '../ui/games/scratch/scratch_screen.dart';
 import '../ui/quests/quests_badges_screen.dart';
 import '../ui/staff/staff_board_screen.dart';
+import '../ui/lookup/customer_lookup_screen.dart';
 import '../ui/admin/admin_dashboard_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/placeholder_page.dart';
@@ -201,6 +202,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/staff',
         builder: (context, state) => const StaffBoardScreen(),
+      ),
+      // Customer lookup + manual rewards (#013, FEATURES §6.4).
+      GoRoute(
+        path: '/staff/lookup',
+        builder: (context, state) => const CustomerLookupScreen(),
       ),
       GoRoute(
         path: '/driver',

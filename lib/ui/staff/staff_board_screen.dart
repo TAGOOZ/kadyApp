@@ -7,8 +7,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/l10n/strings_lookup.dart';
 import '../../core/l10n/strings_staff.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/staff_orders_repository.dart';
@@ -98,6 +100,13 @@ class _StaffBoardScreenState extends ConsumerState<StaffBoardScreen> {
         foregroundColor: Colors.white,
         title: Text(strings.boardTitle),
         actions: [
+          // حساب العميل — customer lookup + manual rewards (#013).
+          IconButton(
+            tooltip:
+                LookupStrings.of(lang).screenTitle,
+            icon: const Icon(Icons.person_search_outlined),
+            onPressed: () => context.push('/staff/lookup'),
+          ),
           IconButton(
             tooltip: strings.checkInTooltip,
             icon: const Icon(Icons.how_to_reg_outlined),
