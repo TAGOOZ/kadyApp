@@ -50,6 +50,27 @@ class FakeAdminDb implements AdminDbClient {
   }
 
   @override
+  Future<int> count(
+    String table, {
+    List<({String column, Object value})> eq = const [],
+    ({String column, Object value})? gte,
+  }) async {
+    if (denyReads) throw const AdminAccessDeniedException();
+    ops.add(RecordedOp('count', table, {
+      if (gte != null) 'gte': '${gte.column}@${gte.value}',
+    }));
+    DateTime? asDate(Object? v) =>
+        v is DateTime ? v : v is String ? DateTime.tryParse(v) : null;
+    final rows = tables[table] ?? const [];
+    if (gte == null) return rows.length;
+    return rows.where((row) {
+      final value = asDate(row[gte.column]);
+      final bound = asDate(gte.value);
+      return value != null && bound != null && !value.isBefore(bound);
+    }).length;
+  }
+
+  @override
   Future<void> insert(String table, Map<String, dynamic> values) async {
     ops.add(RecordedOp('insert', table, values));
   }

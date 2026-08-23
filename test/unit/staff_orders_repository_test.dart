@@ -27,11 +27,24 @@ class _FakeStaffOrdersDb implements StaffOrdersDb {
   int? stampsOnFile = 3;
   Stream<List<Map<String, dynamic>>> watchStream = const Stream.empty();
 
+  // Name-map fetch recording (audit #5).
+  List<Map<String, dynamic>> pagePhoneRows = const [];
+  List<Map<String, dynamic>> customerRowsByPhone = const [];
+  Set<String>? fetchedCustomersByPhones;
+
   @override
   Stream<List<Map<String, dynamic>>> watchOrders() => watchStream;
 
   @override
-  Future<List<Map<String, dynamic>>> fetchCustomers() async => const [];
+  Future<List<Map<String, dynamic>>> fetchPagePhones() async => pagePhoneRows;
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchCustomersByPhones(
+    Set<String> phones,
+  ) async {
+    fetchedCustomersByPhones = phones;
+    return customerRowsByPhone;
+  }
 
   @override
   Future<List<Map<String, dynamic>>> fetchAddresses(Set<String> ids) async =>
@@ -311,6 +324,43 @@ void main() {
         SupabaseStaffOrdersRepo(db).ensureStaffAccess(),
         throwsA(isA<StaffPermissionException>()),
       );
+    });
+  });
+
+  group('fetchCustomerNames — bounded phone→name map (audit #5)', () {
+    test(
+        'distinct phones off the ≤60-row page drive one in-filter customers read',
+        () async {
+      final db = _FakeStaffOrdersDb()
+        ..pagePhoneRows = [
+          {'phone': '+201000000001'},
+          {'phone': '+201000000001'}, // duplicate collapses
+          {'phone': null}, // guest order ignored
+          {'phone': '+201000000002'},
+        ]
+        ..customerRowsByPhone = [
+          {'phone': '+201000000001', 'name': 'مصطفى'},
+        ];
+      final repo = SupabaseStaffOrdersRepo(db);
+
+      final names = await repo.fetchCustomerNames();
+
+      expect(db.fetchedCustomersByPhones,
+          {'+201000000001', '+201000000002'});
+      expect(names, {'+201000000001': 'مصطفى'});
+    });
+
+    test('guest-only page (no phones) skips the customers query entirely',
+        () async {
+      final db = _FakeStaffOrdersDb()
+        ..pagePhoneRows = [
+          {'phone': null},
+        ];
+
+      expect(await SupabaseStaffOrdersRepo(db).fetchCustomerNames(), isEmpty);
+      // Empty phone set → the adapter short-circuits before any in-filter
+      // customers read is issued.
+      expect(db.fetchedCustomersByPhones, isEmpty);
     });
   });
 
