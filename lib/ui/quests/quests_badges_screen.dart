@@ -120,27 +120,39 @@ class _QuestsBadgesScreenState extends ConsumerState<QuestsBadgesScreen> {
             lang,
           ));
         case QuestReward.matchToken:
-          await store.addPendingGrant(
-            phone,
-            PendingGrant(
-              type: 'match_token',
-              n: 1,
-              createdAtUtc: DateTime.now().toUtc(),
-            ),
-          );
-          if (!mounted) return;
-          _snack(strings.tokenQueuedSnackbar);
+          try {
+            await ref.read(loyaltyProvider.notifier).grantTokens(match: 1);
+            if (!mounted) return;
+            _snack(strings.tokenQueuedSnackbar);
+          } catch (_) {
+            await store.addPendingGrant(
+              phone,
+              PendingGrant(
+                type: 'match_token',
+                n: 1,
+                createdAtUtc: DateTime.now().toUtc(),
+              ),
+            );
+            if (!mounted) return;
+            _snack(strings.tokenQueuedSnackbar);
+          }
         case QuestReward.bonusStamp:
-          await store.addPendingGrant(
-            phone,
-            PendingGrant(
-              type: 'stamp',
-              n: 1,
-              createdAtUtc: DateTime.now().toUtc(),
-            ),
-          );
-          if (!mounted) return;
-          _snack(strings.stampQueuedSnackbar);
+          try {
+            await ref.read(loyaltyProvider.notifier).grantStamps(1);
+            if (!mounted) return;
+            _snack(strings.stampQueuedSnackbar);
+          } catch (_) {
+            await store.addPendingGrant(
+              phone,
+              PendingGrant(
+                type: 'stamp',
+                n: 1,
+                createdAtUtc: DateTime.now().toUtc(),
+              ),
+            );
+            if (!mounted) return;
+            _snack(strings.stampQueuedSnackbar);
+          }
       }
 
       final fresh = await store.markClaimed(phone, def.id);

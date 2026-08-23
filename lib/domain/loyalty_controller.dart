@@ -336,6 +336,45 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     state = state.copyWith(doubleNextOrder: true);
     await _persist();
   }
+
+  /// Grants game tokens directly (quest rewards). Mirrors #007 stamp-wrap
+  /// semantics where a 3rd-stamp token also applies.
+  Future<void> grantTokens({int spinner = 0, int match = 0, int scratch = 0}) async {
+    if (spinner <= 0 && match <= 0 && scratch <= 0) return;
+    state = state.copyWith(
+      spinnerTokens: state.spinnerTokens + spinner,
+      matchTokens: state.matchTokens + match,
+      scratchTokens: state.scratchTokens + scratch,
+    );
+    await _persist();
+  }
+
+  /// Adds [n] stamps (no points): reaching 10 completes the card (snack
+  /// voucher) and resets; every 3rd stamp also grants a spinner token.
+  Future<void> grantStamps(int n) async {
+    if (n <= 0) return;
+    var s = state;
+    for (var i = 0; i < n; i++) {
+      final newStamps = s.stamps + 1;
+      var stamps = newStamps;
+      var cards = s.completedCards;
+      var vouchers = List<Voucher>.of(s.vouchers);
+      if (newStamps >= 10) {
+        cards += 1;
+        vouchers = [
+          ...vouchers,
+          Voucher(type: VoucherType.freeSnack, grantedAt: DateTime.now().toUtc()),
+        ];
+        stamps = newStamps - 10;
+      }
+      if (stamps % 3 == 0 && stamps > 0) {
+        s = s.copyWith(spinnerTokens: s.spinnerTokens + 1);
+      }
+      s = s.copyWith(stamps: stamps, completedCards: cards, vouchers: vouchers);
+    }
+    state = s;
+    await _persist();
+  }
 }
 
 /// Admin-tuned loyalty rules for checkout/games; seed constants while loading

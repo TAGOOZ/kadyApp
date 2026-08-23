@@ -491,8 +491,11 @@ class AdminMenuRepository {
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
     final stamp = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-    return '${base.isEmpty ? 'item' : base}-$stamp';
+    final salt = _slugSeq = (_slugSeq + 1) & 0xFFF;
+    return '${base.isEmpty ? 'item' : base}-$stamp$salt';
   }
+
+  static int _slugSeq = 0;
 }
 
 // ---------------------------------------------------------------------------

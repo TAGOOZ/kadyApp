@@ -38,10 +38,8 @@ class MatchStrings {
   final String claimButton;
   final String noTokenSnackbar;
 
-  /// `محاولات: n` — Arabic-Indic numerals per the slice spec copy.
-  static const _arDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-  String attempts(int count) =>
-      '$attemptsPrefix: ${count.toString().split('').map((d) => _arDigits[int.parse(d)]).join()}';
+  /// `محاولات: n` — Western digits per FEATURES §11.11.
+  String attempts(int count) => '$attemptsPrefix: $count';
 
   static const MatchStrings _ar = MatchStrings(
     screenTitle: 'لعبة الأوراق',

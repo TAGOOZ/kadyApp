@@ -153,13 +153,13 @@ void main() {
       // First tap starts the round: token consumed, chip reads ٣.
       await tester.tap(find.byKey(const Key('match-card-0')));
       await tester.pump();
-      expect(find.text('محاولات: ٣'), findsOneWidget);
+      expect(find.text('محاولات: 3'), findsOneWidget);
       await tester.pumpAndSettle();
-      expect(find.text('محاولات: ٢'), findsOneWidget);
+      expect(find.text('محاولات: 2'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('match-card-1')));
       await tester.pumpAndSettle();
-      expect(find.text('محاولات: ١'), findsOneWidget);
+      expect(find.text('محاولات: 1'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('match-card-2')));
       await tester.pumpAndSettle();
