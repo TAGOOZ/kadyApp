@@ -20,6 +20,11 @@ abstract final class AppColors {
   static const background = Color(0xFFF8FAF6);
   static const error = Color(0xFFBA1A1A);
   static const outline = Color(0xFF6F7974);
+
+  static const facebook = Color(0xFF1877F2);
+  static const instagram = Color(0xFFE4405F);
+  static const tiktok = Color(0xFF000000);
+  static const whatsapp = Color(0xFF25D366);
 }
 
 abstract final class AppRadii {

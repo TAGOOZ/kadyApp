@@ -45,7 +45,7 @@ class WelcomeScreen extends ConsumerWidget {
               fit: StackFit.expand,
               children: [
                 Image.asset(
-                  'assets/images/menu_hero.png',
+                  'assets/images/welcome_hero.jpg',
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) => Container(
                     decoration: const BoxDecoration(

@@ -57,6 +57,15 @@ class ProfileStrings {
     required this.guestPanelTitle,
     required this.guestPanelBody,
     required this.guestSignInCta,
+    required this.contactSectionTitle,
+    required this.contactSectionSubtitle,
+    required this.socialFacebook,
+    required this.socialInstagram,
+    required this.socialTiktok,
+    required this.contactPhoneLabel,
+    required this.contactPhoneNumber,
+    required this.contactWhatsAppLabel,
+    required this.contactWhatsAppNumber,
   });
 
   final String screenTitle;
@@ -111,6 +120,15 @@ class ProfileStrings {
   final String guestPanelTitle;
   final String guestPanelBody;
   final String guestSignInCta;
+  final String contactSectionTitle;
+  final String contactSectionSubtitle;
+  final String socialFacebook;
+  final String socialInstagram;
+  final String socialTiktok;
+  final String contactPhoneLabel;
+  final String contactPhoneNumber;
+  final String contactWhatsAppLabel;
+  final String contactWhatsAppNumber;
 
   String editField(String field) => editTitle.replaceAll('{field}', field);
 
@@ -194,6 +212,15 @@ abstract final class ProfileStringsCatalog {
       guestPanelBody:
           'سجّل بحساب Google عشان نقاطك وطوابعك ومكافآتك وعناوينك تفضل محفوظة معاك.',
       guestSignInCta: 'سجّل بحساب Google',
+      contactSectionTitle: 'تواصل معنا',
+      contactSectionSubtitle: 'تابعنا على',
+      socialFacebook: 'فيسبوك',
+      socialInstagram: 'إنستجرام',
+      socialTiktok: 'تيك توك',
+      contactPhoneLabel: 'هاتف',
+      contactPhoneNumber: '045 2508799',
+      contactWhatsAppLabel: 'واتساب',
+      contactWhatsAppNumber: '+20 120 626 8500',
     ),
     AppLang.en: ProfileStrings(
       screenTitle: 'Profile',
@@ -251,6 +278,15 @@ abstract final class ProfileStringsCatalog {
           'Sign in with Google to keep your points, stamps, rewards and '
           'addresses on any device.',
       guestSignInCta: 'Sign in with Google',
+      contactSectionTitle: 'Contact us',
+      contactSectionSubtitle: 'Follow us on',
+      socialFacebook: 'Facebook',
+      socialInstagram: 'Instagram',
+      socialTiktok: 'TikTok',
+      contactPhoneLabel: 'Phone',
+      contactPhoneNumber: '045 2508799',
+      contactWhatsAppLabel: 'WhatsApp',
+      contactWhatsAppNumber: '+20 120 626 8500',
     ),
   };
 

@@ -15,6 +15,7 @@ import '../../domain/auth_controller.dart';
 import '../../domain/loyalty_controller.dart';
 import '../../domain/session_controller.dart';
 import 'widgets/addresses_section.dart';
+import 'widgets/contact_social_section.dart';
 import 'widgets/edit_field_sheet.dart';
 import 'widgets/language_row.dart';
 import 'widgets/notifications_card.dart';
@@ -465,6 +466,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 _LogoutTile(label: s.logoutTile, onTap: () => _confirmLogout(s)),
               ],
+              ContactSocialSection(lang: lang),
               SizedBox(height: MediaQuery.paddingOf(context).bottom + AppSpacing.lg32),
             ],
           ),
