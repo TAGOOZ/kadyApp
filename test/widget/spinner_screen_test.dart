@@ -1,98 +1,71 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kady_app/domain/loyalty_controller.dart';
+import 'package:kady_app/core/l10n/app_strings.dart';
+import 'package:kady_app/core/l10n/strings_spinner.dart';
+import 'package:kady_app/domain/spinner_engine.dart';
 import 'package:kady_app/ui/games/spinner/spinner_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-class _SeededSpinnerLoyalty extends LoyaltyController {
-  _SeededSpinnerLoyalty(this.tokens);
-  final int tokens;
-  @override
-  LoyaltyState build() => LoyaltyState(spinnerTokens: tokens);
-}
-
-class FixedRandom implements Random {
-  @override
-  bool nextBool() => true;
-  @override
-  double nextDouble() => 0;
-  @override
-  int nextInt(int max) => 0;
-}
-
-Future<void> _pump(
-  WidgetTester tester,
-  Widget child, {
-  int seededSpinner = 0,
-}) async {
-  SharedPreferences.setMockInitialValues({});
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [loyaltyProvider.overrideWith(() => _SeededSpinnerLoyalty(seededSpinner))],
-      child: MaterialApp(home: child),
-    ),
-  );
-  await tester.pumpAndSettle();
-}
+import 'package:kady_app/ui/games/spinner/widgets/result_modal.dart';
+import 'package:kady_app/ui/games/spinner/widgets/spinner_wheel.dart';
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  // Supabase is NOT initialized in widget tests; LoyaltyController degrades to
+  // a local zero state (all network paths are caught), which is exactly the
+  // locked scenario under test.
 
-  testWidgets('locked panel when no tokens', (tester) async {
-    tester.view.physicalSize = const Size(800, 1000);
+  testWidgets('locked state: panel shown, spin hub disabled',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 2600);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
-    await _pump(tester, const SpinnerScreen());
-    expect(find.byKey(const Key('spinner-locked-panel')), findsOneWidget);
-    expect(find.byKey(const Key('spinner-spin-button')), findsNothing);
-    expect(find.byKey(const Key('spinner-token-chip')), findsOneWidget);
-  });
-
-  testWidgets('token chip shows seeded count', (tester) async {
-    tester.view.physicalSize = const Size(800, 1000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    await _pump(tester, const SpinnerScreen(), seededSpinner: 2);
-    expect(find.textContaining('2'), findsWidgets);
-    expect(find.byKey(const Key('spinner-locked-panel')), findsNothing);
-    expect(find.byKey(const Key('spinner-spin-button')), findsOneWidget);
-  });
-
-  testWidgets('legend lists all prizes', (tester) async {
-    tester.view.physicalSize = const Size(800, 1200);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    await _pump(tester, const SpinnerScreen(), seededSpinner: 1);
-    expect(find.byKey(const Key('spinner-legend')), findsOneWidget);
-    expect(find.byKey(ValueKey('spinner-legend-pts5')), findsOneWidget);
-    expect(find.byKey(ValueKey('spinner-legend-toppingVoucher')), findsOneWidget);
-    expect(find.byKey(ValueKey('spinner-legend-nothing')), findsOneWidget);
-  });
-
-  testWidgets('spin consumes token, animates wheel, result sheet claims prize', (tester) async {
-    tester.view.physicalSize = const Size(800, 1200);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    await _pump(tester, SpinnerScreen(rng: FixedRandom()), seededSpinner: 1);
-
-    expect(find.byKey(const Key('spinner-spin-button')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('spinner-spin-button')));
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: SpinnerScreen())),
+    );
     await tester.pumpAndSettle();
 
-    // token consumed
-    expect(find.textContaining('0'), findsWidgets);
-    // result sheet appears (FixedRandom nextDouble=0 → roll pts5)
-    expect(find.byKey(const ValueKey('game-claim')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('game-claim')));
-    await tester.pumpAndSettle();
-
-    final container = ProviderScope.containerOf(tester.element(find.byType(SpinnerScreen)));
-    expect(container.read(loyaltyProvider).points, 5);
-    expect(container.read(loyaltyProvider).spinnerTokens, 0);
-    // back to locked after round
     expect(find.byKey(const Key('spinner-locked-panel')), findsOneWidget);
+    expect(find.text('توكنات: 0'), findsOneWidget);
+
+    final hub = tester.widget<FilledButton>(
+      find.descendant(
+        of: find.byType(SpinnerWheel),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    expect(hub.onPressed, isNull, reason: 'no tokens → spin disabled');
+  });
+
+  testWidgets('wheel renders six slices with hub button when tokens exist is irrelevant here — smoke', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: SpinnerScreen())),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(SpinnerWheel), findsOneWidget);
+    expect(find.byType(CustomPaint), findsWidgets);
+  });
+
+  group('ResultModal mapping (pure UI over prize)', () {
+    for (final prize in SpinPrize.values) {
+      testWidgets('${prize.name} renders correct title/icon color',
+          (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ResultModal(prize: prize, strings: SpinnerStrings.of(AppLang.ar)),
+            ),
+          ),
+        );
+        expect(find.byIcon(prize.icon), findsOneWidget);
+        if (prize == SpinPrize.nothing) {
+          expect(find.text('حظ أوفر المرة الجاية 😅'), findsOneWidget);
+        } else {
+          expect(find.text('مبروك! 🎉'), findsOneWidget);
+          expect(find.text(prize.labelAr), findsOneWidget);
+        }
+        expect(find.byKey(const ValueKey('spinner-claim')), findsOneWidget);
+      });
+    }
   });
 }

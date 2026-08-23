@@ -1,3 +1,8 @@
+// Spinner of Luck screen (#008 / FEATURES §5.1). Token-gated play through
+// the shared loyalty seam (consumeSpinnerToken / grantPoints / grantVoucher /
+// setDoubleNextOrder — never edited here). Result is pre-picked via the pure
+// engine, then the wheel animates ~3s ease-out to land exactly on it.
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -5,12 +10,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/l10n/strings_games.dart';
-import '../../../core/l10n/strings_scratch.dart';
 import '../../../core/l10n/strings_spinner.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../domain/games_prizes.dart';
 import '../../../domain/loyalty_controller.dart';
-import '../scratch/widgets/result_sheet.dart';
+import '../../../domain/spinner_engine.dart';
+import 'widgets/result_modal.dart';
+import 'widgets/spinner_wheel.dart';
 
 class SpinnerScreen extends ConsumerStatefulWidget {
   const SpinnerScreen({super.key, this.rng});
@@ -22,97 +27,72 @@ class SpinnerScreen extends ConsumerStatefulWidget {
   ConsumerState<SpinnerScreen> createState() => _SpinnerScreenState();
 }
 
-class _SpinnerScreenState extends ConsumerState<SpinnerScreen> with SingleTickerProviderStateMixin {
-  late final Random _rng = widget.rng ?? Random();
-  AnimationController? _controller;
-  double _angle = 0;
-  GamePrize? _prize;
-  bool _spinning = false;
+class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 3),
+  );
+  late final CurvedAnimation _curve =
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
 
-  bool get _roundActive => _spinning || _prize != null;
+  late final Random _rng = widget.rng ?? Random();
+  double _rotation = 0;
+  bool _spinning = false;
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _curve.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   Future<void> _spin() async {
     if (_spinning) return;
+    final s = SpinnerStrings.of(ref.read(localeNotifierProvider));
     final loyalty = ref.read(loyaltyProvider.notifier);
+
+    setState(() => _spinning = true);
     final ok = await loyalty.consumeSpinnerToken();
-    if (!mounted) return;
     if (!ok) {
-      final s = SpinnerStrings.of(ref.read(localeNotifierProvider));
+      if (!mounted) return;
+      setState(() => _spinning = false);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(s.noTokenSnackbar)));
       return;
     }
 
+    // Pre-compute the outcome, then animate exactly onto its slice.
     final prize = roll(_rng);
-    setState(() {
-      _prize = prize;
-      _spinning = true;
-    });
+    final slice = sliceIndexFor(prize, _rng);
+    final target = spinTargetRotation(
+      currentRotation: _rotation,
+      sliceIndex: slice,
+      extraTurns: 4 + _rng.nextInt(3), // 4..6 full turns
+    );
 
-    const sweep = 2 * pi / 5;
-    final prizeIndex = GamePrize.values.indexOf(prize);
-    final prizeCenter = prizeIndex * sweep + sweep / 2;
-    const pointerAngle = -pi / 2;
+    final anim = Tween<double>(begin: _rotation, end: target).animate(_curve);
+    void onTick() => setState(() => _rotation = anim.value);
+    _controller.addListener(onTick);
 
-    var delta = pointerAngle - prizeCenter - _angle;
-    delta %= 2 * pi;
-    if (delta < 0) delta += 2 * pi;
-    // small jitter keeps the landing inside the winning segment
-    final jitter = (_rng.nextDouble() - 0.5) * sweep * 0.5;
-    delta += jitter;
-    // normalize jitter overflow back into the segment
-    if (delta > 2 * pi) delta -= 2 * pi;
-    if (delta < 0) delta += 2 * pi;
+    try {
+      await _controller.forward(from: 0).orCancel;
+    } on TickerCanceled {
+      _controller.removeListener(onTick);
+      return;
+    }
+    _controller.removeListener(onTick);
+    _rotation = target;
 
-    const turns = 4;
-    final target = _angle + turns * 2 * pi + delta;
-
-    final disableAnimations = MediaQuery.of(context).disableAnimations;
-    final duration = disableAnimations ? Duration.zero : const Duration(milliseconds: 2800);
-
-    _controller?.dispose();
-    _controller = AnimationController(vsync: this, duration: duration);
-    final curved = CurvedAnimation(parent: _controller!, curve: Curves.easeOutCubic);
-    final animation = Tween<double>(begin: _angle, end: target).animate(curved);
-    animation.addListener(() {
-      if (mounted) setState(() => _angle = animation.value);
-    });
-    await _controller!.forward();
     if (!mounted) return;
-    setState(() {
-      _spinning = false;
-      _angle = target;
-    });
-    _showResult();
-  }
-
-  void _showResult() {
-    final lang = ref.read(localeNotifierProvider);
-    final s = SpinnerStrings.of(lang);
-    final prize = _prize ?? GamePrize.nothing;
-
-    ResultSheet.showAndClaim(
+    setState(() => _spinning = false);
+    ResultModal.showAndClaim(
       context,
-      win: prize != GamePrize.nothing,
-      icon: prize.icon,
-      labelAr: prize.labelAr,
-      winTitle: s.resultWinTitle,
-      nothingTitle: s.resultNothingTitle,
-      claimButton: s.claimButton,
-      validChip: prize.isVoucher ? ScratchStrings.of(lang).validChip : null,
-      voucherHint: prize.isVoucher ? ScratchStrings.of(lang).voucherHint : null,
-      claim: () => creditGamePrize(ref.read(loyaltyProvider.notifier), prize),
-    ).then((_) {
-      if (!mounted) return;
-      setState(() => _prize = null);
-    });
+      prize: prize,
+      strings: s,
+      controller: ref.read(loyaltyProvider.notifier),
+    );
   }
 
   @override
@@ -121,7 +101,7 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen> with SingleTicker
     final s = SpinnerStrings.of(lang);
     final games = GamesStrings.of(lang);
     final tokens = ref.watch(loyaltyProvider.select((st) => st.spinnerTokens));
-    final locked = tokens <= 0 && !_roundActive;
+    final locked = tokens <= 0 && !_spinning;
 
     return Scaffold(
       appBar: AppBar(title: Text(s.screenTitle)),
@@ -130,10 +110,14 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen> with SingleTicker
         children: [
           Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Chip(
-              key: const Key('spinner-token-chip'),
-              label: Text('${s.tokenChipPrefix}: $tokens'),
-            ),
+            child: Chip(label: Text(s.tokenChip(tokens))),
+          ),
+          const SizedBox(height: AppSpacing.sm16),
+          SpinnerWheel(
+            rotationDeg: _rotation,
+            onSpin: _spin,
+            enabled: tokens > 0 && !_spinning,
+            buttonLabel: s.spinButton,
           ),
           const SizedBox(height: AppSpacing.sm16),
           if (locked)
@@ -143,206 +127,30 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen> with SingleTicker
                 padding: const EdgeInsets.all(AppSpacing.md24),
                 child: Column(
                   children: [
-                    const Icon(Icons.lock_outline, size: 40, color: AppColors.outline),
+                    const Icon(Icons.lock_outline,
+                        size: 40, color: AppColors.outline),
                     const SizedBox(height: AppSpacing.xs8),
-                    Text(s.lockedTitle, style: AppTextStyles.titleMd, textAlign: TextAlign.center),
+                    Text(s.lockedTitle, style: AppTextStyles.titleMd),
                     const SizedBox(height: AppSpacing.xs8),
+                    // Locked hint comes from the shared games catalog.
                     Text(games.spinnerLockedHint,
-                        style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
-                        textAlign: TextAlign.center),
+                        style:
+                            AppTextStyles.bodySm.copyWith(color: AppColors.outline)),
+                    Text(s.lockedFootnote,
+                        style:
+                            AppTextStyles.bodySm.copyWith(color: AppColors.secondary)),
                   ],
                 ),
               ),
             )
-          else ...[
-            Center(
-              child: SizedBox(
-                width: 280,
-                height: 308,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Positioned.fill(
-                      top: 28,
-                      child: CustomPaint(
-                        key: const ValueKey('spinner-wheel'),
-                        painter: _WheelPainter(angle: _angle),
-                      ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      child: CustomPaint(
-                        size: const Size(28, 22),
-                        painter: _PointerPainter(color: AppColors.primary),
-                      ),
-                    ),
-                    Positioned.fill(
-                      top: 28,
-                      child: Center(
-                        child: Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: AppColors.paperWhite,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.outline.withValues(alpha: 0.2)),
-                            boxShadow: AppShadows.coffeeShadows(blurRadius: 10, offset: const Offset(0, 4)),
-                          ),
-                          child: const Icon(Icons.casino, color: AppColors.primary, size: 28),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm16),
+          else
             Text(
-              s.roundHint,
+              games.spinnerLockedHint,
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
+              style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
             ),
-            const SizedBox(height: AppSpacing.sm16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                key: const Key('spinner-spin-button'),
-                onPressed: _spinning ? null : _spin,
-                child: Text(_spinning ? s.spinningLabel : s.spinButton),
-              ),
-            ),
-          ],
-          const SizedBox(height: AppSpacing.lg32),
-          Card(
-            key: const Key('spinner-legend'),
-            color: AppColors.parchment,
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.sm16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(s.legendTitle, style: AppTextStyles.titleSm),
-                  const SizedBox(height: AppSpacing.xs8),
-                  Wrap(
-                    spacing: AppSpacing.xs8,
-                    runSpacing: AppSpacing.xs8,
-                    children: [
-                      for (final prize in GamePrize.values)
-                        Chip(
-                          key: ValueKey('spinner-legend-${prize.name}'),
-                          avatar: Icon(prize.icon, size: 18, color: AppColors.primary),
-                          label: Text(prize.labelAr, style: AppTextStyles.bodySm),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
-}
-
-class _WheelPainter extends CustomPainter {
-  _WheelPainter({required this.angle});
-
-  final double angle;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = min(size.width, size.height) / 2 - 4;
-    const sweep = 2 * pi / 5;
-    final fills = <Color>[
-      AppColors.primaryFixedTint,
-      AppColors.parchment,
-      AppColors.paperWhite,
-      AppColors.secondaryContainer.withValues(alpha: 0.22),
-      AppColors.primary.withValues(alpha: 0.08),
-    ];
-
-    for (var i = 0; i < 5; i++) {
-      final start = angle + i * sweep;
-      final fill = Paint()
-        ..color = fills[i]
-        ..style = PaintingStyle.fill;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        start,
-        sweep,
-        true,
-        fill,
-      );
-      final stroke = Paint()
-        ..color = AppColors.outline.withValues(alpha: 0.22)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        start,
-        sweep,
-        true,
-        stroke,
-      );
-      final edgeEnd = center + Offset(cos(start), sin(start)) * radius;
-      canvas.drawLine(center, edgeEnd, stroke);
-    }
-
-    final rim = Paint()
-      ..color = AppColors.outline.withValues(alpha: 0.18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawCircle(center, radius, rim);
-
-    final textStyle = AppTextStyles.bodySm.copyWith(
-      color: AppColors.coffeeBean,
-      fontWeight: FontWeight.w600,
-      fontSize: 11,
-      height: 1.2,
-    );
-    for (var i = 0; i < 5; i++) {
-      final mid = angle + i * sweep + sweep / 2;
-      final labelPos = center + Offset(cos(mid), sin(mid)) * radius * 0.62;
-      final prize = GamePrize.values[i];
-      final tp = TextPainter(
-        text: TextSpan(text: prize.labelAr, style: textStyle),
-        textDirection: TextDirection.rtl,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-      )..layout(maxWidth: radius * 0.58);
-      tp.paint(canvas, labelPos - Offset(tp.width / 2, tp.height / 2));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _WheelPainter old) => old.angle != angle;
-}
-
-class _PointerPainter extends CustomPainter {
-  _PointerPainter({required this.color});
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    final path = Path()
-      ..moveTo(size.width / 2, size.height)
-      ..lineTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..close();
-    canvas.drawPath(path, paint);
-    final shadow = Paint()
-      ..color = Colors.black.withValues(alpha: 0.12)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-    canvas.drawPath(path, shadow);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PointerPainter old) => old.color != color;
 }
