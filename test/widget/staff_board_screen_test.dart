@@ -103,8 +103,12 @@ Future<_FakeStaffOrdersRepo> _pumpBoard(
 ]) async {
   final repo = injected ?? _FakeStaffOrdersRepo();
   await tester.pumpWidget(
+    // Riverpod 3 auto-retries failing providers (backoff up to ~40s), which
+    // would keep the board stuck on the spinner instead of surfacing the
+    // lock panel. Tests assert the immediate error UI, so retries are off.
     ProviderScope(
       overrides: [staffOrdersRepoProvider.overrideWithValue(repo)],
+      retry: (_, _) => null,
       child: const MaterialApp(
         home: Directionality(
           textDirection: TextDirection.rtl,

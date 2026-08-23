@@ -20,8 +20,15 @@ import 'widgets/order_card.dart';
 
 enum StaffFilter { all, dineIn, pickup, delivery }
 
-final staffFilterProvider =
-    StateProvider<StaffFilter>((ref) => StaffFilter.all);
+class StaffFilterNotifier extends Notifier<StaffFilter> {
+  @override
+  StaffFilter build() => StaffFilter.all;
+
+  void select(StaffFilter filter) => state = filter;
+}
+
+final staffFilterProvider = NotifierProvider<StaffFilterNotifier, StaffFilter>(
+    StaffFilterNotifier.new);
 
 class StaffBoardScreen extends ConsumerStatefulWidget {
   const StaffBoardScreen({super.key});
@@ -211,7 +218,7 @@ class _BoardBody extends ConsumerWidget {
               f: _countFor(ordersAsync.value ?? const [], f),
           },
           onSelect: (selected) =>
-              ref.read(staffFilterProvider.notifier).state = selected,
+              ref.read(staffFilterProvider.notifier).select(selected),
         ),
         Expanded(
           child: ordersAsync.when(
