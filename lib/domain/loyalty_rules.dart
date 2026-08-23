@@ -252,3 +252,28 @@ int drinkLineDiscountEgp(List<({String categorySlug, int lineTotalEgp})> lines) 
   }
   return best;
 }
+
+/// Full post-checkout transition for ONE processed order that may carry a
+/// checkout redemption: spends [redemption]'s Points first, then credits
+/// [earned] against the discounted spend, marks nothing processed (that stays
+/// the controller's [markProcessed] call so the idempotency guard keeps its
+/// shape). Pure — used by LoyaltyController.creditProcessedOrder so deduction
+/// and earn land in a single guarded state transition (and therefore a single
+/// persist). Lifetime Points grow by [earned] only — redemption cost never
+/// touches them.
+LoyaltyState creditRedeemedOrder(
+  LoyaltyState s, {
+  required Redemption? redemption,
+  required int earned,
+  required int subtotalEgp,
+  int stampMinSpendEgp = kStampMinSpendEgp,
+}) {
+  var next = redemption == null ? s : applyRedemption(s, redemption);
+  next = creditOrder(
+    next,
+    earned: earned,
+    subtotalEgp: subtotalEgp,
+    stampMinSpendEgp: stampMinSpendEgp,
+  );
+  return next;
+}

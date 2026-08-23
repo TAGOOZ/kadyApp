@@ -210,6 +210,13 @@ void main() {
     await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
 
+    // Remaining-points preview gone post-submit. NOTE (comment only): the
+    // actual Points deduction is covered by the `creditRedeemedOrder` unit
+    // tests in test/unit/loyalty_rules_test.dart — this harness's
+    // `_FixedLoyalty` overrides build() and bypasses real state transitions,
+    // so server-balance mutation is deliberately not asserted here.
+    expect(find.text('رصيدك بعد الاستخدام: 0 نقطة'), findsNothing);
+
     expect(repo.placeOrderCalls, 1);
     final order = repo.lastOrder!;
     expect(order.subtotalEgp, 15); // 55 − 40 zeroed drink line
