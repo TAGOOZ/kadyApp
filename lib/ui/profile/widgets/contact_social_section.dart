@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/l10n/app_strings.dart';
@@ -69,7 +70,7 @@ class ContactSocialSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(s.contactSectionTitle, style: AppTextStyles.titleSm),
-          const SizedBox(height: AppSpacing.xs8 / 2),
+          const SizedBox(height: 2),
           Text(
             s.contactSectionSubtitle,
             style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
@@ -82,7 +83,8 @@ class ContactSocialSection extends StatelessWidget {
                 key: const Key('social_facebook'),
                 label: s.socialFacebook,
                 background: AppColors.facebook,
-                icon: Icons.facebook,
+                svgAsset: 'assets/images/brand_facebook.svg',
+                iconSize: 22,
                 onTap: () => _open(
                   context,
                   fallbackUrl: _facebookUrl,
@@ -96,8 +98,13 @@ class ContactSocialSection extends StatelessWidget {
               _SocialButton(
                 key: const Key('social_instagram'),
                 label: s.socialInstagram,
-                background: AppColors.instagram,
-                icon: Icons.camera_alt_rounded,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF515BD4)],
+                ),
+                svgAsset: 'assets/images/brand_instagram.svg',
+                iconSize: 24,
                 onTap: () => _open(
                   context,
                   fallbackUrl: _instagramUrl,
@@ -110,7 +117,8 @@ class ContactSocialSection extends StatelessWidget {
                 key: const Key('social_tiktok'),
                 label: s.socialTiktok,
                 background: AppColors.tiktok,
-                icon: Icons.music_note_rounded,
+                svgAsset: 'assets/images/brand_tiktok.svg',
+                iconSize: 20,
                 onTap: () => _open(
                   context,
                   fallbackUrl: _tiktokUrl,
@@ -123,7 +131,7 @@ class ContactSocialSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.sm16),
-          const Divider(),
+          Divider(color: AppColors.outline.withValues(alpha: 0.15)),
           const SizedBox(height: AppSpacing.xs8),
           _ContactRow(
             key: const Key('contact_phone'),
@@ -131,6 +139,7 @@ class ContactSocialSection extends StatelessWidget {
             iconColor: AppColors.primary,
             label: s.contactPhoneLabel,
             value: s.contactPhoneNumber,
+            isPhoneValue: true,
             onTap: () => _open(
               context,
               fallbackUrl: _phoneUri,
@@ -140,10 +149,12 @@ class ContactSocialSection extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs8),
           _ContactRow(
             key: const Key('contact_whatsapp'),
-            icon: Icons.chat_rounded,
+            // Real WhatsApp mark, not generic chat bubble
+            svgAsset: 'assets/images/brand_whatsapp.svg',
             iconColor: AppColors.whatsapp,
             label: s.contactWhatsAppLabel,
             value: s.contactWhatsAppNumber,
+            isPhoneValue: true,
             onTap: () => _open(
               context,
               fallbackUrl: _whatsAppUrl,
@@ -161,21 +172,26 @@ class ContactSocialSection extends StatelessWidget {
 class _ContactRow extends StatelessWidget {
   const _ContactRow({
     super.key,
-    required this.icon,
+    this.icon,
+    this.svgAsset,
     required this.iconColor,
     required this.label,
     required this.value,
     required this.onTap,
-  });
+    this.isPhoneValue = false,
+  }) : assert(icon != null || svgAsset != null);
 
-  final IconData icon;
+  final IconData? icon;
+  final String? svgAsset;
   final Color iconColor;
   final String label;
   final String value;
   final VoidCallback onTap;
+  final bool isPhoneValue;
 
   @override
   Widget build(BuildContext context) {
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadii.md8),
@@ -190,7 +206,16 @@ class _ContactRow extends StatelessWidget {
                 color: iconColor.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 20, color: iconColor),
+              child: Center(
+                child: svgAsset != null
+                    ? SvgPicture.asset(
+                        svgAsset!,
+                        width: 20,
+                        height: 20,
+                        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+                      )
+                    : Icon(icon, size: 20, color: iconColor),
+              ),
             ),
             const SizedBox(width: AppSpacing.sm16),
             Expanded(
@@ -203,20 +228,37 @@ class _ContactRow extends StatelessWidget {
                       color: AppColors.textMuted,
                     ),
                   ),
-                  Text(
-                    value,
-                    style: AppTextStyles.bodyLg.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.coffeeBean,
+                  const SizedBox(height: 2),
+                  if (isPhoneValue)
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          '\u200E$value',
+                          textDirection: TextDirection.ltr,
+                          style: AppTextStyles.bodyLg.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.coffeeBean,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Text(
+                      value,
+                      style: AppTextStyles.bodyLg.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.coffeeBean,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right,
+            Icon(
+              isRtl ? Icons.chevron_left : Icons.chevron_right,
               size: 20,
-              color: AppColors.outline,
+              color: AppColors.outline.withValues(alpha: 0.6),
             ),
           ],
         ),
@@ -229,14 +271,21 @@ class _SocialButton extends StatelessWidget {
   const _SocialButton({
     super.key,
     required this.label,
-    required this.background,
-    required this.icon,
+    this.background,
+    this.gradient,
+    required this.svgAsset,
+    this.iconSize = 24,
     required this.onTap,
-  });
+  }) : assert(
+          background != null || gradient != null,
+          'Provide background or gradient',
+        );
 
   final String label;
-  final Color background;
-  final IconData icon;
+  final Color? background;
+  final Gradient? gradient;
+  final String svgAsset;
+  final double iconSize;
   final VoidCallback onTap;
 
   @override
@@ -251,14 +300,25 @@ class _SocialButton extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: background,
+                color: gradient == null ? background : null,
+                gradient: gradient,
                 shape: BoxShape.circle,
                 boxShadow: AppShadows.coffeeShadows(
                   offset: const Offset(0, 4),
                   blurRadius: 10,
                 ),
               ),
-              child: Icon(icon, color: AppColors.paperWhite, size: 28),
+              child: Center(
+                child: SvgPicture.asset(
+                  svgAsset,
+                  width: iconSize,
+                  height: iconSize,
+                  colorFilter: const ColorFilter.mode(
+                    AppColors.paperWhite,
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: AppSpacing.xs8),
             Text(
