@@ -14,17 +14,29 @@ class AppLogo extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryContainer],
-        ),
         boxShadow: AppShadows.coffeeShadows(),
       ),
-      child: Icon(
-        Icons.local_cafe,
-        size: size * 0.45,
-        color: AppColors.parchment,
+      clipBehavior: Clip.antiAlias,
+      child: Image.asset(
+        'assets/images/logo.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Container(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.primary, AppColors.primaryContainer],
+            ),
+          ),
+          child: Icon(
+            Icons.local_cafe,
+            size: size * 0.45,
+            color: AppColors.parchment,
+          ),
+        ),
       ),
     );
   }
