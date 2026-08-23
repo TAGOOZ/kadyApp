@@ -13,6 +13,8 @@ import 'package:supabase_flutter/supabase_flutter.dart'
     show PostgrestException;
 
 class _FakeStaffOrdersDb implements StaffOrdersDb {
+  final List<Map<String, Object?>> stampRpcCalls = [];
+  bool? Function(String phone, int spend)? onStampRpc;
   final orderUpdates = <MapEntry<String, Map<String, dynamic>>>[];
   final orderEvents = <Map<String, dynamic>>[];
   final visits = <Map<String, dynamic>>[];
@@ -91,6 +93,13 @@ class _FakeStaffOrdersDb implements StaffOrdersDb {
 
   @override
   String? currentUserId() => userId;
+  @override
+  Future<bool?> applyStampRpc(String phone, int spend) async {
+    stampRpcCalls.add({'phone': phone, 'spend': spend});
+    if (onStampRpc != null) return onStampRpc!(phone, spend);
+    return true;
+  }
+
 }
 
 StaffOrder _order({
@@ -244,19 +253,21 @@ void main() {
       });
       expect(db.staffLogs.single['action'], 'checkin');
       expect(db.staffLogs.single['target_phone'], '+201001234567');
-      expect(db.stampWrites.single.key, '+201001234567');
-      expect(db.stampWrites.single.value, 4); // 3 on file + 1
+      // Migration 0004: stamping is server-authoritative via staff_apply_stamp.
+      expect(db.stampRpcCalls.single['phone'], '+201001234567');
+      expect(db.stampRpcCalls.single['spend'], 60);
     });
 
-    test('check-in on a full card completes it — writes 0, never 11+', () async {
-      // Plan 002 unification: the persisted value respects the canonical
-      // card rule (reaching 10 completes & resets) instead of raw +1.
+    test('qualifying check-in delegates wrap math to the RPC', () async {
+      // Migration 0004: card completion/reset lives in staff_apply_stamp;
+      // the client only forwards the request.
       final db = _FakeStaffOrdersDb()..stampsOnFile = 9;
       final result = await SupabaseStaffOrdersRepo(db).registerVisit(
         const CheckInInput(phone: '+201001234567', spendEgp: 60),
       );
       expect(result.loyaltyPending, isFalse);
-      expect(db.stampWrites.single.value, 0); // completed card resets to 0
+      expect(db.stampRpcCalls.single['spend'], 60);
+      expect(db.stampWrites, isEmpty);
     });
 
     test('below threshold skips the stamp entirely (nothing pending)',
@@ -269,13 +280,12 @@ void main() {
       expect(result.loyaltyPending, isFalse);
       expect(db.visits, hasLength(1));
       expect(db.stampWrites, isEmpty);
+      expect(db.stampRpcCalls, isEmpty); // below threshold → no rpc
     });
 
-    test('stamp write blocked by RLS → visit recorded, loyalty PENDING',
-        () async {
+    test('rpc failure → visit recorded, loyalty PENDING', () async {
       final db = _FakeStaffOrdersDb()
-        ..stampUpdateError =
-            const PostgrestException(code: '42501', message: 'RLS');
+        ..onStampRpc = (_, _) => null; // network/missing fn
       final result = await SupabaseStaffOrdersRepo(db)
           .registerVisit(const CheckInInput(phone: '+201001234567',
               spendEgp: 80));

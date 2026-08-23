@@ -12,8 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
-import '../../domain/loyalty_controller.dart' show LoyaltyState;
-import '../../domain/loyalty_rules.dart' show grantStampsPure;
 import '../../domain/order_status_flow.dart';
 import 'orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
 
@@ -240,6 +238,10 @@ String formatPickupSlotCairo(DateTime utcInstant) {
 // ---------------------------------------------------------------------------
 
 abstract class StaffOrdersDb {
+  /// Calls the `staff_apply_stamp` security-definer RPC (migration 0004).
+  /// Returns its boolean; null when the call itself failed.
+  Future<bool?> applyStampRpc(String phone, int spend);
+
   Stream<List<Map<String, dynamic>>> watchOrders();
 
   /// `orders.phone` column of the newest board page (≤ [staffBoardPageLimit]
@@ -425,6 +427,16 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
   }
 
   @override
+  Future<bool?> applyStampRpc(String phone, int spend) async {
+    try {
+      return await _client.rpc('staff_apply_stamp',
+          params: {'p_phone': phone, 'p_spend': spend});
+    } catch (_) {
+      return null; // network / missing fn → caller degrades to pending
+    }
+  }
+
+  @override
   Future<String?> fetchOwnRole(String googleUserId) async {
     try {
       final row = await _client
@@ -557,23 +569,15 @@ class SupabaseStaffOrdersRepo implements StaffOrdersRepo {
       await _db.insertStaffLog(checkInStaffLogRow(input));
     } catch (_) {}
 
-    // 3. Direct loyalty stamp attempt — typically blocked by loyalty_state
-    //    own-row RLS (staff ≠ row owner) until a server-side path exists;
-    //    ANY failure here degrades to loyaltyPending instead of an error.
+    // 3. Server-authoritative stamp via `staff_apply_stamp` (migration 0004,
+    //    security-definer — RLS-safe). Any failure degrades to loyaltyPending.
     var loyaltyPending = false;
     try {
       final threshold =
           await _db.fetchStampMinSpend() ?? stampMinSpendDefaultEgp;
       if (input.spendEgp >= threshold) {
-        final current = await _db.fetchStamps(input.phone);
-        if (current == null) {
-          loyaltyPending = true; // row not visible — cannot verify
-        } else {
-          // Canonical stamp-card rule (plan 002 unification) — the value
-          // written respects card wrap, so no 11+ counts can persist.
-          final next = grantStampsPure(LoyaltyState(stamps: current), 1);
-          await _db.updateStamps(input.phone, next.stamps);
-        }
+        final ok = await _db.applyStampRpc(input.phone, input.spendEgp);
+        loyaltyPending = ok != true;
       }
     } on Exception {
       loyaltyPending = true;

@@ -14,8 +14,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
-import '../../domain/loyalty_controller.dart' show LoyaltyState;
-import '../../domain/loyalty_rules.dart' show grantStampsPure;
 import '../repos/orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
 import 'staff_orders_repository.dart';
 
@@ -257,6 +255,9 @@ class RecentSearchStore {
 // ---------------------------------------------------------------------------
 
 abstract class CustomerLookupDb {
+  /// `staff_apply_stamp` security-definer RPC (migration 0004).
+  Future<bool?> applyStampRpc(String phone, int spend);
+
   /// `customers where phone ilike [phoneLike] or name ilike [nameLike]`.
   Future<List<Map<String, dynamic>>> searchCustomers(
     String phoneLike,
@@ -461,6 +462,16 @@ class SupabaseCustomerLookupDb implements CustomerLookupDb {
       rethrowAsTyped(error);
     }
   }
+
+  @override
+  Future<bool?> applyStampRpc(String phone, int spend) async {
+    try {
+      return await _client.rpc('staff_apply_stamp',
+          params: {'p_phone': phone, 'p_spend': spend});
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -559,23 +570,15 @@ class SupabaseCustomerLookupRepo implements CustomerLookupRepo {
       await _db.insertStaffLog(checkInStaffLogRow(input));
     } catch (_) {}
 
-    // 3. Direct loyalty stamp attempt — typically blocked by loyalty_state
-    //    own-row RLS (staff ≠ row owner) until a server-side path exists;
-    //    ANY failure here degrades to loyaltyPending instead of an error.
+    // 3. Server-authoritative stamp via `staff_apply_stamp` (migration 0004,
+    //    security-definer — RLS-safe). Failure degrades to loyaltyPending.
     var loyaltyPending = false;
     try {
       final threshold =
           await _db.fetchStampMinSpend() ?? stampMinSpendDefaultEgp;
       if (input.spendEgp >= threshold) {
-        final current = await _db.fetchStamps(input.phone);
-        if (current == null) {
-          loyaltyPending = true; // row not visible — cannot verify
-        } else {
-          // Canonical stamp-card rule (plan 002 unification) — the value
-          // written respects card wrap, so no 11+ counts can persist.
-          final next = grantStampsPure(LoyaltyState(stamps: current), 1);
-          await _db.updateStamps(input.phone, next.stamps);
-        }
+        final ok = await _db.applyStampRpc(input.phone, input.spendEgp);
+        loyaltyPending = ok != true;
       }
     } on Exception {
       loyaltyPending = true;

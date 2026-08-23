@@ -140,3 +140,18 @@ Paste `supabase/migrations/0003_order_update_hardening.sql`. Adds a guard
 trigger: money/items/identity columns become immutable (admin exempt);
 drivers may only flip `out_for_delivery → done`; staff/admin keep the full
 status vocabulary. Verify by attempting a money edit as staff — it must fail.
+
+## Migration 4 — server-authoritative loyalty (run after 0003)
+
+Paste `supabase/migrations/0004_loyalty_server.sql`. Deploys:
+- `enforce_order_rate_limit()` trigger — per-customer order rate limit (ADR-0010, enforced server-side)
+- `credit_new_order()` trigger — idempotent loyalty crediting incl. `[REDEEMED]` deduction and double-points window
+- `staff_apply_stamp(phone, spend)` — RLS-safe staff check-in stamping
+
+This supersedes the client-trusted crediting accepted in ADR-0007; the Flutter
+clients were aligned to it (checkout resyncs via refreshFor; check-ins call the
+RPC). Verify after first real order:
+```sql
+select points, stamps from loyalty_state;
+select * from order_events where actor = 'system:loyalty';
+```

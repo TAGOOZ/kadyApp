@@ -13,6 +13,8 @@ import 'package:supabase_flutter/supabase_flutter.dart'
     show PostgrestException;
 
 class _FakeCustomerLookupDb implements CustomerLookupDb {
+  final List<Map<String, Object?>> stampRpcCalls = [];
+  bool? Function(String phone, int spend)? onStampRpc;
   final loyaltyUpdates = <MapEntry<String, Map<String, dynamic>>>[];
   final staffLogs = <Map<String, dynamic>>[];
   final visits = <Map<String, dynamic>>[];
@@ -96,6 +98,13 @@ class _FakeCustomerLookupDb implements CustomerLookupDb {
     if (error != null) throw error;
     stampWrites.add(MapEntry(phone, stamps));
   }
+  @override
+  Future<bool?> applyStampRpc(String phone, int spend) async {
+    stampRpcCalls.add({'phone': phone, 'spend': spend});
+    if (onStampRpc != null) return onStampRpc!(phone, spend);
+    return true;
+  }
+
 }
 
 void main() {
@@ -276,7 +285,8 @@ void main() {
       expect(result.loyaltyPending, isFalse);
       expect(db.visits.single['source'], 'checkin');
       expect(db.visits.single['spend_egp'], 60);
-      expect(db.stampWrites.single.value, 4);
+      expect(db.stampRpcCalls.single['phone'], '+201001234567');
+      expect(db.stampRpcCalls.single['spend'], 60);
     });
 
     test('check-in on a full card completes it — writes 0, never 11+',
@@ -288,15 +298,14 @@ void main() {
         const CheckInInput(phone: '+201001234567', spendEgp: 60),
       );
       expect(result.loyaltyPending, isFalse);
-      expect(db.stampWrites.single.value, 0); // completed card resets to 0
+      expect(db.stampRpcCalls, hasLength(1)); // wrap math lives server-side
+      expect(db.stampWrites, isEmpty);
     });
 
     test('stamp write blocked by RLS → visit recorded, loyalty PENDING',
         () async {
       final db = _FakeCustomerLookupDb()
-        ..loyaltyRow = const {'stamps': 3}
-        ..stampUpdateError =
-            const PostgrestException(code: '42501', message: 'RLS');
+        ..onStampRpc = (_, _) => null; // network / missing fn
       final result = await SupabaseCustomerLookupRepo(db).registerVisit(
         const CheckInInput(phone: '+201001234567', spendEgp: 80),
       );
