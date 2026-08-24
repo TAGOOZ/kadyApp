@@ -1,9 +1,10 @@
 // Driver orders slice data layer (#014, FEATURES §7 & #019 identity):
 // realtime feed of delivery orders currently `out_for_delivery` (ADR-0006;
 // assigned to any driver MVP — the admin assignment UI lands later,
-// identity from profiles.display_name via driverProfileProvider with
-// fallback to DriverStrings.driverNameStub), the three-step accept →
-// picked up → delivered progression written through the same `orders` store
+// identity from profiles.display_name via DriverOrdersRepo.fetchDriverDisplayName
+// (returns null so UI can fallback to DriverStrings.driverNameStub)), the
+// three-step accept → picked up → delivered progression written through the
+// same `orders` store
 // + append-only `order_events` audit rows (actor 'driver'),
 // completed-delivery history and a Cairo-day cash summary.
 // The Supabase client sits behind the [DriverOrdersDb] seam so unit tests
@@ -15,8 +16,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/l10n/app_strings.dart';
-import '../../core/l10n/strings_driver.dart';
 import '../../core/supabase/supabase_config.dart';
 import '../../domain/order_status_flow.dart';
 import 'orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
@@ -509,21 +508,4 @@ final driverAddressTextProvider = FutureProvider.family<String?, String>((
   addressId,
 ) {
   return ref.watch(driverOrdersRepoProvider).fetchAddressText(addressId);
-});
-
-/// Real driver identity from Supabase profiles.display_name where
-/// user_id==auth.uid() and role==driver, with fallback to
-/// [DriverStrings.driverNameStub]. Loading/error also fall back to stub
-/// so the AppBar never blanks (task spec: loading shows stub).
-final driverProfileProvider = FutureProvider<String>((ref) async {
-  final repo = ref.watch(driverOrdersRepoProvider);
-  final lang = ref.watch(localeNotifierProvider);
-  final fallback = DriverStrings.of(lang).driverNameStub;
-  try {
-    final name = await repo.fetchDriverDisplayName();
-    if (name != null && name.trim().isNotEmpty) return name.trim();
-    return fallback;
-  } catch (_) {
-    return fallback;
-  }
 });

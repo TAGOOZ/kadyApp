@@ -20,6 +20,7 @@ import '../../core/l10n/strings_driver.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/driver_orders_repository.dart';
 import '../../data/repos/orders_repository.dart' show cairoUtcOffset;
+import '../../domain/driver_profile_provider.dart';
 import 'widgets/delivery_progress_bar.dart';
 import 'widgets/driver_order_card.dart';
 
@@ -44,7 +45,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     final access = ref.watch(driverAccessProvider);
     final driverNameAsync = ref.watch(driverProfileProvider);
     final driverName = driverNameAsync.when(
-      data: (name) => name,
+      data: (name) => name ?? strings.driverNameStub,
       loading: () => strings.driverNameStub,
       error: (_, _) => strings.driverNameStub,
     );
