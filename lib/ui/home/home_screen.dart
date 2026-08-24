@@ -50,12 +50,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _refresh() => _loadActiveOrders();
 
-  void _comingSoon(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final lang = ref.watch(localeNotifierProvider);
@@ -94,7 +88,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ActiveOrderStrip(
                 orders: _activeOrders,
                 strings: strings,
-                onTap: () => _comingSoon(context, strings.comingSoon),
+                onTap: () => context.push('/orders'),
               ),
               const SizedBox(height: AppSpacing.sm16),
               PointsCard(
@@ -112,13 +106,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: AppSpacing.sm16),
               QuickActionsRow(
                 strings: strings,
-                onComingSoon: () => _comingSoon(context, strings.comingSoon),
+                onComingSoon: () => context.go('/menu'),
               ),
               const SizedBox(height: AppSpacing.md24),
               BannerCarousel(
                 strings: strings,
                 autoAdvance: kBannerAutoAdvance,
-                onTapBanner: () => _comingSoon(context, strings.comingSoon),
+                onTapBanner: () => context.push('/games/quests'),
               ),
             ],
           ),

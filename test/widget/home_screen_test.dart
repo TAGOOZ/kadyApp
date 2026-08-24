@@ -37,12 +37,40 @@ GoRouter _router() {
     routes: [
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(
+        path: '/menu',
+        builder: (_, _) => const Scaffold(body: Text('MENU_STUB')),
+      ),
+      GoRoute(
         path: '/games',
         builder: (_, _) => const Scaffold(body: Text('GAMES_STUB')),
       ),
       GoRoute(
+        path: '/games/spinner',
+        builder: (_, _) => const Scaffold(body: Text('SPINNER_STUB')),
+      ),
+      GoRoute(
+        path: '/games/match',
+        builder: (_, _) => const Scaffold(body: Text('MATCH_STUB')),
+      ),
+      GoRoute(
+        path: '/games/scratch',
+        builder: (_, _) => const Scaffold(body: Text('SCRATCH_STUB')),
+      ),
+      GoRoute(
+        path: '/games/quests',
+        builder: (_, _) => const Scaffold(body: Text('QUESTS_STUB')),
+      ),
+      GoRoute(
         path: '/profile',
         builder: (_, _) => const Scaffold(body: Text('PROFILE_STUB')),
+      ),
+      GoRoute(
+        path: '/orders',
+        builder: (_, _) => const Scaffold(body: Text('ORDERS_STUB')),
+      ),
+      GoRoute(
+        path: '/orders/:id',
+        builder: (_, _) => const Scaffold(body: Text('ORDER_STATUS_STUB')),
       ),
       GoRoute(
         path: '/mode-selection',
@@ -190,5 +218,63 @@ void main() {
 
     expect(find.byKey(const Key('home_active_order_strip')), findsOneWidget);
     expect(find.text('طلبك #1023 — قيد التحضير'), findsOneWidget);
+  });
+
+  testWidgets('active order strip tap navigates to /orders', (tester) async {
+    await _pump(
+      tester,
+      authState: _readyAuth,
+      loyalty: _demoLoyalty,
+      activeOrders: const [
+        {'id': 'o1', 'display_number': 1023, 'status': 'in_prep', 'mode': 'pickup'},
+      ],
+    );
+
+    await tester.tap(find.byKey(const Key('home_active_order_strip')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ORDERS_STUB'), findsOneWidget);
+    expect(find.text('قريبًا'), findsNothing);
+  });
+
+  testWidgets('quick action امسح واكسب navigates to /menu (scan placeholder)', (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    expect(find.text('امسح واكسب'), findsOneWidget);
+    await tester.tap(find.text('امسح واكسب'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('MENU_STUB'), findsOneWidget);
+    expect(find.text('قريبًا'), findsNothing);
+  });
+
+  testWidgets('banner tap navigates to /games/quests', (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    // First banner card key is home_banner_0.
+    expect(find.byKey(const ValueKey('home_banner_0')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('home_banner_0')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('QUESTS_STUB'), findsOneWidget);
+    expect(find.text('قريبًا'), findsNothing);
+  });
+
+  testWidgets('quick action Play still navigates to /games', (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    await tester.tap(find.text('العب'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('GAMES_STUB'), findsOneWidget);
+  });
+
+  testWidgets('quick action المكافآت still navigates to /profile', (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    await tester.tap(find.text('المكافآت'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('PROFILE_STUB'), findsOneWidget);
   });
 }
