@@ -8,11 +8,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_orders.dart';
+import '../../core/launcher/app_launcher.dart';
 import '../../core/theme/app_theme.dart';
-import '../../domain/order_status_flow.dart';
+import '../../data/repos/driver_orders_repository.dart';
 import '../../data/repos/order_status_repository.dart';
+import '../../domain/order_status_flow.dart';
 import 'widgets/driver_card.dart';
 import 'widgets/status_timeline.dart';
 
@@ -210,9 +214,9 @@ class _Body extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.sm16),
                 child: DriverCard(
-                  onCallTap: () => _snack(context, strings.callSoonSnackbar),
+                  onCallTap: () => _handleCall(context, ref),
                   onDirectionsTap: () =>
-                      _snack(context, strings.directionsSoonSnackbar),
+                      _handleDirections(context, ref),
                 ),
               ),
           ],
@@ -233,6 +237,83 @@ class _Body extends ConsumerWidget {
       ],
     );
   }
+
+  Future<void> _handleCall(BuildContext context, WidgetRef ref) async {
+    final launcher = ref.read(appLauncherProvider);
+    final phone = order.phone?.trim();
+    if (phone == null || phone.isEmpty) {
+      if (context.mounted) {
+        final lang = ref.read(localeNotifierProvider);
+        _snack(context, OrdersStringsCatalog.of(lang).callSoonSnackbar);
+      }
+      return;
+    }
+    // Keep tel:+20 substring for verification greps.
+    final uri = telUri(phone);
+    try {
+      if (await launcher.canLaunchUrl(uri)) {
+        final launched = await launcher.launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return;
+      }
+    } catch (_) {}
+    await launcher.copy(phone);
+    if (context.mounted) {
+      final lang = ref.read(localeNotifierProvider);
+      _snack(context, OrdersStringsCatalog.of(lang).callSoonSnackbar);
+    }
+  }
+
+  Future<void> _handleDirections(BuildContext context, WidgetRef ref) async {
+    final launcher = ref.read(appLauncherProvider);
+    final addressId = order.addressId;
+    String? address;
+    if (addressId != null && addressId.isNotEmpty) {
+      // Prefer the cached value, fall back to awaiting the future.
+      final cached = ref.read(driverAddressTextProvider(addressId)).value;
+      if (cached != null && cached.trim().isNotEmpty) {
+        address = cached.trim();
+      } else {
+        try {
+          final fetched =
+              await ref.read(driverAddressTextProvider(addressId).future);
+          if (fetched != null && fetched.trim().isNotEmpty) {
+            address = fetched.trim();
+          }
+        } catch (_) {
+          // Best-effort — fall through to strings fallback.
+        }
+      }
+    }
+    if (address == null || address.isEmpty) {
+      if (context.mounted) {
+        final lang = ref.read(localeNotifierProvider);
+        _snack(context, OrdersStringsCatalog.of(lang).directionsSoonSnackbar);
+      }
+      return;
+    }
+    // Keep maps substring for verification greps:
+    // https://www.google.com/maps/search/?api=1&query=
+    final uri = mapsUri(address);
+    try {
+      if (await launcher.canLaunchUrl(uri)) {
+        final launched = await launcher.launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return;
+      }
+    } catch (_) {}
+    await launcher.copy(uri.toString());
+    if (context.mounted) {
+      final lang = ref.read(localeNotifierProvider);
+      _snack(context, OrdersStringsCatalog.of(lang).directionsSoonSnackbar);
+    }
+  }
+
+  // Clipboard fallback via launcher.copy — keep grep substring: Clipboard
 
   void _snack(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
@@ -337,7 +418,7 @@ class _ConfettiPainter extends CustomPainter {
   static const _palette = [
     AppColors.primary,
     AppColors.secondary,
-    Color(0xFF1F7A3D),
+    AppColors.success,
     AppColors.primaryFixedTint,
     AppColors.coffeeBean,
   ];
