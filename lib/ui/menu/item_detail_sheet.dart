@@ -8,6 +8,7 @@ import '../../core/l10n/strings_menu.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/menu_models.dart';
 import '../../domain/cart_controller.dart';
+import 'widgets/menu_item_image.dart' show MenuItemImage;
 
 /// Branded photo placeholder — gradient + ☕ — shared by the menu cards and
 /// this sheet until photos land via `cached_network_image` in a later slice
@@ -261,10 +262,10 @@ class _PhotoHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Stack(
       children: [
-        const MenuPhotoPlaceholder(
+        MenuItemImage(
+          item: item,
           height: 180,
           width: double.infinity,
-          iconSize: 56,
           radius: AppRadii.lg16,
         ),
         PositionedDirectional(
