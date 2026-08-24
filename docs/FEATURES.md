@@ -99,6 +99,8 @@ Arabic fallback: *IBM Plex Sans Arabic* / *Amiri*. Arabic is default locale (`ar
 | G8 | Scratch & Win | `169e67ac1a9048d2a2dd39ae2bc584a1` · alt `3e8ee1f8c2ea44cba266829c50baaf8f` |
 | G9 | Quests & Badges hub | `9574eed6ca9744cd8f8de19c2978e4ef` |
 | G10 | Staff orders list (utility view) | `eec299fa86cd479e99619be821a67152` |
+| G10b | Staff customer lookup | `lib/ui/lookup/customer_lookup_screen.dart` — ✅ Done (#013 — search + recent chips + profile card + manual reward + visit log; `docs/SUPABASE_SETUP.md` elevation) |
+| — | Staff order detail sheet | `lib/ui/staff/widgets/staff_order_detail_sheet.dart` — ✅ Done (#020 — bottom sheet reusing OrderCard expanded state + status advance via `staffOrdersRepo`) |
 | G11 | Admin campaign management | `f1b41151707b4031899b896b6765e022` |
 | G12 | Driver order detail | `ac5a748447ac42728ed7d9842577a9fd` |
 | — | Coffee-cup mascot illustration | `ed920dbf67884ed88d00d13ab0e9720c` |
@@ -107,8 +109,6 @@ Arabic fallback: *IBM Plex Sans Arabic* / *Amiri*. Arabic is default locale (`ar
 
 | # | Screen | Priority | Note |
 |---|---|---|---|
-| G10b | Staff customer lookup | P1 | Generation repeatedly rejected server-side ("invalid argument"); staff orders screen already has search entry point — retry later or build directly in Flutter |
-| — | Staff order detail sheet | P2 | Can reuse order card expanded state |
 | — | Admin menu CRUD editor | P2 | Phase 3 per plan |
 
 ---
