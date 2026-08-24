@@ -44,6 +44,14 @@ class FakeMenuRepository implements MenuRepository {
     ];
     return (categories, items);
   }
+
+  @override
+  Future<CatalogSnapshot> fetchPage({int offset = 0, int limit = 20}) async {
+    final (cats, items) = await fetchCatalog();
+    final end = (offset + limit).clamp(0, items.length);
+    if (offset >= items.length) return (cats, <MenuItem>[]);
+    return (cats, items.sublist(offset, end));
+  }
 }
 
 void main() {
