@@ -39,6 +39,8 @@ class HomeStrings {
     required this.tierGold,
     required this.rewardsSectionTitle,
     required this.browseMenuTitle,
+    required this.featuredTitle,
+    required this.viewAllLabel,
     required this.orderAgainTitle,
     required this.lastOrderTemplate,
     required this.actionMyOrders,
@@ -80,8 +82,14 @@ class HomeStrings {
   /// Loyalty hero card header (merged points + stamps).
   final String rewardsSectionTitle;
 
-  /// Home category shortcuts section header.
+  /// Home category shortcuts section header (kept for legacy, v2 uses featured).
   final String browseMenuTitle;
+
+  /// Featured discovery carousel title (replaces category shortcuts — single-brand home).
+  final String featuredTitle;
+
+  /// View all → /menu
+  final String viewAllLabel;
 
   /// Order-again strip section header.
   final String orderAgainTitle;
@@ -181,6 +189,8 @@ abstract final class HomeStringsCatalog {
       tierGold: 'ذهبي',
       rewardsSectionTitle: 'مكافآتك',
       browseMenuTitle: 'تصفح المنيو',
+      featuredTitle: 'الأكثر طلباً',
+      viewAllLabel: 'عرض الكل',
       orderAgainTitle: 'اطلب تاني',
       lastOrderTemplate: 'آخر طلبك #{number}',
       actionMyOrders: 'طلباتي',
@@ -220,6 +230,8 @@ abstract final class HomeStringsCatalog {
       tierGold: 'Gold',
       rewardsSectionTitle: 'Your rewards',
       browseMenuTitle: 'Browse the menu',
+      featuredTitle: 'Most ordered',
+      viewAllLabel: 'View all',
       orderAgainTitle: 'Order again',
       lastOrderTemplate: 'Last order #{number}',
       actionMyOrders: 'My orders',

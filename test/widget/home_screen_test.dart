@@ -14,7 +14,7 @@ import 'package:kady_app/domain/loyalty_controller.dart';
 import 'package:kady_app/domain/session_controller.dart';
 import 'package:kady_app/ui/home/home_screen.dart';
 import 'package:kady_app/ui/home/widgets/banner_carousel.dart';
-import 'package:kady_app/ui/home/widgets/category_shortcuts.dart';
+import 'package:kady_app/ui/home/widgets/featured_carousel.dart';
 
 class _FixedAuth extends AuthController {
   _FixedAuth(this._state);
@@ -102,10 +102,10 @@ Future<void> _pump(
   LoyaltyState loyalty = const LoyaltyState(),
   List<Map<String, dynamic>> activeOrders = const [],
   AppRole sessionRole = AppRole.customer,
-  List<MenuCategory> categories = _fakeCategories,
+  List<MenuItem> featured = _fakeFeatured,
   Map<String, dynamic>? lastCompletedOrder,
 }) async {
-  // Tall viewport: the v2 hub stacks more blocks (hero CTA, shortcuts,
+  // Tall viewport: the v3 hub stacks more blocks (hero CTA, featured,
   // order-again) — assertions below the fold need them built (AGENTS.md).
   await tester.binding.setSurfaceSize(const Size(800, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -123,7 +123,7 @@ Future<void> _pump(
         lastCompletedOrderFetcherProvider.overrideWith(
           (ref) => (String phone) async => lastCompletedOrder,
         ),
-        homeCategoriesProvider.overrideWith((ref) async => categories),
+        homeFeaturedProvider.overrideWith((ref) async => featured),
       ],
       child: MaterialApp.router(
         routerConfig: _router(),
@@ -134,14 +134,34 @@ Future<void> _pump(
       ),
     ),
   );
-  // First frame + post-frame active-orders probe resolution.
+  // First frame + post-frame active-orders probe resolution + featured future.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
 }
 
-const _fakeCategories = [
-  MenuCategory(slug: 'hot-drinks', nameAr: 'مشروبات ساخنة', nameEn: 'Hot Drinks'),
-  MenuCategory(slug: 'desserts', nameAr: 'حلويات', nameEn: 'Desserts'),
+const _fakeFeatured = [
+  MenuItem(
+    id: 'f1',
+    slug: 'f1',
+    nameAr: 'لاتيه',
+    nameEn: 'Latte',
+    descAr: '',
+    descEn: '',
+    priceEgp: 70,
+    isAvailable: true,
+    categorySlug: 'hot-drinks',
+  ),
+  MenuItem(
+    id: 'f2',
+    slug: 'f2',
+    nameAr: 'كوكيز',
+    nameEn: 'Cookie',
+    descAr: '',
+    descEn: '',
+    priceEgp: 55,
+    isAvailable: true,
+    categorySlug: 'desserts',
+  ),
 ];
 
 const _readyAuth = AuthState(
@@ -178,7 +198,13 @@ void main() {
       ),
     );
 
-    expect(find.text('☕'), findsNWidgets(7));
+    // Stamp ☕ is 14pt; featured placeholders also render ☕ at 28/30pt — filter by size.
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Text && w.data == '☕' && w.style?.fontSize == 14,
+      ),
+      findsNWidgets(7),
+    );
     expect(find.text('7 / 10 زيارة → سناكس مجاني'), findsOneWidget);
     expect(find.text('1 بطاقة مكتملة'), findsOneWidget);
   });
@@ -366,12 +392,16 @@ void main() {
     expect(find.text('ORDERS_STUB'), findsOneWidget);
   });
 
-  testWidgets('category shortcut pre-selects slug and pushes /menu',
+  testWidgets('featured carousel renders and View all pushes /menu',
       (tester) async {
     await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
 
-    expect(find.text('تصفح المنيو'), findsOneWidget);
-    await tester.tap(find.text('مشروبات ساخنة'));
+    expect(find.text('الأكثر طلباً'), findsOneWidget);
+    expect(find.text('عرض الكل'), findsOneWidget);
+    expect(find.text('لاتيه'), findsOneWidget);
+    expect(find.text('كوكيز'), findsOneWidget);
+
+    await tester.tap(find.text('عرض الكل'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('MENU_STUB'), findsOneWidget);

@@ -1,9 +1,9 @@
-// Customer home hub (#005 v2, FEATURES §3.2) — hierarchy follows the café-app
-// pattern (Starbucks/Damascus): greeting → in-flight order → merged loyalty
+// Customer home hub (#005 v3, FEATURES §3.2) — hierarchy follows the single-brand
+// café pattern (Starbucks/Damascus): greeting → in-flight order → merged loyalty
 // hero (points + stamps on ONE surface) → single primary order CTA → 2×2
-// secondary actions → category shortcuts → order-again strip → campaign
-// banners, all inside a pull-to-refresh scroll. Guest mode renders the same
-// hub with zeros and a register link instead of dev affordances.
+// secondary actions → featured discovery carousel → order-again strip → campaign
+// banners, all inside a pull-to-refresh scroll. Categories live ONLY in the Menu
+// tab — home surfaces curated discovery instead (featured / most-ordered).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,7 +18,7 @@ import '../../domain/loyalty_controller.dart';
 import '../../domain/session_controller.dart';
 import 'widgets/active_order_strip.dart';
 import 'widgets/banner_carousel.dart';
-import 'widgets/category_shortcuts.dart';
+import 'widgets/featured_carousel.dart';
 import 'widgets/greeting_header.dart';
 import 'widgets/loyalty_hero_card.dart';
 import 'widgets/order_again_strip.dart';
@@ -86,11 +86,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final firstName =
         signedIn && googleName.isNotEmpty ? googleName.split(' ').first : '';
 
-    // Category shortcuts render only when the catalog seam has data.
-    final categoriesAsync = ref.watch(homeCategoriesProvider);
-    final categories = categoriesAsync.hasValue
-        ? (categoriesAsync.value ?? const <MenuCategory>[])
-        : const <MenuCategory>[];
+    // Featured discovery — curated 6 (v1: first page without migration;
+    // v2 will use menu_items.is_featured when it lands).
+    final featuredAsync = ref.watch(homeFeaturedProvider);
+    final featured = featuredAsync.hasValue
+        ? (featuredAsync.value ?? const <MenuItem>[])
+        : const <MenuItem>[];
 
     final blocks = <Widget>[
       GreetingHeader(
@@ -153,10 +154,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
       ),
     ]);
-    if (categories.length >= 2) {
+    if (featured.length >= 2) {
       blocks.addAll([
         const SizedBox(height: AppSpacing.md24),
-        CategoryShortcuts(categories: categories, strings: strings),
+        FeaturedCarousel(items: featured, strings: strings),
       ]);
     }
     if (_lastCompletedOrder != null) {
