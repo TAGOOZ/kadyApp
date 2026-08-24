@@ -55,10 +55,21 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
-    // Guard: no scrollable extent yet (short list)
-    if (position.maxScrollExtent == 0) return;
-    // 80% threshold per spec: detect 80% scroll to trigger next page.
-    if (position.pixels >= position.maxScrollExtent * 0.8) {
+    // Short list (maxExtent 0) can't scroll — if we still have more, load
+    // next page automatically (fixes "too lazy" when first page's filtered
+    // category has <8 items and no scroll).
+    if (position.maxScrollExtent == 0) {
+      final state = ref.read(paginatedMenuProvider);
+      if (state.hasMore &&
+          !state.isLoading &&
+          !state.isLoadingMore &&
+          state.error == null) {
+        ref.read(paginatedMenuProvider.notifier).loadNext();
+      }
+      return;
+    }
+    // 60% threshold (was 80%) — more eager, fixes "too lazy" on long lists.
+    if (position.pixels >= position.maxScrollExtent * 0.6) {
       final state = ref.read(paginatedMenuProvider);
       if (!state.isLoading &&
           !state.isLoadingMore &&
@@ -205,11 +216,35 @@ class _PaginatedCatalogList extends ConsumerWidget {
     }
 
     final selected = ref.watch(selectedCategoryProvider);
-    final effectiveSlug = categories.any((c) => c.slug == selected)
-        ? selected!
-        : categories.first.slug;
+    // Prefer selected if it exists, otherwise pick the first category that
+    // actually has items in the loaded pages (fixes empty filtered list
+    // when first page's 20 items don't contain the default category).
+    // Falls back to categories.first if none have items yet (still loading).
+    String effectiveSlug;
+    if (selected != null && categories.any((c) => c.slug == selected)) {
+      effectiveSlug = selected;
+    } else {
+      final slugsWithItems = allItems.map((i) => i.categorySlug).toSet();
+      final firstWithItems = categories.firstWhere(
+        (c) => slugsWithItems.contains(c.slug),
+        orElse: () => categories.first,
+      );
+      effectiveSlug = firstWithItems.slug;
+    }
     final items =
         allItems.where((item) => item.categorySlug == effectiveSlug).toList();
+
+    // Auto-load next page when filtered is empty but more exists — fixes
+    // "lists are empty" after pagination when the selected category's items
+    // are beyond the first 20 (e.g. bakery at offset 80+).
+    if (items.isEmpty && state.hasMore && !state.isLoading && !state.isLoadingMore && state.error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (ref.read(paginatedMenuProvider).hasMore) {
+          ref.read(paginatedMenuProvider.notifier).loadNext();
+        }
+      });
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -268,7 +303,11 @@ class _PaginatedCatalogList extends ConsumerWidget {
                           // No more or not loading — empty sentinel to keep scroll physics stable.
                           return const SizedBox(height: AppSpacing.xs8);
                         }
-                        return _ItemCard(item: items[index], lang: lang);
+                        return _ItemCard(
+                          key: ValueKey(items[index].id),
+                          item: items[index],
+                          lang: lang,
+                        );
                       },
                     ),
                     // Top shimmer is handled by parent; inline error banner if paginated error with data
@@ -390,7 +429,7 @@ class _CategoryPill extends StatelessWidget {
 }
 
 class _ItemCard extends StatelessWidget {
-  const _ItemCard({required this.item, required this.lang});
+  const _ItemCard({super.key, required this.item, required this.lang});
 
   final MenuItem item;
   final AppLang lang;

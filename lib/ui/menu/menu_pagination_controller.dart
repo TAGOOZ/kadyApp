@@ -79,12 +79,17 @@ class PaginatedMenuNotifier extends StateNotifier<PaginatedMenuState> {
       error: null,
     );
     try {
-      // Load all 12 categories upfront so filter pills are complete even
-      // when first page (20 items) only covers 2-3 categories. Fixes
-      // "menu filters not all shown" — categories are tiny (12 rows) so
-      // loading all is cheap; items stay paginated 20 via range.
-      final allCats = await _repo.fetchAllCategories();
-      final (pageCats, items) = await _repo.fetchPage(offset: 0, limit: pageSize);
+      // Load all 12 categories + first page in parallel — fixes
+      // "too lazy" (was 2 sequential round-trips ≈ 400ms extra).
+      // Categories are tiny (12 rows) so loading all is cheap; items stay
+      // paginated 20 via range. Parallel cuts first paint ~50%.
+      final results = await Future.wait([
+        _repo.fetchAllCategories(),
+        _repo.fetchPage(offset: 0, limit: pageSize),
+      ]);
+      final allCats = results[0] as List<MenuCategory>;
+      final pageResult = results[1] as CatalogSnapshot;
+      final (pageCats, items) = pageResult;
       // Merge: allCats is authoritative (sorted by sort), pageCats may have
       // same slugs but ensure no missing due to empty first page.
       final catMap = <String, MenuCategory>{for (final c in allCats) c.slug: c};

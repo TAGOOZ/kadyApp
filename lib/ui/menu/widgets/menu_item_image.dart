@@ -2,6 +2,7 @@
 // branded placeholder with product name (no Unsplash — source.unsplash 503
 // causes CanvasKit texImage2D no image and unrelated generic images).
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -107,22 +108,34 @@ class MenuItemImage extends StatelessWidget {
       );
     }
     final resolvedUrl = rawUrl.trim();
-    final int? memCacheWidth = width != null && width!.isFinite
-        ? (width! * 2).ceil()
-        : null;
-    final int? memCacheHeight = height.isFinite ? (height * 2).ceil() : null;
+    // On web, memCacheWidth/Height triggers a resize that can produce a
+    // black frame when the widget is rebuilt after tab switch (issue:
+    // "imgs get black" when revisiting a category). Disable on web where
+    // the browser handles downscaling; keep on mobile for memory.
+    final int? memCacheWidth = kIsWeb
+        ? null
+        : (width != null && width!.isFinite ? (width! * 2).ceil() : null);
+    final int? memCacheHeight = kIsWeb ? null : (height.isFinite ? (height * 2).ceil() : null);
     final double effectiveIconSize = iconSize ?? (height >= 100 ? 56 : 30);
 
     return ClipRRect(
+      key: ValueKey('img-${item.id}-$height'),
       borderRadius: BorderRadius.all(Radius.circular(radius)),
       child: CachedNetworkImage(
+        key: ValueKey(item.id),
         imageUrl: resolvedUrl,
         width: width,
         height: height,
         fit: BoxFit.cover,
         memCacheWidth: memCacheWidth,
         memCacheHeight: memCacheHeight,
+        // Keep old image while new one loads — prevents black flash on
+        // tab switch when ListView reuses the widget with a new item.
+        useOldImageOnUrlChange: true,
+        fadeInDuration: const Duration(milliseconds: 120),
+        fadeOutDuration: const Duration(milliseconds: 120),
         placeholder: (context, url) => MenuPhotoPlaceholder(
+          key: ValueKey('ph-${item.id}'),
           height: height,
           width: width,
           radius: radius,
@@ -130,11 +143,25 @@ class MenuItemImage extends StatelessWidget {
           label: height >= 100 ? item.nameAr : null,
         ),
         errorWidget: (context, url, error) => MenuPhotoPlaceholder(
+          key: ValueKey('err-${item.id}'),
           height: height,
           width: width,
           radius: radius,
           iconSize: effectiveIconSize,
           label: height >= 100 ? item.nameAr : null,
+        ),
+        // Ensure the decoded image is painted with cover + radius, not
+        // a black gaplessPlayback frame.
+        imageBuilder: (context, imageProvider) => Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.all(Radius.circular(radius)),
+            image: DecorationImage(
+              image: imageProvider,
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
       ),
     );
