@@ -13,6 +13,7 @@ import '../../data/repos/order_queries.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/loyalty_controller.dart';
 import '../../domain/session_controller.dart';
+import '../widgets/bg_pattern.dart';
 import 'widgets/active_order_strip.dart';
 import 'widgets/banner_carousel.dart';
 import 'widgets/greeting_header.dart';
@@ -65,9 +66,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         signedIn && googleName.isNotEmpty ? googleName.split(' ').first : '';
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: RefreshIndicator(
+      backgroundColor: AppColors.parchment,
+      body: BgPattern(
+        child: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
           color: AppColors.primary,
           onRefresh: _refresh,
           child: ListView(
@@ -137,6 +140,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

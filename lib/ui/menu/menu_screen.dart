@@ -11,6 +11,7 @@ import '../../data/models/menu_models.dart';
 import '../../data/repos/menu_repository.dart';
 import '../../data/repos/supabase_menu_repository.dart';
 import '../../domain/cart_controller.dart';
+import '../widgets/bg_pattern.dart';
 import 'item_detail_sheet.dart';
 import 'widgets/menu_item_image.dart';
 
@@ -42,12 +43,14 @@ class MenuScreen extends ConsumerWidget {
     final catalog = ref.watch(menuCatalogProvider);
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _StickyHeader(menuTitle: strings.tabMenu, menuStrings: menuStrings),
+      backgroundColor: AppColors.parchment,
+      body: BgPattern(
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _StickyHeader(menuTitle: strings.tabMenu, menuStrings: menuStrings),
             Expanded(
               child: catalog.when(
                 loading: () => _LoadingShimmer(),
@@ -65,6 +68,7 @@ class MenuScreen extends ConsumerWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
