@@ -64,6 +64,10 @@ class _FakeDriverOrdersDb implements DriverOrdersDb {
   Future<String?> fetchOwnRole(String googleUserId) async => ownRole;
 
   @override
+  Future<Map<String, dynamic>?> fetchDriverProfile(String userId) async =>
+      null;
+
+  @override
   String? currentUserId() => userId;
 }
 

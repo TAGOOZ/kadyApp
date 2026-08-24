@@ -64,6 +64,9 @@ class _FakeDriverOrdersRepo implements DriverOrdersRepo {
     final error = accessError;
     if (error != null) throw error;
   }
+
+  @override
+  Future<String?> fetchDriverDisplayName() async => null;
 }
 
 DriverOrder _order({

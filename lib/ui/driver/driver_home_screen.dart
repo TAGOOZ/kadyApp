@@ -1,12 +1,14 @@
-// Driver shell (#014, FEATURES §7): a minimal two-tab app — طلباتي (live
-// realtime feed of delivery orders out for delivery, ADR-0006) and السجل
-// (completed deliveries + Cairo-day cash summary). The order detail is a
-// full-screen route with a branded map placeholder (directions URL copied to
-// clipboard — no url_launcher this slice), customer block, items summary,
+// Driver shell (#014/#019, FEATURES §7): a minimal two-tab app — طلباتي
+// (live realtime feed of delivery orders out for delivery, ADR-0006) and
+// السجل (completed deliveries + Cairo-day cash summary). The order detail is
+// a full-screen route with a branded map placeholder (directions URL copied
+// to clipboard — no url_launcher this slice), customer block, items summary,
 // the horizontal three-step stepper and a sticky bottom button that advances
 // step-by-step. Server permission comes from profiles.role — without it the
 // screen renders the full-screen lock panel (docs/SUPABASE_SETUP.md).
-// Driver identity stub: fixed كريم م. until admin assignment exists.
+// Driver identity: profiles.display_name where user_id==auth.uid() and
+// role==driver via driverProfileProvider, with fallback to
+// DriverStrings.driverNameStub (كريم م. / Karim M.).
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -20,6 +22,7 @@ import '../../core/launcher/app_launcher.dart' show appLauncherProvider;
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/driver_orders_repository.dart';
 import '../../data/repos/orders_repository.dart' show cairoUtcOffset;
+import '../../domain/driver_profile_provider.dart';
 import 'widgets/delivery_progress_bar.dart';
 import 'widgets/driver_order_card.dart';
 
@@ -42,6 +45,12 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     final lang = ref.watch(localeNotifierProvider);
     final strings = DriverStrings.of(lang);
     final access = ref.watch(driverAccessProvider);
+    final driverNameAsync = ref.watch(driverProfileProvider);
+    final driverName = driverNameAsync.when(
+      data: (name) => name ?? strings.driverNameStub,
+      loading: () => strings.driverNameStub,
+      error: (_, _) => strings.driverNameStub,
+    );
 
     // Realtime insert detection → توصيلة جديدة 🛵 (ADR-0006 in-app only).
     ref.listen<AsyncValue<List<DriverOrder>>>(driverAssignedStreamProvider, (
@@ -83,7 +92,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm16),
               child: Center(
                 child: Text(
-                  strings.driverNameStub,
+                  driverName,
                   style: AppTextStyles.labelMd.copyWith(color: Colors.white),
                 ),
               ),

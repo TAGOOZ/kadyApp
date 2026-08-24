@@ -43,7 +43,8 @@ class DriverStrings {
 
   final String homeTitle;
 
-  /// Fixed identity until admin assignment exists (#014 stub).
+  /// Fallback identity when profiles.display_name is missing — original #014
+  /// stub (كريم م. / Karim M.) now used by driverProfileProvider.
   final String driverNameStub;
   final String tabMyDeliveries;
   final String tabHistory;
