@@ -109,6 +109,9 @@ class StaffOrder {
     this.tableArea,
     this.pickupSlotUtc,
     this.addressId,
+    this.assignedDriver,
+    this.expectedReadyAtUtc,
+    this.notes,
   });
 
   final String id;
@@ -129,6 +132,9 @@ class StaffOrder {
   /// Pickup slot stored UTC, displayed Cairo HH:mm Western digits (ADR-0009).
   final DateTime? pickupSlotUtc;
   final String? addressId;
+  final String? assignedDriver;
+  final DateTime? expectedReadyAtUtc;
+  final String? notes;
   final DateTime createdAtUtc;
 
   FlowMode? get flowMode => FlowMode.fromWire(modeWire);
@@ -148,15 +154,23 @@ class StaffOrder {
             ? null
             : DateTime.parse(row['pickup_slot'] as String),
         addressId: row['address_id'] as String?,
+        assignedDriver: row['assigned_driver'] as String?,
+        expectedReadyAtUtc: row['expected_ready_at'] == null
+            ? null
+            : DateTime.parse(row['expected_ready_at'] as String),
+        notes: row['notes'] as String?,
         createdAtUtc: DateTime.parse(row['created_at'] as String),
       );
 }
 
 /// `orders.update` patch for one transition; `reject_reason` rides along only
 /// when cancelling with a stated reason (#0001_init.sql vocabulary).
+/// `assignedDriverId` is written when handing a delivery to a driver
+/// (ready → out_for_delivery).
 Map<String, dynamic> transitionOrderPatch(
   OrderWireStatus toStatus, {
   String? rejectReason,
+  String? assignedDriverId,
 }) {
   return {
     'status': toStatus.wireName,
@@ -164,6 +178,8 @@ Map<String, dynamic> transitionOrderPatch(
         rejectReason != null &&
         rejectReason.trim().isNotEmpty)
       'reject_reason': rejectReason.trim(),
+    if (assignedDriverId != null && assignedDriverId.trim().isNotEmpty)
+      'assigned_driver': assignedDriverId.trim(),
   };
 }
 
@@ -233,6 +249,10 @@ String formatPickupSlotCairo(DateTime utcInstant) {
   return '${two(naiveCairo.hour)}:${two(naiveCairo.minute)}';
 }
 
+/// Alias for expected_ready_at display (same Cairo HH:mm).
+String formatExpectedReadyCairo(DateTime utcInstant) =>
+    formatPickupSlotCairo(utcInstant);
+
 // ---------------------------------------------------------------------------
 // Database seam — abstract enough for fakes, thin adapter for Supabase
 // ---------------------------------------------------------------------------
@@ -273,6 +293,9 @@ abstract class StaffOrdersDb {
 
   /// Role of the signed-in Google user from `profiles` (null = no row).
   Future<String?> fetchOwnRole(String googleUserId);
+
+  /// All driver profiles for assignment picker (user_id + display_name).
+  Future<List<Map<String, dynamic>>> fetchDriverProfiles() async => const [];
 
   /// auth.uid() of the signed-in Google user (null when signed out).
   String? currentUserId();
@@ -451,12 +474,32 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> fetchDriverProfiles() async {
+    try {
+      final rows = await _client
+          .from('profiles')
+          .select('user_id, display_name')
+          .eq('role', 'driver');
+      return List<Map<String, dynamic>>.from(rows as List);
+    } on PostgrestException catch (error) {
+      return rethrowAsTyped(error);
+    }
+  }
+
+  @override
   String? currentUserId() => _client.auth.currentUser?.id;
 }
 
 // ---------------------------------------------------------------------------
 // Repository seam + implementation
 // ---------------------------------------------------------------------------
+
+class DriverOption {
+  const DriverOption({required this.userId, this.displayName});
+
+  final String userId;
+  final String? displayName;
+}
 
 abstract class StaffOrdersRepo {
   /// Realtime feed of all visible orders, newest first (ADR-0006).
@@ -476,16 +519,27 @@ abstract class StaffOrdersRepo {
   Future<Map<String, String>> fetchAddressMap(Set<String> ids) async =>
       const {};
 
+  /// All driver profiles for handover picker (staff/admin RLS).
+  Future<List<DriverOption>> fetchDrivers() async => const [];
+
   /// Throws [StaffPermissionException] unless profiles.role is staff/admin.
   Future<void> ensureStaffAccess();
 
-  /// Updates `orders.status` (+ `reject_reason` when cancelling) and appends
+  /// Updates `orders.status` (+ `reject_reason` when cancelling,
+  /// `assigned_driver` when handing delivery) and appends
   /// an `order_events` row with actor 'staff'.
   Future<void> transition(
     String orderId,
     OrderWireStatus toStatus, {
     String? rejectReason,
+    String? assignedDriverId,
   });
+
+  /// Sets `orders.expected_ready_at` (UTC) for the ETA slider.
+  Future<void> setExpectedReadyAt(String orderId, DateTime expectedUtc);
+
+  /// Updates `orders.notes` (staff-editable delivery notes).
+  Future<void> updateNotes(String orderId, String notes);
 
   /// Records a walk-in Visit; attempts the loyalty stamp directly but maps
   /// any failure to [VisitRecorded.loyaltyPending] instead of failing —
@@ -558,16 +612,43 @@ class SupabaseStaffOrdersRepo implements StaffOrdersRepo {
   }
 
   @override
+  Future<List<DriverOption>> fetchDrivers() async {
+    final rows = await _db.fetchDriverProfiles();
+    return [
+      for (final row in rows)
+        if (row['user_id'] is String)
+          DriverOption(
+            userId: row['user_id'] as String,
+            displayName: row['display_name'] as String?,
+          ),
+    ];
+  }
+
+  @override
   Future<void> transition(
     String orderId,
     OrderWireStatus toStatus, {
     String? rejectReason,
+    String? assignedDriverId,
   }) async {
     await _db.updateOrder(orderId, transitionOrderPatch(
       toStatus,
       rejectReason: rejectReason,
+      assignedDriverId: assignedDriverId,
     ));
     await _db.insertOrderEvent(orderEventInsertRow(orderId, toStatus));
+  }
+
+  @override
+  Future<void> setExpectedReadyAt(String orderId, DateTime expectedUtc) async {
+    await _db.updateOrder(orderId, {
+      'expected_ready_at': expectedUtc.toIso8601String(),
+    });
+  }
+
+  @override
+  Future<void> updateNotes(String orderId, String notes) async {
+    await _db.updateOrder(orderId, {'notes': notes});
   }
 
   @override
@@ -637,4 +718,9 @@ final staffAddressMapProvider =
   if (idsKey.isEmpty) return const {};
   final ids = idsKey.split(',').where((s) => s.isNotEmpty).toSet();
   return ref.watch(staffOrdersRepoProvider).fetchAddressMap(ids);
+});
+
+/// Driver list for handover picker (staff/admin RLS — profiles where role=driver).
+final staffDriversProvider = FutureProvider<List<DriverOption>>((ref) {
+  return ref.watch(staffOrdersRepoProvider).fetchDrivers();
 });

@@ -92,6 +92,9 @@ class _FakeStaffOrdersDb implements StaffOrdersDb {
   Future<String?> fetchOwnRole(String googleUserId) async => ownRole;
 
   @override
+  Future<List<Map<String, dynamic>>> fetchDriverProfiles() async => const [];
+
+  @override
   String? currentUserId() => userId;
   @override
   Future<bool?> applyStampRpc(String phone, int spend) async {

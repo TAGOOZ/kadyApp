@@ -295,7 +295,7 @@ void main() {
   });
 
   testWidgets(
-      'quick action امسح واكسب — customer shows comingSoon SnackBar (FEATURES §6)',
+      'quick action امسح واكسب — customer opens QR scanner sheet (FEATURES §6)',
       (tester) async {
     await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
 
@@ -303,9 +303,14 @@ void main() {
     await tester.tap(find.text('امسح واكسب'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('قريبًا'), findsOneWidget);
+    expect(find.text('مسح QR'), findsOneWidget);
     expect(find.text('MENU_STUB'), findsNothing);
     expect(find.text('STAFF_LOOKUP_STUB'), findsNothing);
+    // Close scanner sheet.
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('مسح QR'), findsNothing);
   });
 
   testWidgets('quick action امسح واكسب — staff routes to /staff/lookup',

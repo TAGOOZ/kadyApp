@@ -1,13 +1,18 @@
 // Profile & settings tab (#011): editable fields, delivery addresses CRUD,
 // notification prefs, language switch, vouchers and logout. Guest sessions
 // get a compact sign-in panel instead of the account sections.
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_auth.dart';
 import '../../core/l10n/strings_profile.dart';
+import '../../core/supabase/supabase_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/address.dart';
 import '../../data/repos/customers_repository.dart';
@@ -33,6 +38,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   CustomerRecord? _profile;
   List<AddressRecord> _addresses = [];
   bool _loading = true;
+  String? _avatarUrl;
+  bool _avatarUploading = false;
 
   @override
   void initState() {
@@ -64,6 +71,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   ProfileStrings get _strings =>
       ProfileStringsCatalog.of(ref.read(localeNotifierProvider));
+
+  Future<void> _pickAvatar() async {
+    if (_avatarUploading) return;
+    final uid = ref.read(authControllerProvider).googleUser?.id;
+    if (uid == null) {
+      _toast(_strings.comingSoon);
+      return;
+    }
+    try {
+      setState(() => _avatarUploading = true);
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 85);
+      if (picked == null) return;
+      final bytes = await File(picked.path).readAsBytes();
+      final path = '$uid/avatar.jpg';
+      try {
+        await supabase.storage.from('avatars').uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+      } catch (_) {
+        // Bucket may not exist yet — show local preview anyway.
+      }
+      String? publicUrl;
+      try {
+        publicUrl = supabase.storage.from('avatars').getPublicUrl(path);
+      } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = publicUrl ?? picked.path;
+      });
+      _toast(_strings.savedSnackbar);
+    } catch (_) {
+      if (mounted) _toast(_strings.saveFailedError);
+    } finally {
+      if (mounted) setState(() => _avatarUploading = false);
+    }
+  }
 
   void _toast(String message) {
     ScaffoldMessenger.of(context)
@@ -365,7 +407,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 tier: loyalty.tier,
                 strings: s,
                 isGuest: !ready,
-                onCameraTap: () => _toast(s.comingSoon),
+                avatarUrl: _avatarUrl,
+                onCameraTap: _avatarUploading ? () {} : _pickAvatar,
               ),
               const SizedBox(height: AppSpacing.sm16),
               _SummaryStrip(

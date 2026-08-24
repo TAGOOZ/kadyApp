@@ -69,16 +69,25 @@ class _StaffBoardScreenState extends ConsumerState<StaffBoardScreen> {
     StaffOrder order,
     OrderWireStatus toStatus, {
     String? rejectReason,
+    String? assignedDriverId,
   }) async {
     final strings = StaffStrings.of(ref.read(localeNotifierProvider));
     try {
-      await ref
-          .read(staffOrdersRepoProvider)
-          .transition(order.id, toStatus, rejectReason: rejectReason);
+      await ref.read(staffOrdersRepoProvider).transition(
+            order.id,
+            toStatus,
+            rejectReason: rejectReason,
+            assignedDriverId: assignedDriverId,
+          );
+      if (assignedDriverId != null && toStatus == OrderWireStatus.outForDelivery) {
+        _showSnack(strings.driverAssigned);
+      }
     } on StaffPermissionException {
       _showSnack(strings.lockTitle);
     } catch (_) {
-      _showSnack(strings.transitionFailed);
+      _showSnack(
+        assignedDriverId != null ? strings.assignmentFailed : strings.transitionFailed,
+      );
     }
   }
 
@@ -146,8 +155,8 @@ class _StaffBoardScreenState extends ConsumerState<StaffBoardScreen> {
           strings: strings,
           lang: lang,
           nowUtc: _nowUtc,
-          onTransition: (order, to, {rejectReason}) =>
-              _onTransition(order, to, rejectReason: rejectReason),
+          onTransition: (order, to, {rejectReason, assignedDriverId}) =>
+              _onTransition(order, to, rejectReason: rejectReason, assignedDriverId: assignedDriverId),
         ),
       ),
     );
@@ -187,6 +196,7 @@ class _BoardBody extends ConsumerWidget {
     StaffOrder order,
     OrderWireStatus toStatus, {
     String? rejectReason,
+    String? assignedDriverId,
   }) onTransition;
 
   static int _countFor(List<StaffOrder> orders, StaffFilter filter) =>
@@ -271,8 +281,8 @@ class _BoardBody extends ConsumerWidget {
                     nowUtc: nowUtc,
                     customerName: customerName,
                     addressText: addressText,
-                    onTransition: (to, {rejectReason}) =>
-                        onTransition(order, to, rejectReason: rejectReason),
+                    onTransition: (to, {rejectReason, assignedDriverId}) =>
+                        onTransition(order, to, rejectReason: rejectReason, assignedDriverId: assignedDriverId),
                     onTap: () => showStaffOrderDetailSheet(
                       context,
                       order: order,

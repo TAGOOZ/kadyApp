@@ -337,6 +337,10 @@ class CampaignRepository {
       whereValue: id,
     );
   }
+
+  Future<void> delete(String id) async {
+    await _db.delete('campaigns', whereColumn: 'id', whereValue: id);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +376,7 @@ class AdminMenuItem {
     this.categoryId,
     this.categorySlug,
     this.categoryNameAr,
+    this.imageUrl,
   });
 
   final String id;
@@ -386,6 +391,7 @@ class AdminMenuItem {
   final int? categoryId;
   final String? categorySlug;
   final String? categoryNameAr;
+  final String? imageUrl;
 
   factory AdminMenuItem.fromRow(Map<String, dynamic> row) {
     final category = row['menu_categories'];
@@ -410,6 +416,7 @@ class AdminMenuItem {
       categoryId: categoryId,
       categorySlug: categorySlug,
       categoryNameAr: categoryNameAr,
+      imageUrl: row['image_url'] as String?,
     );
   }
 
@@ -425,6 +432,7 @@ class AdminMenuItem {
         'is_available': isAvailable,
         'sort': sort,
         'category_id': ?categoryId,
+        'image_url': ?imageUrl,
       };
 }
 
@@ -439,6 +447,7 @@ class MenuItemDraft {
     required this.priceEgp,
     required this.categoryId,
     required this.sort,
+    this.imageUrl,
   });
 
   final String slug;
@@ -449,6 +458,7 @@ class MenuItemDraft {
   final int priceEgp;
   final int categoryId;
   final int sort;
+  final String? imageUrl;
 }
 
 class AdminMenuRepository {
@@ -502,6 +512,7 @@ class AdminMenuRepository {
       'desc_en': draft.descEn,
       'price_egp': draft.priceEgp,
       'sort': draft.sort,
+      'image_url': ?draft.imageUrl,
     });
   }
 
@@ -578,6 +589,7 @@ class RulesRepository {
     'delivery': ['delivery_fee'],
     'tiers': ['tier_silver', 'tier_gold'],
     'limits': ['rate_limit_max', 'rate_limit_window_min'],
+    'extras': ['double_window_active', 'group_checkin_count', 'group_bonus_points'],
   };
 
   /// Numeric keys whose edited value stays an integer (others keep doubles).
@@ -593,7 +605,11 @@ class RulesRepository {
     'tier_gold',
     'rate_limit_max',
     'rate_limit_window_min',
+    'group_checkin_count',
+    'group_bonus_points',
   };
+
+  static const boolKeys = {'double_window_active'};
 }
 
 // ---------------------------------------------------------------------------

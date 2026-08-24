@@ -11,6 +11,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_home.dart';
 import '../../core/theme/app_theme.dart';
+import '../../domain/qr_checkin.dart';
+import '../staff/widgets/qr_scanner_sheet.dart';
 import '../../data/models/menu_models.dart';
 import '../../data/repos/order_queries.dart';
 import '../../domain/auth_controller.dart';
@@ -137,19 +139,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const SizedBox(height: AppSpacing.sm16),
       QuickActionsRow(
         strings: strings,
-        onComingSoon: () {
+        onComingSoon: () async {
           if (sessionRole == AppRole.staff) {
             context.push('/staff/lookup');
           } else {
-            // TODO(FEATURES §6 QR check-in): Customer Scan & earn —
-            // QR + manual fallback (phone/table) is not yet wired for
-            // customer role; show comingSoon SnackBar until the
-            // scanner screen lands. Staff role already routes to
-            // /staff/lookup which hosts mobile_scanner + phone entry
-            // (#013). See FEATURES §3.2 quick actions.
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(strings.comingSoon)),
-            );
+            // Customer Scan & earn (FEATURES §3.2/§6) — mobile_scanner
+            // sheet via QrScannerSheet + parseQrPhone; staff already routes
+            // to /staff/lookup (#013).
+            final raw = await showQrScannerSheet(context);
+            if (!context.mounted) return;
+            if (raw == null) return;
+            final phone = parseQrPhone(raw);
+            if (phone == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(strings.comingSoon)),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('تم المسح: $phone')),
+              );
+            }
           }
         },
       ),

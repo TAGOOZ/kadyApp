@@ -49,13 +49,26 @@ class _FakeStaffOrdersRepo implements StaffOrdersRepo {
   }
 
   @override
+  Future<List<DriverOption>> fetchDrivers() async => const [
+        DriverOption(userId: 'driver-1', displayName: 'أحمد السائق'),
+        DriverOption(userId: 'driver-2', displayName: 'محمد السائق'),
+      ];
+
+  @override
   Future<void> transition(
     String orderId,
     OrderWireStatus toStatus, {
     String? rejectReason,
+    String? assignedDriverId,
   }) async {
-    transitions.add(_RecordedTransition(orderId, toStatus, rejectReason));
+    transitions.add(_RecordedTransition(orderId, toStatus, rejectReason, assignedDriverId));
   }
+
+  @override
+  Future<void> setExpectedReadyAt(String orderId, DateTime expectedUtc) async {}
+
+  @override
+  Future<void> updateNotes(String orderId, String notes) async {}
 
   @override
   Future<VisitRecorded> registerVisit(CheckInInput input) async {
@@ -65,11 +78,12 @@ class _FakeStaffOrdersRepo implements StaffOrdersRepo {
 }
 
 class _RecordedTransition {
-  const _RecordedTransition(this.orderId, this.to, this.reason);
+  const _RecordedTransition(this.orderId, this.to, this.reason, [this.assignedDriverId]);
 
   final String orderId;
   final OrderWireStatus to;
   final String? reason;
+  final String? assignedDriverId;
 }
 
 StaffOrder _order({
@@ -139,7 +153,7 @@ Future<void> _pumpCard(WidgetTester tester, StaffOrder order) async {
                 strings: StaffStrings.of(AppLang.ar),
                 lang: AppLang.ar,
                 nowUtc: DateTime.now().toUtc(),
-                onTransition: (_, {String? rejectReason}) async {},
+                onTransition: (_, {String? rejectReason, String? assignedDriverId}) async {},
               ),
             ],
           ),

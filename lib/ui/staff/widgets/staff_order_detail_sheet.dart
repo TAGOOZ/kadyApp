@@ -13,6 +13,7 @@ import '../../../core/l10n/strings_staff.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/repos/staff_orders_repository.dart';
 import '../../../domain/order_status_flow.dart';
+import 'driver_assignment_sheet.dart';
 import 'order_card.dart';
 import 'status_chip.dart';
 
@@ -60,8 +61,70 @@ class StaffOrderDetailSheet extends ConsumerStatefulWidget {
 
 class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
   bool _busy = false;
+  double _etaMinutes = 15;
+  bool _etaSaving = false;
+  final _notesController = TextEditingController();
+  bool _notesSaving = false;
 
   StaffOrder get order => widget.order;
+
+  @override
+  void initState() {
+    super.initState();
+    final expected = widget.order.expectedReadyAtUtc;
+    if (expected != null) {
+      final diff = expected.difference(DateTime.now().toUtc()).inMinutes;
+      _etaMinutes = diff.clamp(5, 60).toDouble();
+    }
+    _notesController.text = widget.order.notes ?? '';
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveEta() async {
+    if (_etaSaving) return;
+    setState(() => _etaSaving = true);
+    final expected = DateTime.now().toUtc().add(Duration(minutes: _etaMinutes.round()));
+    try {
+      await ref.read(staffOrdersRepoProvider).setExpectedReadyAt(order.id, expected);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم تحديث الوقت المتوقع ✅')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      final strings = StaffStrings.of(ref.read(localeNotifierProvider));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.transitionFailed)),
+      );
+    } finally {
+      if (mounted) setState(() => _etaSaving = false);
+    }
+  }
+
+  Future<void> _saveNotes() async {
+    if (_notesSaving) return;
+    setState(() => _notesSaving = true);
+    try {
+      await ref.read(staffOrdersRepoProvider).updateNotes(order.id, _notesController.text.trim());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ الملاحظات ✅')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      final strings = StaffStrings.of(ref.read(localeNotifierProvider));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.transitionFailed)),
+      );
+    } finally {
+      if (mounted) setState(() => _notesSaving = false);
+    }
+  }
 
   String _modeLabel(AppLang lang) => switch (order.modeWire) {
         'dine_in' => CheckoutStringsCatalog.of(lang).modeDineIn,
@@ -110,28 +173,34 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
   Future<void> _transition(
     OrderWireStatus to, {
     String? rejectReason,
+    String? assignedDriverId,
   }) async {
     if (_busy) return;
     setState(() => _busy = true);
     final strings = StaffStrings.of(ref.read(localeNotifierProvider));
     try {
-      await ref
-          .read(staffOrdersRepoProvider)
-          .transition(order.id, to, rejectReason: rejectReason);
+      await ref.read(staffOrdersRepoProvider).transition(
+            order.id,
+            to,
+            rejectReason: rejectReason,
+            assignedDriverId: assignedDriverId,
+          );
+      if (assignedDriverId != null && to == OrderWireStatus.outForDelivery) {
+        if (mounted) _showSnack(strings.driverAssigned);
+        return;
+      }
       if (!mounted) return;
       // Intentionally keeps sheet open — realtime (ADR-0006) pushes the new
       // status to the board and the sheet's own `order` is updated via the
       // streamed list; caller dismisses manually. No auto-pop or success
       // snackbar keeps parity with board card behaviour (errors only, per
       // FEATURES §6).
-      // TODO(phase2): add ETA adjust slider (FEATURES §6 — adjust
-      // expected-ready time) alongside the status advance.
     } on StaffPermissionException {
       if (!mounted) return;
       _showSnack(strings.lockTitle);
     } catch (_) {
       if (!mounted) return;
-      _showSnack(strings.transitionFailed);
+      _showSnack(assignedDriverId != null ? strings.assignmentFailed : strings.transitionFailed);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -187,11 +256,20 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
           FilledButton.icon(
             onPressed: _busy
                 ? null
-                : () => _transition(
-                      order.modeWire == 'delivery'
-                          ? OrderWireStatus.outForDelivery
-                          : OrderWireStatus.done,
-                    ),
+                : () async {
+                    if (order.modeWire == 'delivery') {
+                      final lang = ref.read(localeNotifierProvider);
+                      final driverId =
+                          await showDriverAssignmentSheet(context, lang);
+                      if (driverId == null) return;
+                      await _transition(
+                        OrderWireStatus.outForDelivery,
+                        assignedDriverId: driverId,
+                      );
+                    } else {
+                      await _transition(OrderWireStatus.done);
+                    }
+                  },
             icon: Icon(
               order.modeWire == 'delivery'
                   ? Icons.moped_outlined
@@ -371,8 +449,98 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
                       AppTextStyles.bodySm.copyWith(color: AppColors.error),
                 ),
               ],
+              // ETA slider (FEATURES §6) — adjust expected_ready_at.
+              if (order.status != OrderWireStatus.done &&
+                  order.status != OrderWireStatus.cancelled) ...[
+                const SizedBox(height: AppSpacing.sm16),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.xs8),
+                  decoration: BoxDecoration(
+                    color: AppColors.parchment.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(AppRadii.md8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.timer_outlined, size: 18, color: AppColors.primary),
+                          const SizedBox(width: AppSpacing.xs8),
+                          Text('الوقت المتوقع', style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          Text(
+                            '${_etaMinutes.round()} د • ${formatExpectedReadyCairo(DateTime.now().toUtc().add(Duration(minutes: _etaMinutes.round())))}',
+                            style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        value: _etaMinutes,
+                        min: 5,
+                        max: 60,
+                        divisions: 11,
+                        label: '${_etaMinutes.round()} د',
+                        onChanged: (v) => setState(() => _etaMinutes = v),
+                      ),
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: OutlinedButton(
+                          onPressed: _etaSaving ? null : _saveEta,
+                          child: _etaSaving
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Text('حفظ الوقت'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              // Delivery notes (staff-editable) — orders.notes.
+              if (order.modeWire == 'delivery' ||
+                  (order.notes != null && order.notes!.trim().isNotEmpty)) ...[
+                const SizedBox(height: AppSpacing.sm16),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.xs8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.outline.withValues(alpha: 0.3)),
+                    borderRadius: BorderRadius.circular(AppRadii.md8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.note_outlined, size: 18, color: AppColors.primary),
+                          const SizedBox(width: AppSpacing.xs8),
+                          Text('ملاحظات التوصيل', style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.xs8),
+                      TextField(
+                        controller: _notesController,
+                        minLines: 1,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: 'مثال: برج 5، الدور الثالث...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs8),
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: OutlinedButton(
+                          onPressed: _notesSaving ? null : _saveNotes,
+                          child: _notesSaving
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Text('حفظ الملاحظات'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               // Advance / reject actions via staffOrdersRepo.
-              // TODO(phase2): add ETA adjust slider (FEATURES §6)
               if (actions.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm16),
                 Row(

@@ -16,7 +16,6 @@ import '../ui/orders/orders_list_screen.dart';
 import '../ui/orders/order_status_screen.dart';
 import '../ui/profile/profile_screen.dart';
 import '../ui/games/games_hub_screen.dart';
-import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/welcome_screen.dart';
 import '../ui/games/spinner/spinner_screen.dart' deferred as spinner;
 import '../ui/games/match/match_screen.dart' deferred as match hide MatchOutcomeX;
@@ -104,11 +103,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/welcome',
         builder: (context, state) => const WelcomeScreen(),
-      ),
-      // TODO(slice-004): real Google OAuth flow replaces this unused stub.
-      GoRoute(
-        path: '/auth',
-        builder: (context, state) => const AuthStubScreen(),
       ),
       GoRoute(
         path: '/auth/phone',

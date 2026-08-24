@@ -50,6 +50,7 @@ class DriverOrder {
     this.totalEgp,
     this.notes,
     this.addressId,
+    this.assignedDriver,
   });
 
   final String id;
@@ -67,6 +68,7 @@ class DriverOrder {
   /// must be stripped before showing ([stripRedeemedPrefix]).
   final String? notes;
   final String? addressId;
+  final String? assignedDriver;
   final DateTime createdAtUtc;
 
   static DriverOrder fromRow(Map<String, dynamic> row) => DriverOrder(
@@ -80,6 +82,7 @@ class DriverOrder {
     totalEgp: row['total'] is num ? (row['total'] as num).toInt() : null,
     notes: row['notes'] as String?,
     addressId: row['address_id'] as String?,
+    assignedDriver: row['assigned_driver'] as String?,
     createdAtUtc: DateTime.parse(row['created_at'] as String),
   );
 }
@@ -230,11 +233,16 @@ class SupabaseDriverOrdersDb implements DriverOrdersDb {
 
   @override
   Stream<List<Map<String, dynamic>>> watchAssigned() {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null || uid.isEmpty) {
+      return Stream.value(const []);
+    }
     return _client
         .from('orders')
         .stream(primaryKey: ['id'])
         .eq('mode', 'delivery')
         .eq('status', 'out_for_delivery')
+        .eq('assigned_driver', uid)
         .order('created_at', ascending: false)
         .limit(30)
         .map(
@@ -247,13 +255,19 @@ class SupabaseDriverOrdersDb implements DriverOrdersDb {
   @override
   Future<List<Map<String, dynamic>>> fetchDoneDeliveries() async {
     try {
-      final rows = await _client
+      final uid = _client.auth.currentUser?.id;
+      var query = _client
           .from('orders')
           .select()
           .eq('mode', 'delivery')
-          .eq('status', 'done')
-          .order('created_at', ascending: false)
-          .limit(50);
+          .eq('status', 'done');
+      if (uid != null && uid.isNotEmpty) {
+        query = query.eq('assigned_driver', uid);
+      } else {
+        // No signed-in driver → empty history (guest must not see deliveries)
+        return const [];
+      }
+      final rows = await query.order('created_at', ascending: false).limit(50);
       return List<Map<String, dynamic>>.from(rows as List);
     } on PostgrestException catch (error) {
       return rethrowAsTyped(error);
@@ -430,8 +444,15 @@ class SupabaseDriverOrdersRepo implements DriverOrdersRepo {
 
   @override
   Stream<List<DriverOrder>> streamAssigned() {
+    final uid = _db.currentUserId();
+    if (uid == null || uid.isEmpty) {
+      return Stream.value(const []);
+    }
     return _db.watchAssigned().map((rows) {
-      final orders = [for (final row in rows) DriverOrder.fromRow(row)]
+      final orders = [
+        for (final row in rows) DriverOrder.fromRow(row),
+      ]
+        ..removeWhere((o) => o.assignedDriver != uid)
         ..sort((a, b) => b.createdAtUtc.compareTo(a.createdAtUtc));
       return orders;
     });
@@ -455,8 +476,13 @@ class SupabaseDriverOrdersRepo implements DriverOrdersRepo {
 
   @override
   Future<List<DriverOrder>> fetchHistory() async {
+    final uid = _db.currentUserId();
+    if (uid == null || uid.isEmpty) return const [];
     final rows = await _db.fetchDoneDeliveries();
-    return [for (final row in rows) DriverOrder.fromRow(row)];
+    final filtered = [
+      for (final row in rows) DriverOrder.fromRow(row),
+    ]..removeWhere((o) => o.assignedDriver != uid);
+    return filtered;
   }
 
   @override

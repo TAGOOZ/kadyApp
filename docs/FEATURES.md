@@ -105,11 +105,25 @@ Arabic fallback: *IBM Plex Sans Arabic* / *Amiri*. Arabic is default locale (`ar
 | G12 | Driver order detail | `ac5a748447ac42728ed7d9842577a9fd` |
 | — | Coffee-cup mascot illustration | `ed920dbf67884ed88d00d13ab0e9720c` |
 
-### ⬜ Still missing
+### ✅ Recently completed (Aug 2026 — admin polish)
+
+| # | Screen | Note |
+|---|---|---|
+| — | Admin menu CRUD editor | ✅ Done `lib/ui/admin` with `image_url` + `menu-photos` bucket, validation (name/price/sort/URL), delete + undo, `Switch` + thumbnail, pull-to-refresh |
+| — | Campaign validation & delete | ✅ `campaign_card.dart` name required + `endsAt >= startsAt`, delete with `CampaignRepository.delete` |
+| — | Rules editor extras & validation | ✅ `double_window_active`/`group_checkin_count`/`group_bonus_points` exposed, tier ordering & `>0` checks, `bool` `Switch` for `double_window_active` |
+| — | Hours editor (P2) | ✅ Done `supabase/migrations/0008_hours.sql` `hours` 7-day open/close + `delivery_enabled` + `lib/ui/admin/widgets/hours_editor_panel.dart` time picker + closed toggle |
+| — | Zones editor (P2) | ✅ Done `supabase/migrations/0009_zones.sql` `zones` polygon/fee + `lib/ui/admin/widgets/zones_editor_panel.dart` CRUD fee/name + delete; polygon JSON Phase 2 banner `§11.7` |
+| — | Staff ETA + delivery notes (P2) | ✅ `0007_staff_eta.sql` `expected_ready_at` + `staff_orders_repository.dart` `setExpectedReadyAt/updateNotes` + `staff_order_detail_sheet.dart` Slider 5–60 + notes `TextField` |
+| — | Avatar + Home Scan (P3) | ✅ `0010_avatars.sql` `customers.avatar_url` + `avatars` bucket + `profile_header.dart` `CachedNetworkImage` + `image_picker: ^1.1.2` upload; `home_screen.dart` `showQrScannerSheet` + `parseQrPhone` for Customer |
+
+### ⬜ Still deferred (Phase 2)
 
 | # | Screen | Priority | Note |
 |---|---|---|---|
-| — | Admin menu CRUD editor | P2 | Phase 3 per plan |
+| — | Quest/promo scheduler | P2 | Campaign `kind` window only; full quest scheduler separate |
+| — | Zones polygon map editor | P2 | CRUD for `fee/name` done; `polygon` GeoJSON map draw deferred (raw JSON shown) |
+| — | Driver live map | P3 | `flutter_map` + realtime location deferred; placeholder `mapHint` + external nav handoff live |
 
 ---
 

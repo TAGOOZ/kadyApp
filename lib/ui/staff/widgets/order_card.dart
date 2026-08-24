@@ -11,11 +11,13 @@ import '../../../core/l10n/strings_staff.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/repos/staff_orders_repository.dart';
 import '../../../domain/order_status_flow.dart';
+import 'driver_assignment_sheet.dart';
 import 'status_chip.dart';
 
 typedef StaffTransition = Future<void> Function(
   OrderWireStatus toStatus, {
   String? rejectReason,
+  String? assignedDriverId,
 });
 
 class OrderCard extends StatelessWidget {
@@ -125,11 +127,19 @@ class OrderCard extends StatelessWidget {
       case OrderWireStatus.ready:
         return [
           FilledButton.icon(
-            onPressed: () => transition(
-              order.modeWire == 'delivery'
-                  ? OrderWireStatus.outForDelivery
-                  : OrderWireStatus.done,
-            ),
+            onPressed: () async {
+              if (order.modeWire == 'delivery') {
+                final driverId =
+                    await showDriverAssignmentSheet(context, lang);
+                if (driverId == null) return;
+                await onTransition(
+                  OrderWireStatus.outForDelivery,
+                  assignedDriverId: driverId,
+                );
+              } else {
+                await transition(OrderWireStatus.done);
+              }
+            },
             icon: Icon(
               order.modeWire == 'delivery'
                   ? Icons.moped_outlined
@@ -205,11 +215,31 @@ class OrderCard extends StatelessWidget {
                 elapsedMinutesSince(order.createdAtUtc, nowUtc),
               ),
               style: AppTextStyles.labelMd.copyWith(
-                 color: AppColors.textMuted,
-               ),
+                  color: AppColors.textMuted,
+                ),
             ),
           ],
         ),
+        if (order.expectedReadyAtUtc != null) ...[
+          const SizedBox(height: 4),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.primaryContainer.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Text(
+                'متوقع ${formatExpectedReadyCairo(order.expectedReadyAtUtc!)}',
+                style: AppTextStyles.labelMd.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 6),
         Row(
           children: [

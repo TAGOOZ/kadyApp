@@ -170,6 +170,13 @@ class AuthController extends Notifier<AuthState> {
     _subscription = gateway.authStateChanges.listen((profile) {
       if (profile != null) {
         _pendingAdoption = _adopt(profile);
+      } else {
+        // External sign-out / session expired — clear authoritative role.
+        _pendingAdoption = Future<void>.value();
+        state = const AuthState(phase: AuthPhase.idle);
+        // Fire-and-forget cache reset; ignore offline.
+        // ignore: discarded_futures
+        ref.read(sessionControllerProvider.notifier).clearServerRole();
       }
     });
     ref.onDispose(() => _subscription?.cancel());
@@ -201,6 +208,10 @@ class AuthController extends Notifier<AuthState> {
     if ((state.phase == AuthPhase.ready ||
             state.phase == AuthPhase.authedWithoutPhone) &&
         state.googleUser?.id == profile.id) {
+      // Re-sync role even on same profile — covers mid-session promotion.
+      try {
+        await ref.read(sessionControllerProvider.notifier).syncRoleFromServer(profile.id);
+      } catch (_) {}
       return;
     }
     state = AuthState(phase: AuthPhase.idle, googleUser: profile);
@@ -212,6 +223,9 @@ class AuthController extends Notifier<AuthState> {
           phase: AuthPhase.authedWithoutPhone,
           googleUser: profile,
         );
+        try {
+          await ref.read(sessionControllerProvider.notifier).syncRoleFromServer(profile.id);
+        } catch (_) {}
         return;
       }
       state = AuthState(
@@ -220,6 +234,9 @@ class AuthController extends Notifier<AuthState> {
         phone: existing.phone,
       );
       await ref.read(sessionControllerProvider.notifier).markPhoneLinked();
+      try {
+        await ref.read(sessionControllerProvider.notifier).syncRoleFromServer(profile.id);
+      } catch (_) {}
     } on PhoneAlreadyLinkedException {
       state = state.copyWith(error: AuthErrorCode.duplicatePhone);
     } catch (_) {
@@ -276,6 +293,9 @@ class AuthController extends Notifier<AuthState> {
       );
       await ref.read(sessionControllerProvider.notifier).markOnboarded();
       await ref.read(sessionControllerProvider.notifier).setGuest(false);
+      try {
+        await ref.read(sessionControllerProvider.notifier).syncRoleFromServer(google.id);
+      } catch (_) {}
       return true;
     } on PhoneAlreadyLinkedException {
       state = state.copyWith(busy: false, error: AuthErrorCode.duplicatePhone);
@@ -302,6 +322,9 @@ class AuthController extends Notifier<AuthState> {
     state = const AuthState(phase: AuthPhase.idle);
     final session = ref.read(sessionControllerProvider.notifier);
     await session.resetToWelcome();
+    try {
+      await session.clearServerRole();
+    } catch (_) {}
   }
 }
 

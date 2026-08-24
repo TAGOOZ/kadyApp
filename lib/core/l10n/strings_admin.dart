@@ -10,6 +10,14 @@ class AdminStrings {
     required this.tabMenu,
     required this.tabRules,
     required this.tabReports,
+    required this.tabDrivers,
+    required this.tabHours,
+    required this.tabZones,
+    required this.assignDriver,
+    required this.driverAssigned,
+    required this.driverHint,
+    required this.statusReady,
+    required this.statusOutForDelivery,
     required this.kpiOrdersToday,
     required this.kpiActiveCustomers,
     required this.kpiAvgBasket,
@@ -45,6 +53,7 @@ class AdminStrings {
     required this.groupDelivery,
     required this.groupTiers,
     required this.groupProtectionLimits,
+    required this.groupExtras,
     required this.ruleLabels,
     required this.modeDineIn,
     required this.modePickup,
@@ -58,6 +67,18 @@ class AdminStrings {
     required this.fieldPrice,
     required this.fieldCategory,
     required this.fieldSort,
+    required this.fieldImageUrl,
+    required this.nameRequiredError,
+    required this.priceInvalidError,
+    required this.pricePositiveError,
+    required this.sortInvalidError,
+    required this.sortPositiveError,
+    required this.imageUrlInvalidError,
+    required this.campaignNameRequiredError,
+    required this.endsBeforeStartError,
+    required this.deleteCampaignTitle,
+    required this.deleteCampaignBodyFn,
+    required this.validationError,
   });
 
   final String title;
@@ -66,6 +87,14 @@ class AdminStrings {
   final String tabMenu;
   final String tabRules;
   final String tabReports;
+  final String tabDrivers;
+  final String tabHours;
+  final String tabZones;
+  final String assignDriver;
+  final String driverAssigned;
+  final String driverHint;
+  final String statusReady;
+  final String statusOutForDelivery;
   final String kpiOrdersToday;
   final String kpiActiveCustomers;
   final String kpiAvgBasket;
@@ -101,6 +130,7 @@ class AdminStrings {
   final String groupDelivery;
   final String groupTiers;
   final String groupProtectionLimits;
+  final String groupExtras;
 
   /// app_config key → human label.
   final Map<String, String> ruleLabels;
@@ -117,6 +147,18 @@ class AdminStrings {
   final String fieldPrice;
   final String fieldCategory;
   final String fieldSort;
+  final String fieldImageUrl;
+  final String nameRequiredError;
+  final String priceInvalidError;
+  final String pricePositiveError;
+  final String sortInvalidError;
+  final String sortPositiveError;
+  final String imageUrlInvalidError;
+  final String campaignNameRequiredError;
+  final String endsBeforeStartError;
+  final String deleteCampaignTitle;
+  final String Function(String name) deleteCampaignBodyFn;
+  final String validationError;
 
   /// Arabic label for a campaign kind (wire vocabulary of `campaigns.kind`).
   String kindLabel(String kind) => switch (kind) {
@@ -134,6 +176,14 @@ class AdminStrings {
     tabMenu: 'القائمة',
     tabRules: 'القواعد',
     tabReports: 'التقارير',
+    tabDrivers: 'التوصيل',
+    tabHours: 'الساعات',
+    tabZones: 'المناطق',
+    assignDriver: 'تعيين السائق',
+    driverAssigned: 'تم تعيين السائق ✅',
+    driverHint: 'اختر سائقًا للتوصيل',
+    statusReady: 'جاهز',
+    statusOutForDelivery: 'خرج للتوصيل',
     kpiOrdersToday: 'طلبات اليوم',
     kpiActiveCustomers: 'عملاء نشطون',
     kpiAvgBasket: 'متوسط السلة ج.م',
@@ -169,6 +219,7 @@ class AdminStrings {
     groupDelivery: 'التوصيل',
     groupTiers: 'التيرات',
     groupProtectionLimits: 'حدود الحماية',
+    groupExtras: 'إضافي',
     ruleLabels: {
       'points_per_10egp': 'نقاط لكل 10 ج.م',
       'dine_in_multiplier': 'مضاعف الصالة',
@@ -182,6 +233,9 @@ class AdminStrings {
       'tier_gold': 'التير الذهبي (نقاط)',
       'rate_limit_max': 'أقصى طلبات بالنافذة',
       'rate_limit_window_min': 'نافذة الحماية (دقيقة)',
+      'double_window_active': 'نافذة مضاعفة نشطة',
+      'group_checkin_count': 'عدد تسجيل المجموعة',
+      'group_bonus_points': 'نقاط بونص المجموعة',
     },
     modeDineIn: 'صالة',
     modePickup: 'استلام',
@@ -195,6 +249,18 @@ class AdminStrings {
     fieldPrice: 'السعر (ج.م)',
     fieldCategory: 'التصنيف',
     fieldSort: 'الترتيب',
+    fieldImageUrl: 'رابط الصورة',
+    nameRequiredError: 'الاسم مطلوب',
+    priceInvalidError: 'السعر غير صالح',
+    pricePositiveError: 'السعر يجب أن يكون أكبر من صفر',
+    sortInvalidError: 'الترتيب غير صالح',
+    sortPositiveError: 'الترتيب لا يمكن أن يكون سالبًا',
+    imageUrlInvalidError: 'رابط غير صالح (يجب أن يبدأ بـ https://)',
+    campaignNameRequiredError: 'اسم الحملة مطلوب',
+    endsBeforeStartError: 'تاريخ النهاية يجب أن يكون بعد البداية',
+    deleteCampaignTitle: 'حذف الحملة؟',
+    deleteCampaignBodyFn: (name) => 'سيتم حذف «$name» نهائيًا.',
+    validationError: 'يرجى تصحيح الحقول المميزة',
   );
 
   static final AdminStrings _en = AdminStrings(
@@ -204,6 +270,14 @@ class AdminStrings {
     tabMenu: 'Menu',
     tabRules: 'Rules',
     tabReports: 'Reports',
+    tabDrivers: 'Drivers',
+    tabHours: 'Hours',
+    tabZones: 'Zones',
+    assignDriver: 'Assign driver',
+    driverAssigned: 'Driver assigned ✅',
+    driverHint: 'Pick a driver for this delivery',
+    statusReady: 'Ready',
+    statusOutForDelivery: 'Out for delivery',
     kpiOrdersToday: "Today's orders",
     kpiActiveCustomers: 'Active customers',
     kpiAvgBasket: 'Avg basket EGP',
@@ -240,6 +314,7 @@ class AdminStrings {
     groupDelivery: 'Delivery',
     groupTiers: 'Tiers',
     groupProtectionLimits: 'Protection limits',
+    groupExtras: 'Extras',
     ruleLabels: {
       'points_per_10egp': 'Points per 10 EGP',
       'dine_in_multiplier': 'Dine-in multiplier',
@@ -253,6 +328,9 @@ class AdminStrings {
       'tier_gold': 'Gold tier (pts)',
       'rate_limit_max': 'Max requests per window',
       'rate_limit_window_min': 'Rate-limit window (min)',
+      'double_window_active': 'Double window active',
+      'group_checkin_count': 'Group check-in count',
+      'group_bonus_points': 'Group bonus points',
     },
     modeDineIn: 'Dine-in',
     modePickup: 'Pickup',
@@ -266,6 +344,18 @@ class AdminStrings {
     fieldPrice: 'Price (EGP)',
     fieldCategory: 'Category',
     fieldSort: 'Sort order',
+    fieldImageUrl: 'Image URL',
+    nameRequiredError: 'Name is required',
+    priceInvalidError: 'Price is invalid',
+    pricePositiveError: 'Price must be > 0',
+    sortInvalidError: 'Sort is invalid',
+    sortPositiveError: 'Sort cannot be negative',
+    imageUrlInvalidError: 'Invalid URL (must start with https://)',
+    campaignNameRequiredError: 'Campaign name is required',
+    endsBeforeStartError: 'End date must be after start date',
+    deleteCampaignTitle: 'Delete campaign?',
+    deleteCampaignBodyFn: (name) => '"$name" will be permanently deleted.',
+    validationError: 'Please fix the highlighted fields',
   );
 
   static AdminStrings of(AppLang lang) => lang == AppLang.ar ? _ar : _en;

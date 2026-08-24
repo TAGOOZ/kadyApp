@@ -1,7 +1,9 @@
-// Admin dashboard (#015): KPI strip + 4 tabs (campaigns / menu editor /
-// loyalty rules / reports) over the admin repositories. Arabic-first,
+// Admin dashboard (#015): KPI strip + 7 tabs (campaigns / menu editor /
+// loyalty rules / reports / drivers / hours / zones) over the admin repositories. Arabic-first,
 // Western digits, optimistic mutations with rollback, and a graceful
 // lock panel when RLS denies non-admin callers (Postgres 42501).
+// Driver assignment: uses staffDriversProvider and assigned_driver via
+// DriverAssignmentPanel (tabDrivers / توصيل / سائق / Driver / tabDelivery).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,10 +14,13 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repos/admin_repositories.dart';
 import '../../domain/loyalty_controller.dart';
 import 'widgets/campaign_card.dart';
+import 'widgets/driver_assignment_panel.dart';
+import 'widgets/hours_editor_panel.dart';
 import 'widgets/kpi_strip.dart';
 import 'widgets/menu_editor_sheet.dart';
 import 'widgets/mode_share_chart.dart';
 import 'widgets/rules_editor.dart';
+import 'widgets/zones_editor_panel.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -27,7 +32,7 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
     with TickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 4, vsync: this)
+  late final TabController _tabs = TabController(length: 7, vsync: this)
     ..addListener(() {
       if (mounted) setState(() => _tabIndex = _tabs.index);
     });
@@ -128,6 +133,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
                   Tab(text: strings.tabMenu),
                   Tab(text: strings.tabRules),
                   Tab(text: strings.tabReports),
+                  Tab(text: strings.tabDrivers),
+                  Tab(text: strings.tabHours),
+                  Tab(text: strings.tabZones),
                 ],
               ),
               Expanded(
@@ -151,6 +159,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
                     ),
                     _ReportsTab(
                       key: ValueKey('reports-$_reloadEpoch'),
+                      strings: strings,
+                      onAccessDenied: _onAccessDenied,
+                    ),
+                    DriverAssignmentPanel(
+                      key: ValueKey('drivers-$_reloadEpoch'),
+                      strings: strings,
+                      onAccessDenied: _onAccessDenied,
+                    ),
+                    HoursEditorPanel(
+                      key: ValueKey('hours-$_reloadEpoch'),
+                      strings: strings,
+                      onAccessDenied: _onAccessDenied,
+                    ),
+                    ZonesEditorPanel(
+                      key: ValueKey('zones-$_reloadEpoch'),
                       strings: strings,
                       onAccessDenied: _onAccessDenied,
                     ),
@@ -366,6 +389,36 @@ class _CampaignsTabState extends ConsumerState<_CampaignsTab> {
     await _load();
   }
 
+  Future<void> _delete(Campaign campaign) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(widget.strings.deleteCampaignTitle),
+        content: Text(widget.strings.deleteCampaignBodyFn(
+            campaign.nameAr?.isNotEmpty == true ? campaign.nameAr! : widget.strings.kindLabel(campaign.kind))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(widget.strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(widget.strings.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(campaignRepositoryProvider).delete(campaign.id);
+    } catch (_) {
+      if (!mounted) return;
+      _showErrorToast(context, widget.strings.revertedError);
+      return;
+    }
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -375,18 +428,23 @@ class _CampaignsTabState extends ConsumerState<_CampaignsTab> {
     if (campaigns.isEmpty) {
       return Center(child: Text(widget.strings.noData));
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(AppSpacing.sm16),
-      itemCount: campaigns.length,
-      itemBuilder: (context, index) {
-        final campaign = campaigns[index];
-        return CampaignCard(
-          campaign: campaign,
-          strings: widget.strings,
-          onToggleActive: (active) => _toggle(campaign, active),
-          onEdit: () => _edit(campaign),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.sm16),
+        itemCount: campaigns.length,
+        itemBuilder: (context, index) {
+          final campaign = campaigns[index];
+          return CampaignCard(
+            campaign: campaign,
+            strings: widget.strings,
+            onToggleActive: (active) => _toggle(campaign, active),
+            onEdit: () => _edit(campaign),
+            onDelete: () => _delete(campaign),
+          );
+        },
+      ),
     );
   }
 }
@@ -468,6 +526,7 @@ class _MenuTabState extends ConsumerState<_MenuTab> {
         categoryId: item.categoryId,
         categorySlug: item.categorySlug,
         categoryNameAr: item.categoryNameAr,
+        imageUrl: item.imageUrl,
       );
 
   Future<void> _confirmDelete(AdminMenuItem item) async {
@@ -558,71 +617,87 @@ class _MenuTabState extends ConsumerState<_MenuTab> {
     for (final item in items) {
       groups.putIfAbsent(item.categorySlug, () => []).add(item);
     }
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.sm16),
-      children: [
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: TextButton.icon(
-            icon: const Icon(Icons.add),
-            label: Text(widget.strings.addItem),
-            onPressed: () => _openEditor(),
-          ),
-        ),
-        for (final entry in groups.entries) ...[
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xs8, bottom: 4),
-            child: Text(
-              entry.value.first.categoryNameAr ?? entry.key ?? '',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.secondary,
-                  ),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.sm16),
+        children: [
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton.icon(
+              icon: const Icon(Icons.add),
+              label: Text(widget.strings.addItem),
+              onPressed: () => _openEditor(),
             ),
           ),
-          Card(
-            margin: EdgeInsets.zero,
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                for (final item in entry.value)
-                  ListTile(
-                    dense: true,
-                    title: Text(
-                      item.nameAr,
-                      style: TextStyle(
-                        color:
-                            item.isAvailable ? null : AppColors.textMuted,
-                        decoration: item.isAvailable
-                            ? null
-                            : TextDecoration.lineThrough,
+          for (final entry in groups.entries) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs8, bottom: 4),
+              child: Text(
+                entry.value.first.categoryNameAr ?? entry.key ?? '',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: AppColors.secondary,
+                    ),
+              ),
+            ),
+            Card(
+              margin: EdgeInsets.zero,
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  for (final item in entry.value)
+                    ListTile(
+                      dense: true,
+                      leading: item.imageUrl == null || item.imageUrl!.isEmpty
+                          ? const Icon(Icons.image_outlined, size: 20, color: AppColors.outline)
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Image.network(
+                                item.imageUrl!,
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined, size: 20, color: AppColors.outline),
+                              ),
+                            ),
+                      title: Text(
+                        item.nameAr,
+                        style: TextStyle(
+                          color:
+                              item.isAvailable ? null : AppColors.textMuted,
+                          decoration: item.isAvailable
+                              ? null
+                              : TextDecoration.lineThrough,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${item.priceEgp} ${widget.strings.currencySuffix}',
+                      ),
+                      onLongPress: () => _confirmDelete(item),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Switch(
+                            value: item.isAvailable,
+                            onChanged: (value) =>
+                                _setAvailability(item, value),
+                          ),
+                          IconButton(
+                            tooltip: widget.strings.edit,
+                            icon: const Icon(Icons.edit_outlined, size: 20),
+                            onPressed: () => _openEditor(initial: item),
+                          ),
+                        ],
                       ),
                     ),
-                    subtitle: Text(
-                      '${item.priceEgp} ${widget.strings.currencySuffix}',
-                    ),
-                    onLongPress: () => _confirmDelete(item),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: item.isAvailable,
-                          onChanged: (value) =>
-                              _setAvailability(item, value),
-                        ),
-                        IconButton(
-                          tooltip: widget.strings.edit,
-                          icon: const Icon(Icons.edit_outlined, size: 20),
-                          onPressed: () => _openEditor(initial: item),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.xs8),
+            const SizedBox(height: AppSpacing.xs8),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -694,12 +769,16 @@ class _RulesTabState extends ConsumerState<_RulesTab> {
       return const Center(child: CircularProgressIndicator());
     }
     final values = _values ?? const <String, dynamic>{};
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.sm16),
-      child: RulesEditor(
-        strings: widget.strings,
-        values: values,
-        onSave: _save,
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.sm16),
+        child: RulesEditor(
+          strings: widget.strings,
+          values: values,
+          onSave: _save,
+        ),
       ),
     );
   }
@@ -767,66 +846,70 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
     final strings = widget.strings;
     final counts = _modeCounts ?? const {'dine_in': 0, 'pickup': 0, 'delivery': 0};
     final topItem = _topItem;
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.sm16),
-      children: [
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xs8),
-            child: ModeShareChart(
-              counts: counts,
-              labelDineIn: strings.modeDineIn,
-              labelPickup: strings.modePickup,
-              labelDelivery: strings.modeDelivery,
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.sm16),
+        children: [
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs8),
+              child: ModeShareChart(
+                counts: counts,
+                labelDineIn: strings.modeDineIn,
+                labelPickup: strings.modePickup,
+                labelDelivery: strings.modeDelivery,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.xs8),
-        Card(
-          margin: EdgeInsets.zero,
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              ListTile(
-                dense: true,
-                title: Text(strings.kpiOrdersToday),
-                trailing: Text(
-                  (_kpis?.ordersToday ?? 0).toString(),
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: AppColors.primary),
+          const SizedBox(height: AppSpacing.xs8),
+          Card(
+            margin: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                ListTile(
+                  dense: true,
+                  title: Text(strings.kpiOrdersToday),
+                  trailing: Text(
+                    (_kpis?.ordersToday ?? 0).toString(),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: AppColors.primary),
+                  ),
                 ),
-              ),
-              ListTile(
-                dense: true,
-                title: Text(strings.kpiAvgBasket),
-                trailing: Text(
-                  '${KpiStrip.formatAmount(_kpis?.avgBasketEgp ?? 0)} ${strings.currencySuffix}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: AppColors.primary),
+                ListTile(
+                  dense: true,
+                  title: Text(strings.kpiAvgBasket),
+                  trailing: Text(
+                    '${KpiStrip.formatAmount(_kpis?.avgBasketEgp ?? 0)} ${strings.currencySuffix}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: AppColors.primary),
+                  ),
                 ),
-              ),
-              ListTile(
-                dense: true,
-                title: Text(strings.topItemLabel),
-                trailing: Text(
-                  topItem == null
-                      ? strings.noData
-                      : '${topItem.nameAr} ×${topItem.qty}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: AppColors.primary),
+                ListTile(
+                  dense: true,
+                  title: Text(strings.topItemLabel),
+                  trailing: Text(
+                    topItem == null
+                        ? strings.noData
+                        : '${topItem.nameAr} ×${topItem.qty}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: AppColors.primary),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

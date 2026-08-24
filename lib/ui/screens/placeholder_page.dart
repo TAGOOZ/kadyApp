@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,12 +38,26 @@ class PlaceholderPage extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 GestureDetector(
-                  onLongPress: () => showRoleSwitcher(context),
+                  onLongPress: () {
+                    if (!kDebugMode &&
+                        const String.fromEnvironment('ENABLE_ROLE_SWITCHER') !=
+                            'true') {
+                      return;
+                    }
+                    showRoleSwitcher(context);
+                  },
                   child: const AppLogo(size: 72),
                 ),
                 const SizedBox(height: AppSpacing.sm16),
                 GestureDetector(
-                  onLongPress: () => showRoleSwitcher(context),
+                  onLongPress: () {
+                    if (!kDebugMode &&
+                        const String.fromEnvironment('ENABLE_ROLE_SWITCHER') !=
+                            'true') {
+                      return;
+                    }
+                    showRoleSwitcher(context);
+                  },
                   child: Text(title, style: AppTextStyles.headlineMobile),
                 ),
                 const SizedBox(height: AppSpacing.xs8),
@@ -61,7 +76,15 @@ class PlaceholderPage extends ConsumerWidget {
                           const Icon(Icons.swap_horiz, color: AppColors.primary),
                       title: Text(strings.roleSwitcherTile),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => showRoleSwitcher(context),
+                      onTap: () {
+                        if (!kDebugMode &&
+                            const String.fromEnvironment(
+                                    'ENABLE_ROLE_SWITCHER') !=
+                                'true') {
+                          return;
+                        }
+                        showRoleSwitcher(context);
+                      },
                     ),
                   ),
                 ],

@@ -1,12 +1,17 @@
 // Session state: language, role and onboarding gate, persisted locally.
 // Language ownership lives in LocaleNotifier (`session.locale`);
 // role + onboarding are owned here.
+//
+// Role is authoritative from `public.profiles.role` (RLS). Local
+// `SharedPreferences` is a cache only; `syncRoleFromServer` overwrites it
+// after auth. `setRole` is kept for tests/dev but should not bypass server.
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/l10n/app_strings.dart';
+import '../data/repos/profile_repository.dart';
 
 const _sessionRoleKey = 'session.role';
 const _sessionOnboardedKey = 'session.onboarded';
@@ -79,6 +84,37 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(role: role);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_sessionRoleKey, role.name);
+  }
+
+  /// Authoritative sync: fetch `profiles.role` for [userId] and overwrite
+  /// the local cached role. Offline or missing row keeps the local value.
+  Future<void> syncRoleFromServer(String userId) async {
+    try {
+      final gateway = ref.read(profileRoleGatewayProvider);
+      final raw = await gateway.fetchRole(userId);
+      if (raw == null) return;
+      AppRole? serverRole;
+      for (final r in AppRole.values) {
+        if (r.name == raw) {
+          serverRole = r;
+          break;
+        }
+      }
+      if (serverRole == null) return;
+      if (serverRole == state.role) return;
+      state = state.copyWith(role: serverRole);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_sessionRoleKey, serverRole.name);
+    } catch (_) {
+      // Offline / RLS hiccup — keep local cache.
+    }
+  }
+
+  /// Clears elevated role on sign-out; back to `customer`.
+  Future<void> clearServerRole() async {
+    state = state.copyWith(role: AppRole.customer);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionRoleKey, AppRole.customer.name);
   }
 
   Future<void> markOnboarded() async {

@@ -21,12 +21,14 @@ class CampaignCard extends StatelessWidget {
     required this.strings,
     required this.onToggleActive,
     required this.onEdit,
+    this.onDelete,
   });
 
   final Campaign campaign;
   final AdminStrings strings;
   final Future<void> Function(bool active) onToggleActive;
   final VoidCallback onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +68,12 @@ class CampaignCard extends StatelessWidget {
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: onEdit,
                 ),
+                if (onDelete != null)
+                  IconButton(
+                    tooltip: strings.delete,
+                    icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+                    onPressed: onDelete,
+                  ),
               ],
             ),
             Text(
@@ -160,6 +168,8 @@ class _CampaignDialogState extends State<_CampaignDialog> {
       TextEditingController(text: widget.initial?.nameAr ?? '');
   late DateTime? _startsAt = widget.initial?.startsAt;
   late DateTime? _endsAt = widget.initial?.endsAt;
+  String? _nameError;
+  String? _dateError;
 
   Future<void> _pick({required bool isStart}) async {
     final now = DateTime.now();
@@ -171,8 +181,40 @@ class _CampaignDialogState extends State<_CampaignDialog> {
       lastDate: now.add(const Duration(days: 365 * 2)),
     );
     if (picked != null) {
-      setState(() => isStart ? _startsAt = picked : _endsAt = picked);
+      setState(() {
+        if (isStart) {
+          _startsAt = picked;
+        } else {
+          _endsAt = picked;
+        }
+        _dateError = null;
+      });
     }
+  }
+
+  void _trySave() {
+    final name = _nameController.text.trim();
+    String? nameErr;
+    String? dateErr;
+    if (name.isEmpty) nameErr = widget.strings.campaignNameRequiredError;
+    if (_startsAt != null && _endsAt != null && _endsAt!.isBefore(_startsAt!)) {
+      dateErr = widget.strings.endsBeforeStartError;
+    }
+    if (nameErr != null || dateErr != null) {
+      setState(() {
+        _nameError = nameErr;
+        _dateError = dateErr;
+      });
+      return;
+    }
+    Navigator.of(context).pop(
+      CampaignDialogResult(
+        kind: _kind,
+        nameAr: name,
+        startsAt: _startsAt,
+        endsAt: _endsAt,
+      ),
+    );
   }
 
   @override
@@ -208,8 +250,13 @@ class _CampaignDialogState extends State<_CampaignDialog> {
             ),
             TextField(
               controller: _nameController,
-              decoration:
-                  InputDecoration(labelText: strings.campaignNameLabel),
+              decoration: InputDecoration(
+                labelText: strings.campaignNameLabel,
+                errorText: _nameError,
+              ),
+              onChanged: (_) {
+                if (_nameError != null) setState(() => _nameError = null);
+              },
             ),
             const SizedBox(height: AppSpacing.xs8),
             Row(
@@ -230,6 +277,17 @@ class _CampaignDialogState extends State<_CampaignDialog> {
                 ),
               ],
             ),
+            if (_dateError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    _dateError!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -239,14 +297,7 @@ class _CampaignDialogState extends State<_CampaignDialog> {
           child: Text(strings.cancel),
         ),
         FilledButton(
-          onPressed: () => Navigator.of(context).pop(
-            CampaignDialogResult(
-              kind: _kind,
-              nameAr: _nameController.text.trim(),
-              startsAt: _startsAt,
-              endsAt: _endsAt,
-            ),
-          ),
+          onPressed: _trySave,
           child: Text(strings.save),
         ),
       ],

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -96,12 +97,28 @@ class WelcomeScreen extends ConsumerWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           GestureDetector(
-                            onLongPress: () => showRoleSwitcher(context),
+                            onLongPress: () {
+                              if (!kDebugMode &&
+                                  const String.fromEnvironment(
+                                          'ENABLE_ROLE_SWITCHER') !=
+                                      'true') {
+                                return;
+                              }
+                              showRoleSwitcher(context);
+                            },
                             child: const AppLogo(size: 72),
                           ),
                           const SizedBox(height: AppSpacing.sm16),
                           GestureDetector(
-                            onLongPress: () => showRoleSwitcher(context),
+                            onLongPress: () {
+                              if (!kDebugMode &&
+                                  const String.fromEnvironment(
+                                          'ENABLE_ROLE_SWITCHER') !=
+                                      'true') {
+                                return;
+                              }
+                              showRoleSwitcher(context);
+                            },
                             child: Text(
                               strings.appName,
                               textAlign: TextAlign.center,

@@ -81,6 +81,7 @@ Map<String, dynamic> _doneDeliveryRow({
   required int number,
   required DateTime createdAtUtc,
   int totalEgp = 75,
+  String assignedDriver = 'u1',
 }) {
   return {
     'id': id,
@@ -93,6 +94,7 @@ Map<String, dynamic> _doneDeliveryRow({
     ],
     'total': totalEgp,
     'address_id': 'a-$id',
+    'assigned_driver': assignedDriver,
     'created_at': createdAtUtc.toIso8601String(),
   };
 }
@@ -333,6 +335,7 @@ void main() {
         ],
         'total': 45,
         'address_id': 'addr-1',
+        'assigned_driver': 'u1',
         'notes': '[REDEEMED:free_topping:100] جرس الباب بايظ',
         'created_at': created.toIso8601String(),
       };

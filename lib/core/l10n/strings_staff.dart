@@ -57,6 +57,12 @@ class StaffStrings {
     required this.lockHint,
     required this.errorGeneric,
     required this.transitionFailed,
+    required this.assignDriverTitle,
+    required this.assignDriverHint,
+    required this.noDrivers,
+    required this.confirmAssignment,
+    required this.driverAssigned,
+    required this.assignmentFailed,
   });
 
   final String boardTitle;
@@ -138,6 +144,12 @@ class StaffStrings {
   final String lockHint;
   final String errorGeneric;
   final String transitionFailed;
+  final String assignDriverTitle;
+  final String assignDriverHint;
+  final String noDrivers;
+  final String confirmAssignment;
+  final String driverAssigned;
+  final String assignmentFailed;
 
   static const StaffStrings _ar = StaffStrings(
     boardTitle: 'لوحة الطلبات',
@@ -190,6 +202,12 @@ class StaffStrings {
     lockHint: 'شغّل SQL ترقية الحساب من docs/SUPABASE_SETUP.md',
     errorGeneric: 'حصل خطأ، حاول تاني',
     transitionFailed: 'مقدرناش نحدّث حالة الطلب',
+    assignDriverTitle: 'اختر السائق',
+    assignDriverHint: 'اختار السائق اللي هيستلم الطلب',
+    noDrivers: 'مفيش سائقين متاحين',
+    confirmAssignment: 'تأكيد التسليم',
+    driverAssigned: 'تم التسليم للسائق ✅',
+    assignmentFailed: 'مقدرناش نسلم للسائق',
   );
 
   static const StaffStrings _en = StaffStrings(
@@ -243,6 +261,12 @@ class StaffStrings {
     lockHint: 'Run the account-elevation SQL from docs/SUPABASE_SETUP.md',
     errorGeneric: 'Something went wrong, try again',
     transitionFailed: "Couldn't update the order status",
+    assignDriverTitle: 'Pick a driver',
+    assignDriverHint: 'Select the driver who will take this delivery',
+    noDrivers: 'No drivers available',
+    confirmAssignment: 'Confirm handover',
+    driverAssigned: 'Handed to driver ✅',
+    assignmentFailed: "Couldn't hand to driver",
   );
 
   static StaffStrings of(AppLang lang) => lang == AppLang.ar ? _ar : _en;

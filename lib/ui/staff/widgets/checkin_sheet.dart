@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import '../../../core/l10n/strings_staff.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/repos/staff_orders_repository.dart';
+import '../../../domain/qr_checkin.dart';
+import 'qr_scanner_sheet.dart';
 
 /// Canonical Customer phone shape — same pattern as the auth validator.
 final RegExp kEgyptianPhonePattern = RegExp(r'^\+20[0-9]{10}$');
@@ -62,6 +64,20 @@ class _CheckInSheetState extends State<CheckInSheet> {
       kEgyptianPhonePattern.hasMatch(_phoneController.text.trim()) &&
       int.tryParse(_spendController.text.trim()) != null &&
       int.parse(_spendController.text.trim()) >= 0;
+
+  Future<void> _scanQr() async {
+    final raw = await showQrScannerSheet(context);
+    if (raw == null) return;
+    final phone = parseQrPhone(raw);
+    if (phone == null) {
+      setState(() => _error = widget.strings.errorPhone);
+      return;
+    }
+    setState(() {
+      _phoneController.text = phone;
+      _error = null;
+    });
+  }
 
   Future<void> _submit() async {
     final strings = widget.strings;
@@ -127,16 +143,28 @@ class _CheckInSheetState extends State<CheckInSheet> {
           children: [
             Text(strings.checkInTitle, style: AppTextStyles.titleMd),
             const SizedBox(height: AppSpacing.xs8),
-            TextField(
-              controller: _phoneController,
-              autofocus: true,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: strings.fieldPhone,
-                hintText: strings.phoneHint,
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: (_) => setState(() {}),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _phoneController,
+                    autofocus: true,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: strings.fieldPhone,
+                      hintText: strings.phoneHint,
+                      border: const OutlineInputBorder(),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs8),
+                IconButton(
+                  icon: const Icon(Icons.qr_code_scanner),
+                  tooltip: 'مسح QR',
+                  onPressed: _scanQr,
+                ),
+              ],
             ),
             const SizedBox(height: AppSpacing.xs8),
             TextField(

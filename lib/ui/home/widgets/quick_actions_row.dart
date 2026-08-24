@@ -2,7 +2,7 @@
 // my orders, rewards. "Order now" moved OUT of the tiles into the hero CTA
 // above (one primary action per screen); the grid holds secondary paths.
 // Scan & earn stays role-aware in HomeScreen (FEATURES §3.2/§6): staff →
-// /staff/lookup; customer shows comingSoon until the customer scanner lands.
+// /staff/lookup; customer opens QrScannerSheet + parseQrPhone (mobile_scanner).
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

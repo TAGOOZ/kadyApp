@@ -1,6 +1,7 @@
-// Profile header (#011): avatar initial circle + camera badge (photo picker
-// out of scope — snack-bar placeholder), customer name and the tier chip.
+// Profile header (#011): avatar initial circle + camera badge (image_picker
+// → Supabase Storage `avatars` bucket, Western digits, RTL-first).
 // Gold tier gets a gradient border per the Stitch design ref.
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/strings_profile.dart';
@@ -15,6 +16,7 @@ class ProfileHeader extends StatelessWidget {
     required this.strings,
     required this.onCameraTap,
     this.isGuest = false,
+    this.avatarUrl,
   });
 
   final String name;
@@ -22,6 +24,7 @@ class ProfileHeader extends StatelessWidget {
   final ProfileStrings strings;
   final VoidCallback onCameraTap;
   final bool isGuest;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -53,12 +56,30 @@ class ProfileHeader extends StatelessWidget {
                       ),
                       shape: BoxShape.circle,
                     ),
+                    clipBehavior: Clip.antiAlias,
                     alignment: Alignment.center,
-                    child: Text(
-                      name.isEmpty ? '؟' : name.characters.first.toUpperCase(),
-                      style: AppTextStyles.headlineMobile
-                          .copyWith(color: AppColors.primary),
-                    ),
+                    child: avatarUrl != null && avatarUrl!.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: avatarUrl!,
+                            width: 72,
+                            height: 72,
+                            fit: BoxFit.cover,
+                            placeholder: (_, _) => Text(
+                              name.isEmpty ? '؟' : name.characters.first.toUpperCase(),
+                              style: AppTextStyles.headlineMobile
+                                  .copyWith(color: AppColors.primary),
+                            ),
+                            errorWidget: (_, _, _) => Text(
+                              name.isEmpty ? '؟' : name.characters.first.toUpperCase(),
+                              style: AppTextStyles.headlineMobile
+                                  .copyWith(color: AppColors.primary),
+                            ),
+                          )
+                        : Text(
+                            name.isEmpty ? '؟' : name.characters.first.toUpperCase(),
+                            style: AppTextStyles.headlineMobile
+                                .copyWith(color: AppColors.primary),
+                          ),
                   ),
                   PositionedDirectional(
                     end: -2,
