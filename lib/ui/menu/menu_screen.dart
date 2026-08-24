@@ -12,6 +12,7 @@ import '../../data/repos/menu_repository.dart';
 import '../../data/repos/supabase_menu_repository.dart';
 import '../../domain/cart_controller.dart';
 import 'item_detail_sheet.dart';
+import 'widgets/menu_item_image.dart';
 
 /// Whole-catalog snapshot; invalidated by the retry button on error.
 final menuCatalogProvider = FutureProvider<CatalogSnapshot>((ref) async {
@@ -271,7 +272,7 @@ class _ItemCard extends StatelessWidget {
     final strings = MenuStringsCatalog.of(lang);
     final body = Row(
       children: [
-        const MenuPhotoPlaceholder(height: 72, width: 72, iconSize: 30),
+        MenuItemImage(item: item, width: 72, height: 72),
         const SizedBox(width: AppSpacing.xs8),
         Expanded(
           child: Column(
