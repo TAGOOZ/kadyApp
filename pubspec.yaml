@@ -79,6 +79,7 @@ flutter:
     - assets/images/brand_instagram.svg
     - assets/images/brand_tiktok.svg
     - assets/images/brand_whatsapp.svg
+    - assets/images/bg_pattern.svg
 
   # Bundled fonts (no runtime fetch): IBM Plex Sans is a variable font
   # (FontWeight maps onto the wght axis); Arabic ships as static weights.
