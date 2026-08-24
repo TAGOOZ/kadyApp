@@ -466,6 +466,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 _LogoutTile(label: s.logoutTile, onTap: () => _confirmLogout(s)),
               ],
+              const SizedBox(height: AppSpacing.sm16),
               ContactSocialSection(lang: lang),
               SizedBox(height: MediaQuery.paddingOf(context).bottom + AppSpacing.lg32),
             ],
