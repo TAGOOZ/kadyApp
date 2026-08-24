@@ -119,9 +119,13 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
           .read(staffOrdersRepoProvider)
           .transition(order.id, to, rejectReason: rejectReason);
       if (!mounted) return;
-      // Keep the sheet open — realtime will push the new status; caller can
-      // dismiss manually. Showing no snackbar on success matches the board
-      // behaviour (no success toast, errors only).
+      // Intentionally keeps sheet open — realtime (ADR-0006) pushes the new
+      // status to the board and the sheet's own `order` is updated via the
+      // streamed list; caller dismisses manually. No auto-pop or success
+      // snackbar keeps parity with board card behaviour (errors only, per
+      // FEATURES §6).
+      // TODO(phase2): add ETA adjust slider (FEATURES §6 — adjust
+      // expected-ready time) alongside the status advance.
     } on StaffPermissionException {
       if (!mounted) return;
       _showSnack(strings.lockTitle);
@@ -231,9 +235,9 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.only(
-          left: AppSpacing.gutter16,
-          right: AppSpacing.gutter16,
+        padding: EdgeInsetsDirectional.only(
+          start: AppSpacing.gutter16,
+          end: AppSpacing.gutter16,
           top: AppSpacing.sm16,
           bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.sm16,
         ),
@@ -368,6 +372,7 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
                 ),
               ],
               // Advance / reject actions via staffOrdersRepo.
+              // TODO(phase2): add ETA adjust slider (FEATURES §6)
               if (actions.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm16),
                 Row(

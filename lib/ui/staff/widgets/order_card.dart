@@ -28,6 +28,7 @@ class OrderCard extends StatelessWidget {
     required this.onTransition,
     this.customerName,
     this.addressText,
+    this.onTap,
   });
 
   final StaffOrder order;
@@ -43,6 +44,11 @@ class OrderCard extends StatelessWidget {
 
   /// Resolved from `addresses` via orders.address_id.
   final String? addressText;
+
+  /// Optional tap for the card body (header/mode/items/total) — deliberately
+  /// excludes the action buttons so their [onTransition] presses do not bubble
+  /// to the detail sheet. When null the card is not tappable.
+  final VoidCallback? onTap;
 
   String get _modeLabel => switch (order.modeWire) {
         'dine_in' => CheckoutStringsCatalog.of(lang).modeDineIn,
@@ -171,110 +177,138 @@ class OrderCard extends StatelessWidget {
     final timing = _timingLabel;
     final actions = _actions(context);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.xs8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.parchment,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Text(
-                    '#${order.displayNumber}',
-                    style: AppTextStyles.labelMd.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.coffeeBean,
-                    ),
-                  ),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.parchment,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Text(
+                '#${order.displayNumber}',
+                style: AppTextStyles.labelMd.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.coffeeBean,
                 ),
-                const SizedBox(width: AppSpacing.xs8),
-                StatusChip(status: order.status, label: _statusLabel),
-                const Spacer(),
-                Text(
-                  strings.elapsed(
-                    elapsedMinutesSince(order.createdAtUtc, nowUtc),
-                  ),
-                  style: AppTextStyles.labelMd.copyWith(
-                     color: AppColors.textMuted,
-                   ),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    customerName ?? order.phone ?? '—',
-                    style: AppTextStyles.bodyLg.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (order.phone != null && customerName != null) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    order.phone!,
-                    style: AppTextStyles.bodySm
-                         .copyWith(color: AppColors.textMuted),
-                  ),
-                ],
-              ],
+            const SizedBox(width: AppSpacing.xs8),
+            StatusChip(status: order.status, label: _statusLabel),
+            const Spacer(),
+            Text(
+              strings.elapsed(
+                elapsedMinutesSince(order.createdAtUtc, nowUtc),
+              ),
+              style: AppTextStyles.labelMd.copyWith(
+                 color: AppColors.textMuted,
+               ),
             ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Chip(
-                  visualDensity: VisualDensity.compact,
-                  labelPadding: EdgeInsets.zero,
-                  label: Text(_modeLabel, style: AppTextStyles.labelMd),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                customerName ?? order.phone ?? '—',
+                style: AppTextStyles.bodyLg.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-                if (timing != null) ...[
-                  const SizedBox(width: AppSpacing.xs8),
-                  Expanded(
-                    child: Text(
-                      timing,
-                      style: AppTextStyles.bodySm
-                         .copyWith(color: AppColors.textMuted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            if (order.lines.isNotEmpty) ...[
-              const SizedBox(height: 4),
+            if (order.phone != null && customerName != null) ...[
+              const SizedBox(width: 6),
               Text(
-                itemsSummaryLine(order.lines),
-                style: AppTextStyles.bodySm,
+                order.phone!,
+                style: AppTextStyles.bodySm
+                     .copyWith(color: AppColors.textMuted),
               ),
             ],
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Spacer(),
-                if (order.totalEgp != null)
-                  Text(
-                    '${order.totalEgp} ${checkout.currencySuffix}',
-                    style: AppTextStyles.bodyLg
-                        .copyWith(fontWeight: FontWeight.w700),
-                  ),
-              ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Chip(
+              visualDensity: VisualDensity.compact,
+              labelPadding: EdgeInsets.zero,
+              label: Text(_modeLabel, style: AppTextStyles.labelMd),
             ),
-            if (actions.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs8),
-              Row(
+            if (timing != null) ...[
+              const SizedBox(width: AppSpacing.xs8),
+              Expanded(
+                child: Text(
+                  timing,
+                  style: AppTextStyles.bodySm
+                     .copyWith(color: AppColors.textMuted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (order.lines.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            itemsSummaryLine(order.lines),
+            style: AppTextStyles.bodySm,
+          ),
+        ],
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            const Spacer(),
+            if (order.totalEgp != null)
+              Text(
+                '${order.totalEgp} ${checkout.currencySuffix}',
+                style: AppTextStyles.bodyLg
+                    .copyWith(fontWeight: FontWeight.w700),
+              ),
+          ],
+        ),
+        if (order.status == OrderWireStatus.cancelled &&
+            (order.rejectReason ?? '').trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            '${strings.rejectTitle}: ${order.rejectReason}',
+            style: AppTextStyles.bodySm
+                .copyWith(color: AppColors.error),
+          ),
+        ],
+      ],
+    );
+
+    final tappableContent = Padding(
+      padding: const EdgeInsets.all(12),
+      child: content,
+    );
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs8),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (onTap != null)
+            InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(AppRadii.md8),
+              child: tappableContent,
+            )
+          else
+            tappableContent,
+          if (actions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   for (final action in actions) ...[
@@ -283,18 +317,8 @@ class OrderCard extends StatelessWidget {
                   ],
                 ],
               ),
-            ],
-            if (order.status == OrderWireStatus.cancelled &&
-                (order.rejectReason ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                '${strings.rejectTitle}: ${order.rejectReason}',
-                style: AppTextStyles.bodySm
-                    .copyWith(color: AppColors.error),
-              ),
-            ],
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -336,9 +360,9 @@ class _RejectReasonSheetState extends State<RejectReasonSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.sm16,
-        right: AppSpacing.sm16,
+      padding: EdgeInsetsDirectional.only(
+        start: AppSpacing.sm16,
+        end: AppSpacing.sm16,
         top: AppSpacing.sm16,
         bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.sm16,
       ),

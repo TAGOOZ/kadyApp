@@ -253,23 +253,20 @@ class _BoardBody extends ConsumerWidget {
                       : ref.watch(staffAddressTextProvider(order.addressId!)).value;
                   final customerName =
                       order.phone == null ? null : names[order.phone];
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(AppRadii.md8),
+                  return OrderCard(
+                    order: order,
+                    strings: strings,
+                    lang: lang,
+                    nowUtc: nowUtc,
+                    customerName: customerName,
+                    addressText: addressText,
+                    onTransition: (to, {rejectReason}) =>
+                        onTransition(order, to, rejectReason: rejectReason),
                     onTap: () => showStaffOrderDetailSheet(
                       context,
                       order: order,
                       customerName: customerName,
                       addressText: addressText,
-                    ),
-                    child: OrderCard(
-                      order: order,
-                      strings: strings,
-                      lang: lang,
-                      nowUtc: nowUtc,
-                      customerName: customerName,
-                      addressText: addressText,
-                      onTransition: (to, {rejectReason}) =>
-                          onTransition(order, to, rejectReason: rejectReason),
                     ),
                   );
                 },
