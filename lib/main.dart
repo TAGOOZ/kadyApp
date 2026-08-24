@@ -8,6 +8,7 @@ import 'core/router.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/theme/app_theme.dart';
 import 'domain/session_controller.dart';
+import 'ui/widgets/bg_pattern.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +35,16 @@ class KadyApp extends ConsumerWidget {
         KadyCupertinoLocalizationsDelegate(),
       ],
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) => Container(
+        color: AppColors.parchment,
+        child: Stack(
+          children: [
+            const Positioned.fill(child: BgPattern()),
+            // ignore: use_null_aware_elements
+            if (child case final c?) c,
+          ],
+        ),
+      ),
     );
   }
 }

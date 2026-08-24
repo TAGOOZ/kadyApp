@@ -172,7 +172,7 @@ ThemeData buildHeritageHearth(Brightness brightness) {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: AppColors.parchment,
+    scaffoldBackgroundColor: Colors.transparent,
     textTheme: _heritageHearthTextTheme(),
     appBarTheme: AppBarTheme(
       backgroundColor: AppColors.primaryContainer,
