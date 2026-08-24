@@ -17,6 +17,7 @@ import '../../data/repos/staff_orders_repository.dart';
 import '../../domain/order_status_flow.dart';
 import 'widgets/checkin_sheet.dart';
 import 'widgets/order_card.dart';
+import 'widgets/staff_order_detail_sheet.dart';
 
 enum StaffFilter { all, dineIn, pickup, delivery }
 
@@ -250,16 +251,26 @@ class _BoardBody extends ConsumerWidget {
                   final addressText = order.addressId == null
                       ? null
                       : ref.watch(staffAddressTextProvider(order.addressId!)).value;
-                  return OrderCard(
-                    order: order,
-                    strings: strings,
-                    lang: lang,
-                    nowUtc: nowUtc,
-                    customerName:
-                        order.phone == null ? null : names[order.phone],
-                    addressText: addressText,
-                    onTransition: (to, {rejectReason}) =>
-                        onTransition(order, to, rejectReason: rejectReason),
+                  final customerName =
+                      order.phone == null ? null : names[order.phone];
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(AppRadii.md8),
+                    onTap: () => showStaffOrderDetailSheet(
+                      context,
+                      order: order,
+                      customerName: customerName,
+                      addressText: addressText,
+                    ),
+                    child: OrderCard(
+                      order: order,
+                      strings: strings,
+                      lang: lang,
+                      nowUtc: nowUtc,
+                      customerName: customerName,
+                      addressText: addressText,
+                      onTransition: (to, {rejectReason}) =>
+                          onTransition(order, to, rejectReason: rejectReason),
+                    ),
                   );
                 },
               );
