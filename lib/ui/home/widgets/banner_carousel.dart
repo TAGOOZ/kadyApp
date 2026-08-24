@@ -1,6 +1,9 @@
 // Campaign banner carousel (#005): 3 deep-ember gradient cards,
 // auto-advances every 5s (paused under reduce-motion), stops while the
-// pointer is down, tap → snack-bar.
+// pointer is down, tap → quests.
+// TODO(FEATURES §3.2): static 3-banner list is intentional fallback until
+// the campaign feed lands; replace strings.banners with a remote campaign
+// config / Supabase query when available.
 import 'dart:async';
 
 import 'package:flutter/material.dart';

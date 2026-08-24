@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kady_app/data/repos/order_queries.dart';
 import 'package:kady_app/domain/auth_controller.dart';
 import 'package:kady_app/domain/loyalty_controller.dart';
+import 'package:kady_app/domain/session_controller.dart';
 import 'package:kady_app/ui/home/home_screen.dart';
 import 'package:kady_app/ui/home/widgets/banner_carousel.dart';
 
@@ -29,6 +30,15 @@ class _FixedLoyalty extends LoyaltyController {
 
   @override
   LoyaltyState build() => _state;
+}
+
+class _FixedSession extends SessionController {
+  _FixedSession(this._state);
+
+  final SessionState _state;
+
+  @override
+  SessionState build() => _state;
 }
 
 GoRouter _router() {
@@ -76,6 +86,10 @@ GoRouter _router() {
         path: '/mode-selection',
         builder: (_, _) => const Scaffold(body: Text('MODES_STUB')),
       ),
+      GoRoute(
+        path: '/staff/lookup',
+        builder: (_, _) => const Scaffold(body: Text('STAFF_LOOKUP_STUB')),
+      ),
     ],
   );
 }
@@ -85,12 +99,16 @@ Future<void> _pump(
   required AuthState authState,
   LoyaltyState loyalty = const LoyaltyState(),
   List<Map<String, dynamic>> activeOrders = const [],
+  AppRole sessionRole = AppRole.customer,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         authControllerProvider.overrideWith(() => _FixedAuth(authState)),
         loyaltyProvider.overrideWith(() => _FixedLoyalty(loyalty)),
+        sessionControllerProvider.overrideWith(
+          () => _FixedSession(SessionState(role: sessionRole)),
+        ),
         activeOrdersFetcherProvider.overrideWith(
           (ref) => (String phone) async => activeOrders,
         ),
@@ -237,14 +255,34 @@ void main() {
     expect(find.text('قريبًا'), findsNothing);
   });
 
-  testWidgets('quick action امسح واكسب navigates to /menu (scan placeholder)', (tester) async {
+  testWidgets(
+      'quick action امسح واكسب — customer shows comingSoon SnackBar (FEATURES §6)',
+      (tester) async {
     await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
 
     expect(find.text('امسح واكسب'), findsOneWidget);
     await tester.tap(find.text('امسح واكسب'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('MENU_STUB'), findsOneWidget);
+    expect(find.text('قريبًا'), findsOneWidget);
+    expect(find.text('MENU_STUB'), findsNothing);
+    expect(find.text('STAFF_LOOKUP_STUB'), findsNothing);
+  });
+
+  testWidgets('quick action امسح واكسب — staff routes to /staff/lookup',
+      (tester) async {
+    await _pump(
+      tester,
+      authState: _readyAuth,
+      loyalty: _demoLoyalty,
+      sessionRole: AppRole.staff,
+    );
+
+    expect(find.text('امسح واكسب'), findsOneWidget);
+    await tester.tap(find.text('امسح واكسب'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('STAFF_LOOKUP_STUB'), findsOneWidget);
     expect(find.text('قريبًا'), findsNothing);
   });
 
