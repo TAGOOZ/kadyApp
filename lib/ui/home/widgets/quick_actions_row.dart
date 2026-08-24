@@ -1,8 +1,8 @@
-// Four quick-action tiles (#005): order now, scan & earn (role-aware),
-// games hub, rewards/profile. Scan & earn is wired role-aware in
-// HomeScreen (FEATURES §3.2/§6) — staff → /staff/lookup (QR + phone
-// fallback); customer shows comingSoon SnackBar until the customer scanner
-// screen lands. See HomeScreen onComingSoon for the role guard.
+// Quick actions — 2×2 grid (#005 v2): scan & earn (role-aware), games,
+// my orders, rewards. "Order now" moved OUT of the tiles into the hero CTA
+// above (one primary action per screen); the grid holds secondary paths.
+// Scan & earn stays role-aware in HomeScreen (FEATURES §3.2/§6): staff →
+// /staff/lookup; customer shows comingSoon until the customer scanner lands.
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,32 +21,48 @@ class QuickActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    // push() keeps Home reachable via back (consistent with the rest of the
+    // hub — see router.dart StatefulShellRoute note in git history).
+    return Column(
       children: [
-        _Tile(
-          icon: Icons.local_cafe_outlined,
-          label: strings.actionOrderNow,
-          // Order flow is outside StatefulShell — push preserves Home in the
-          // stack (consistent with ActiveOrderStrip's push('/orders')). For
-          // shell tabs (/games, /profile) push also keeps Home reachable via
-          // back; StatefulShell's goBranch would replace the branch instead.
-          // push is intentional here (see router.dart StatefulShellRoute).
-          onTap: () => context.push('/mode-selection'),
+        Row(
+          children: [
+            Expanded(
+              child: _Tile(
+                icon: Icons.qr_code_scanner,
+                label: strings.actionScanEarn,
+                onTap: onComingSoon,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs8 + 4),
+            Expanded(
+              child: _Tile(
+                icon: Icons.videogame_asset_outlined,
+                label: strings.actionPlay,
+                onTap: () => context.push('/games'),
+              ),
+            ),
+          ],
         ),
-        _Tile(
-          icon: Icons.qr_code_scanner,
-          label: strings.actionScanEarn,
-          onTap: onComingSoon,
-        ),
-        _Tile(
-          icon: Icons.videogame_asset_outlined,
-          label: strings.actionPlay,
-          onTap: () => context.push('/games'),
-        ),
-        _Tile(
-          icon: Icons.card_giftcard,
-          label: strings.actionRewards,
-          onTap: () => context.push('/profile'),
+        const SizedBox(height: AppSpacing.xs8 + 4),
+        Row(
+          children: [
+            Expanded(
+              child: _Tile(
+                icon: Icons.card_giftcard,
+                label: strings.actionRewards,
+                onTap: () => context.push('/profile'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs8 + 4),
+            Expanded(
+              child: _Tile(
+                icon: Icons.receipt_long_outlined,
+                label: strings.actionMyOrders,
+                onTap: () => context.push('/orders'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -66,33 +82,41 @@ class _Tile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: InkWell(
-        borderRadius: const BorderRadius.all(Radius.circular(AppRadii.mdLg12)),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs8 + 4),
-          decoration: BoxDecoration(
-            color: AppColors.paperWhite,
-            borderRadius:
-                const BorderRadius.all(Radius.circular(AppRadii.mdLg12)),
-            boxShadow: AppShadows.coffeeShadows(offset: const Offset(0, 4)),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, size: 26, color: AppColors.secondary),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelMd.copyWith(
-                  color: AppColors.coffeeBean,
-                ),
+    return InkWell(
+      borderRadius: const BorderRadius.all(Radius.circular(AppRadii.mdLg12)),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm16),
+        decoration: BoxDecoration(
+          color: AppColors.paperWhite,
+          borderRadius:
+              const BorderRadius.all(Radius.circular(AppRadii.mdLg12)),
+          boxShadow: AppShadows.coffeeShadows(offset: const Offset(0, 4)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryFixedTint,
+                shape: BoxShape.circle,
               ),
-            ],
-          ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 22, color: AppColors.primary),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodySm.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.coffeeBean,
+              ),
+            ),
+          ],
         ),
       ),
     );

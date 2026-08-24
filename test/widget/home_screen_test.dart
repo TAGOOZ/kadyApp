@@ -7,12 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:kady_app/data/models/menu_models.dart';
 import 'package:kady_app/data/repos/order_queries.dart';
 import 'package:kady_app/domain/auth_controller.dart';
 import 'package:kady_app/domain/loyalty_controller.dart';
 import 'package:kady_app/domain/session_controller.dart';
 import 'package:kady_app/ui/home/home_screen.dart';
 import 'package:kady_app/ui/home/widgets/banner_carousel.dart';
+import 'package:kady_app/ui/home/widgets/category_shortcuts.dart';
 
 class _FixedAuth extends AuthController {
   _FixedAuth(this._state);
@@ -100,7 +102,13 @@ Future<void> _pump(
   LoyaltyState loyalty = const LoyaltyState(),
   List<Map<String, dynamic>> activeOrders = const [],
   AppRole sessionRole = AppRole.customer,
+  List<MenuCategory> categories = _fakeCategories,
+  Map<String, dynamic>? lastCompletedOrder,
 }) async {
+  // Tall viewport: the v2 hub stacks more blocks (hero CTA, shortcuts,
+  // order-again) — assertions below the fold need them built (AGENTS.md).
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -112,6 +120,10 @@ Future<void> _pump(
         activeOrdersFetcherProvider.overrideWith(
           (ref) => (String phone) async => activeOrders,
         ),
+        lastCompletedOrderFetcherProvider.overrideWith(
+          (ref) => (String phone) async => lastCompletedOrder,
+        ),
+        homeCategoriesProvider.overrideWith((ref) async => categories),
       ],
       child: MaterialApp.router(
         routerConfig: _router(),
@@ -126,6 +138,11 @@ Future<void> _pump(
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
 }
+
+const _fakeCategories = [
+  MenuCategory(slug: 'hot-drinks', nameAr: 'مشروبات ساخنة', nameEn: 'Hot Drinks'),
+  MenuCategory(slug: 'desserts', nameAr: 'حلويات', nameEn: 'Desserts'),
+];
 
 const _readyAuth = AuthState(
   phase: AuthPhase.ready,
@@ -204,12 +221,8 @@ void main() {
     expect(activeIndex(), 2);
   });
 
-  
   testWidgets('guest hub shows generic greeting, zeros and register link → save prompt',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(800, 1400));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
     await _pump(tester, authState: const AuthState(phase: AuthPhase.guest));
 
     expect(find.text('أهلاً بيك في القاضي'), findsOneWidget);
@@ -314,5 +327,53 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('PROFILE_STUB'), findsOneWidget);
+  });
+
+  testWidgets('hero order CTA navigates to mode selection', (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    expect(find.byKey(const Key('home_order_cta')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('home_order_cta')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('MODES_STUB'), findsOneWidget);
+  });
+
+  testWidgets('order-again strip renders last completed order and opens /orders',
+      (tester) async {
+    await _pump(
+      tester,
+      authState: _readyAuth,
+      loyalty: _demoLoyalty,
+      lastCompletedOrder: const {
+        'id': 'o9',
+        'display_number': 1017,
+        'total': 155,
+        'items': [
+          {'name_ar': 'لاتيه', 'qty': 2},
+          {'name_ar': 'كوكيز', 'qty': 1},
+        ],
+      },
+    );
+
+    expect(find.text('اطلب تاني'), findsOneWidget);
+    expect(find.text('آخر طلبك #1017'), findsOneWidget);
+    expect(find.text('لاتيه ×2 · كوكيز'), findsOneWidget);
+
+    await tester.tap(find.text('آخر طلبك #1017'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ORDERS_STUB'), findsOneWidget);
+  });
+
+  testWidgets('category shortcut pre-selects slug and pushes /menu',
+      (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    expect(find.text('تصفح المنيو'), findsOneWidget);
+    await tester.tap(find.text('مشروبات ساخنة'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('MENU_STUB'), findsOneWidget);
   });
 }

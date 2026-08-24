@@ -31,3 +31,30 @@ Future<List<Map<String, dynamic>>> fetchActive(String phone) async {
 
 final activeOrdersFetcherProvider =
     Provider<FetchActiveOrders>((ref) => fetchActive);
+
+/// Seam for the home order-again strip.
+typedef FetchLastCompletedOrder = Future<Map<String, dynamic>?> Function(
+    String phone);
+
+/// Most recent completed Order for a Customer phone (read-only probe):
+/// `{id, display_number, items, total}` or null when none/offline. `items`
+/// jsonb mirrors orders_repository.dart:164 — `{name_ar, qty, unit_total…}`.
+Future<Map<String, dynamic>?> fetchLastCompleted(String phone) async {
+  try {
+    final rows = await supabase
+        .from('orders')
+        .select('id, display_number, items, total')
+        .eq('phone', phone)
+        .eq('status', 'done')
+        .order('created_at', ascending: false)
+        .limit(1);
+    if (rows.isEmpty) return null;
+    return Map<String, dynamic>.from(rows.first as Map);
+  } catch (_) {
+    // Offline/guest hiccup — the hub simply hides the strip (standard policy).
+    return null;
+  }
+}
+
+final lastCompletedOrderFetcherProvider =
+    Provider<FetchLastCompletedOrder>((ref) => fetchLastCompleted);

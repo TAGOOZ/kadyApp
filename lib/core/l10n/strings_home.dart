@@ -37,6 +37,11 @@ class HomeStrings {
     required this.tierBronze,
     required this.tierSilver,
     required this.tierGold,
+    required this.rewardsSectionTitle,
+    required this.browseMenuTitle,
+    required this.orderAgainTitle,
+    required this.lastOrderTemplate,
+    required this.actionMyOrders,
   });
 
   final String greetingSignedInTemplate;
@@ -72,6 +77,21 @@ class HomeStrings {
   final String tierSilver;
   final String tierGold;
 
+  /// Loyalty hero card header (merged points + stamps).
+  final String rewardsSectionTitle;
+
+  /// Home category shortcuts section header.
+  final String browseMenuTitle;
+
+  /// Order-again strip section header.
+  final String orderAgainTitle;
+
+  /// `آخر طلبك #NNNN`
+  final String lastOrderTemplate;
+
+  /// Quick-action tile → /orders.
+  final String actionMyOrders;
+
   /// `أهلاً {firstName} 👋`
   String greeting(String firstName) =>
       greetingSignedInTemplate.replaceAll('{name}', firstName);
@@ -94,6 +114,10 @@ class HomeStrings {
       activeOrderTemplate
           .replaceAll('{number}', '$displayNumber')
           .replaceAll('{status}', statusAr);
+
+  /// `آخر طلبك #NNNN`
+  String lastOrder(int displayNumber) =>
+      lastOrderTemplate.replaceAll('{number}', '$displayNumber');
 
   /// DB check-constraint vocabulary → Arabic label; falls back to the raw wire.
   String statusLabel(String wire) => switch (wire) {
@@ -155,6 +179,11 @@ abstract final class HomeStringsCatalog {
       tierBronze: 'برونزي',
       tierSilver: 'فضي',
       tierGold: 'ذهبي',
+      rewardsSectionTitle: 'مكافآتك',
+      browseMenuTitle: 'تصفح المنيو',
+      orderAgainTitle: 'اطلب تاني',
+      lastOrderTemplate: 'آخر طلبك #{number}',
+      actionMyOrders: 'طلباتي',
     ),
     AppLang.en: HomeStrings(
       greetingSignedInTemplate: 'Hi {name} 👋',
@@ -189,6 +218,11 @@ abstract final class HomeStringsCatalog {
       tierBronze: 'Bronze',
       tierSilver: 'Silver',
       tierGold: 'Gold',
+      rewardsSectionTitle: 'Your rewards',
+      browseMenuTitle: 'Browse the menu',
+      orderAgainTitle: 'Order again',
+      lastOrderTemplate: 'Last order #{number}',
+      actionMyOrders: 'My orders',
     ),
   };
 

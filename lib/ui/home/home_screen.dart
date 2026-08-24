@@ -1,7 +1,9 @@
-// Customer home hub (#005, FEATURES §3.2): greeting + tier chip, points card,
-// stamp card, quick actions, campaign banners and the active-order strip —
-// all inside a pull-to-refresh scroll. Guest mode renders the same hub with
-// zeros and a register link instead of dev affordances.
+// Customer home hub (#005 v2, FEATURES §3.2) — hierarchy follows the café-app
+// pattern (Starbucks/Damascus): greeting → in-flight order → merged loyalty
+// hero (points + stamps on ONE surface) → single primary order CTA → 2×2
+// secondary actions → category shortcuts → order-again strip → campaign
+// banners, all inside a pull-to-refresh scroll. Guest mode renders the same
+// hub with zeros and a register link instead of dev affordances.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,16 +11,18 @@ import 'package:go_router/go_router.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_home.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models/menu_models.dart';
 import '../../data/repos/order_queries.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/loyalty_controller.dart';
 import '../../domain/session_controller.dart';
 import 'widgets/active_order_strip.dart';
 import 'widgets/banner_carousel.dart';
+import 'widgets/category_shortcuts.dart';
 import 'widgets/greeting_header.dart';
-import 'widgets/points_card.dart';
+import 'widgets/loyalty_hero_card.dart';
+import 'widgets/order_again_strip.dart';
 import 'widgets/quick_actions_row.dart';
-import 'widgets/stamp_card_widget.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -29,27 +33,38 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Map<String, dynamic>> _activeOrders = const [];
+  Map<String, dynamic>? _lastCompletedOrder;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadActiveOrders());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadHomeData());
   }
 
-  Future<void> _loadActiveOrders() async {
+  Future<void> _loadHomeData() async {
     final auth = ref.read(authControllerProvider);
     if (auth.phase != AuthPhase.ready || (auth.phone ?? '').isEmpty) {
-      if (mounted && _activeOrders.isNotEmpty) {
-        setState(() => _activeOrders = const []);
+      if (mounted &&
+          (_activeOrders.isNotEmpty || _lastCompletedOrder != null)) {
+        setState(() {
+          _activeOrders = const [];
+          _lastCompletedOrder = null;
+        });
       }
       return;
     }
-    final rows = await ref.read(activeOrdersFetcherProvider)(auth.phone!);
+    final results = await Future.wait([
+      ref.read(activeOrdersFetcherProvider)(auth.phone!),
+      ref.read(lastCompletedOrderFetcherProvider)(auth.phone!),
+    ]);
     if (!mounted) return;
-    setState(() => _activeOrders = rows);
+    setState(() {
+      _activeOrders = results[0] as List<Map<String, dynamic>>;
+      _lastCompletedOrder = results[1] as Map<String, dynamic>?;
+    });
   }
 
-  Future<void> _refresh() => _loadActiveOrders();
+  Future<void> _refresh() => _loadHomeData();
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +86,102 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final firstName =
         signedIn && googleName.isNotEmpty ? googleName.split(' ').first : '';
 
+    // Category shortcuts render only when the catalog seam has data.
+    final categoriesAsync = ref.watch(homeCategoriesProvider);
+    final categories = categoriesAsync.hasValue
+        ? (categoriesAsync.value ?? const <MenuCategory>[])
+        : const <MenuCategory>[];
+
+    final blocks = <Widget>[
+      GreetingHeader(
+        firstName: firstName,
+        tier: tier,
+        strings: strings,
+        isGuest: !signedIn,
+        onAvatarTap: () => context.go('/profile'),
+      ),
+    ];
+    if (_activeOrders.isNotEmpty) {
+      blocks.addAll([
+        const SizedBox(height: AppSpacing.sm16),
+        ActiveOrderStrip(
+          orders: _activeOrders,
+          strings: strings,
+          onTap: () => context.push('/orders'),
+        ),
+      ]);
+    }
+    blocks.addAll([
+      const SizedBox(height: AppSpacing.sm16),
+      LoyaltyHeroCard(
+        key: const Key('home_points_card'),
+        points: signedIn ? points : 0,
+        stamps: signedIn ? stamps : 0,
+        completedCards: signedIn ? completedCards : 0,
+        strings: strings,
+        signedIn: signedIn,
+      ),
+      const SizedBox(height: AppSpacing.sm16),
+      // Single primary action per screen — replaces the old equal-weight
+      // "order now" tile (Starbucks fixed-signifier pattern).
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          key: const Key('home_order_cta'),
+          onPressed: () => context.push('/mode-selection'),
+          icon: const Icon(Icons.local_cafe, size: 20),
+          label: Text(strings.actionOrderNow),
+        ),
+      ),
+      const SizedBox(height: AppSpacing.sm16),
+      QuickActionsRow(
+        strings: strings,
+        onComingSoon: () {
+          if (sessionRole == AppRole.staff) {
+            context.push('/staff/lookup');
+          } else {
+            // TODO(FEATURES §6 QR check-in): Customer Scan & earn —
+            // QR + manual fallback (phone/table) is not yet wired for
+            // customer role; show comingSoon SnackBar until the
+            // scanner screen lands. Staff role already routes to
+            // /staff/lookup which hosts mobile_scanner + phone entry
+            // (#013). See FEATURES §3.2 quick actions.
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(strings.comingSoon)),
+            );
+          }
+        },
+      ),
+    ]);
+    if (categories.length >= 2) {
+      blocks.addAll([
+        const SizedBox(height: AppSpacing.md24),
+        CategoryShortcuts(categories: categories, strings: strings),
+      ]);
+    }
+    if (_lastCompletedOrder != null) {
+      blocks.addAll([
+        const SizedBox(height: AppSpacing.md24),
+        OrderAgainStrip(
+          order: _lastCompletedOrder,
+          strings: strings,
+          onTap: () => context.push('/orders'),
+        ),
+      ]);
+    }
+    blocks.addAll([
+      const SizedBox(height: AppSpacing.md24),
+      // TODO(FEATURES §3.2 banner carousel): static 3-banner fallback
+      // is intentional until the campaign feed lands; replace
+      // strings.banners with a remote config / Supabase campaign
+      // query when available.
+      BannerCarousel(
+        strings: strings,
+        autoAdvance: kBannerAutoAdvance,
+        onTapBanner: () => context.push('/games/quests'),
+      ),
+    ]);
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -85,63 +196,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               AppSpacing.margin20,
               AppSpacing.md24,
             ),
-            children: [
-              GreetingHeader(
-                firstName: firstName,
-                tier: tier,
-                strings: strings,
-                isGuest: !signedIn,
-                onAvatarTap: () => context.go('/profile'),
-              ),
-              const SizedBox(height: AppSpacing.sm16),
-              ActiveOrderStrip(
-                orders: _activeOrders,
-                strings: strings,
-                onTap: () => context.push('/orders'),
-              ),
-              const SizedBox(height: AppSpacing.sm16),
-              PointsCard(
-                key: const Key('home_points_card'),
-                points: signedIn ? points : 0,
-                strings: strings,
-                signedIn: signedIn,
-              ),
-              const SizedBox(height: AppSpacing.sm16),
-              StampCardWidget(
-                stamps: signedIn ? stamps : 0,
-                completedCards: signedIn ? completedCards : 0,
-                strings: strings,
-              ),
-              const SizedBox(height: AppSpacing.sm16),
-              QuickActionsRow(
-                strings: strings,
-                onComingSoon: () {
-                  if (sessionRole == AppRole.staff) {
-                    context.push('/staff/lookup');
-                  } else {
-                    // TODO(FEATURES §6 QR check-in): Customer Scan & earn —
-                    // QR + manual fallback (phone/table) is not yet wired for
-                    // customer role; show comingSoon SnackBar until the
-                    // scanner screen lands. Staff role already routes to
-                    // /staff/lookup which hosts mobile_scanner + phone entry
-                    // (#013). See FEATURES §3.2 quick actions.
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(strings.comingSoon)),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: AppSpacing.md24),
-              // TODO(FEATURES §3.2 banner carousel): static 3-banner fallback
-              // is intentional until the campaign feed lands; replace
-              // strings.banners with a remote config / Supabase campaign
-              // query when available.
-              BannerCarousel(
-                strings: strings,
-                autoAdvance: kBannerAutoAdvance,
-                onTapBanner: () => context.push('/games/quests'),
-              ),
-            ],
+            children: blocks,
           ),
         ),
       ),

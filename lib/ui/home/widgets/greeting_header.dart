@@ -29,22 +29,33 @@ class GreetingHeader extends StatelessWidget {
         GestureDetector(
           onTap: onAvatarTap,
           child: Container(
-            width: 52,
-            height: 52,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [AppColors.parchment, AppColors.primaryFixedTint],
-              ),
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
+              border: Border.all(color: AppColors.paperWhite, width: 2),
+              boxShadow: AppShadows.coffeeShadows(
+                offset: const Offset(0, 3),
+                blurRadius: 10,
+              ),
             ),
-            alignment: Alignment.center,
-            child: Text(
-              isGuest || firstName.isEmpty
-                  ? '؟'
-                  : firstName.characters.first.toUpperCase(),
-              style: AppTextStyles.titleMd.copyWith(color: AppColors.primary),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppColors.parchment, AppColors.primaryFixedTint],
+                ),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                isGuest || firstName.isEmpty
+                    ? '؟'
+                    : firstName.characters.first.toUpperCase(),
+                style:
+                    AppTextStyles.titleMd.copyWith(color: AppColors.primary),
+              ),
             ),
           ),
         ),
