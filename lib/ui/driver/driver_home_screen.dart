@@ -160,6 +160,14 @@ class _AssignedTab extends ConsumerWidget {
             child: Text(strings.emptyAssigned, textAlign: TextAlign.center),
           );
         }
+        final addressIds = {
+          for (final o in orders)
+            if (o.addressId != null && o.addressId!.isNotEmpty) o.addressId!,
+        };
+        final idsKey = (addressIds.toList()..sort()).join(',');
+        final addressMap =
+            ref.watch(driverAddressMapProvider(idsKey)).value ??
+                const <String, String>{};
         return ListView.builder(
           padding: const EdgeInsets.all(AppSpacing.gutter16),
           itemCount: orders.length,
@@ -167,7 +175,7 @@ class _AssignedTab extends ConsumerWidget {
             final order = orders[index];
             final addressText = order.addressId == null
                 ? null
-                : ref.watch(driverAddressTextProvider(order.addressId!)).value;
+                : addressMap[order.addressId!];
             return DriverOrderCard(
               order: order,
               strings: strings,
@@ -225,6 +233,14 @@ class _HistoryTab extends ConsumerWidget {
         }
         final nowUtc = DateTime.now().toUtc();
         final summary = todayDeliverySummary(history, nowUtc);
+        final addressIds = {
+          for (final o in history)
+            if (o.addressId != null && o.addressId!.isNotEmpty) o.addressId!,
+        };
+        final idsKey = (addressIds.toList()..sort()).join(',');
+        final addressMap =
+            ref.watch(driverAddressMapProvider(idsKey)).value ??
+                const <String, String>{};
         return Column(
           children: [
             Container(
@@ -269,9 +285,7 @@ class _HistoryTab extends ConsumerWidget {
                   final order = history[index];
                   final addressText = order.addressId == null
                       ? null
-                      : ref
-                            .watch(driverAddressTextProvider(order.addressId!))
-                            .value;
+                      : addressMap[order.addressId!];
                   return DriverHistoryRow(
                     order: order,
                     strings: strings,

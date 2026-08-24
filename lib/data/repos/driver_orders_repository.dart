@@ -198,6 +198,12 @@ abstract class DriverOrdersDb {
   /// current SQL, so callers treat this as best-effort decoration.
   Future<List<Map<String, dynamic>>> fetchCustomers();
 
+  /// Targeted lookup — phone in (...) for exactly the phones on screen.
+  Future<List<Map<String, dynamic>>> fetchCustomersByPhones(
+    Set<String> phones,
+  ) async =>
+      const [];
+
   /// Role of the signed-in Google user from `profiles` (null = no row).
   Future<String?> fetchOwnRole(String googleUserId);
 
@@ -307,7 +313,32 @@ class SupabaseDriverOrdersDb implements DriverOrdersDb {
   @override
   Future<List<Map<String, dynamic>>> fetchCustomers() async {
     try {
-      final rows = await _client.from('customers').select('phone, name');
+      // Bounded read — never pull the whole customers table (perf audit #1).
+      // 60 is the staff board page limit; matches max distinct phones on screen.
+      final rows = await _client
+          .from('customers')
+          .select('phone, name')
+          .limit(60);
+      return List<Map<String, dynamic>>.from(rows as List);
+    } on PostgrestException catch (error) {
+      return rethrowAsTyped(error);
+    }
+  }
+
+  /// Targeted phone→name lookup for exactly the phones on screen (audit #1
+  /// follow-up). Mirrors staff's fetchCustomersByPhones — avoids the
+  /// bounded-full-table fallback above when the caller already knows the
+  /// distinct phones.
+  @override
+  Future<List<Map<String, dynamic>>> fetchCustomersByPhones(
+    Set<String> phones,
+  ) async {
+    if (phones.isEmpty) return const [];
+    try {
+      final rows = await _client
+          .from('customers')
+          .select('phone, name')
+          .inFilter('phone', phones.toList());
       return List<Map<String, dynamic>>.from(rows as List);
     } on PostgrestException catch (error) {
       return rethrowAsTyped(error);
@@ -373,6 +404,10 @@ abstract class DriverOrdersRepo {
   /// Delivery target text for an `orders.address_id`.
   Future<String?> fetchAddressText(String addressId);
 
+  /// Batched address lookup for visible orders — single in.(...) query.
+  Future<Map<String, String>> fetchAddressMap(Set<String> ids) async =>
+      const {};
+
   /// Event status wires for one order (stepper derivation on detail mount).
   Future<List<String>> fetchEventStatuses(String orderId);
 
@@ -431,6 +466,17 @@ class SupabaseDriverOrdersRepo implements DriverOrdersRepo {
       if (row['address_text'] is String) return row['address_text'] as String;
     }
     return null;
+  }
+
+  @override
+  Future<Map<String, String>> fetchAddressMap(Set<String> ids) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _db.fetchAddresses(ids);
+    return {
+      for (final row in rows)
+        if (row['id'] is String && row['address_text'] is String)
+          row['id'] as String: row['address_text'] as String,
+    };
   }
 
   @override
@@ -508,4 +554,12 @@ final driverAddressTextProvider = FutureProvider.family<String?, String>((
   addressId,
 ) {
   return ref.watch(driverOrdersRepoProvider).fetchAddressText(addressId);
+});
+
+/// Batched address map — single in.(...) query for visible orders.
+final driverAddressMapProvider =
+    FutureProvider.family<Map<String, String>, String>((ref, idsKey) {
+  if (idsKey.isEmpty) return const {};
+  final ids = idsKey.split(',').where((s) => s.isNotEmpty).toSet();
+  return ref.watch(driverOrdersRepoProvider).fetchAddressMap(ids);
 });

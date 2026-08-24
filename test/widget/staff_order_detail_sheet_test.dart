@@ -25,6 +25,10 @@ class _FakeStaffOrdersRepo implements StaffOrdersRepo {
   Future<String?> fetchAddressText(String addressId) async => null;
 
   @override
+  Future<Map<String, String>> fetchAddressMap(Set<String> ids) async =>
+      const {};
+
+  @override
   Future<void> ensureStaffAccess() async {}
 
   @override
