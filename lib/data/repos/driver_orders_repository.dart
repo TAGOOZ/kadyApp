@@ -1,9 +1,11 @@
-// Driver orders slice data layer (#014, FEATURES §7): realtime feed of
-// delivery orders currently `out_for_delivery` (ADR-0006; assigned to any
-// driver MVP — the admin assignment UI lands later, identity stub كريم م.),
-// the three-step accept → picked up → delivered progression written through
-// the same `orders` store + append-only `order_events` audit rows (actor
-// 'driver'), completed-delivery history and a Cairo-day cash summary.
+// Driver orders slice data layer (#014, FEATURES §7 & #019 identity):
+// realtime feed of delivery orders currently `out_for_delivery` (ADR-0006;
+// assigned to any driver MVP — the admin assignment UI lands later,
+// identity from profiles.display_name via driverProfileProvider with
+// fallback to DriverStrings.driverNameStub), the three-step accept →
+// picked up → delivered progression written through the same `orders` store
+// + append-only `order_events` audit rows (actor 'driver'),
+// completed-delivery history and a Cairo-day cash summary.
 // The Supabase client sits behind the [DriverOrdersDb] seam so unit tests
 // inject fakes and never touch the network; Postgres 42501 (RLS denial)
 // surfaces as a typed [DriverPermissionException] until profiles.role is
@@ -13,6 +15,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/l10n/app_strings.dart';
+import '../../core/l10n/strings_driver.dart';
 import '../../core/supabase/supabase_config.dart';
 import '../../domain/order_status_flow.dart';
 import 'orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
@@ -198,6 +202,11 @@ abstract class DriverOrdersDb {
   /// Role of the signed-in Google user from `profiles` (null = no row).
   Future<String?> fetchOwnRole(String googleUserId);
 
+  /// Driver profile row for identity (display_name + role) where
+  /// user_id==auth.uid() and role==driver. Returns null when missing.
+  Future<Map<String, dynamic>?> fetchDriverProfile(String userId) async =>
+      null;
+
   /// auth.uid() of the signed-in Google user (null when signed out).
   String? currentUserId();
 }
@@ -321,6 +330,21 @@ class SupabaseDriverOrdersDb implements DriverOrdersDb {
   }
 
   @override
+  Future<Map<String, dynamic>?> fetchDriverProfile(String userId) async {
+    try {
+      final row = await _client
+          .from('profiles')
+          .select('display_name, role')
+          .eq('user_id', userId)
+          .eq('role', 'driver')
+          .maybeSingle();
+      return row == null ? null : Map<String, dynamic>.from(row as Map);
+    } on PostgrestException catch (error) {
+      return rethrowAsTyped(error);
+    }
+  }
+
+  @override
   String? currentUserId() => _client.auth.currentUser?.id;
 }
 
@@ -358,6 +382,11 @@ abstract class DriverOrdersRepo {
 
   /// Throws [DriverPermissionException] unless profiles.role is driver/admin.
   Future<void> ensureDriverAccess();
+
+  /// Driver display name from profiles.display_name where
+  /// user_id==auth.uid() and role==driver. Returns null when missing/empty
+  /// so the UI can fallback to [DriverStrings.driverNameStub].
+  Future<String?> fetchDriverDisplayName() async => null;
 }
 
 class SupabaseDriverOrdersRepo implements DriverOrdersRepo {
@@ -437,6 +466,21 @@ class SupabaseDriverOrdersRepo implements DriverOrdersRepo {
       throw const DriverPermissionException();
     }
   }
+
+  @override
+  Future<String?> fetchDriverDisplayName() async {
+    final uid = _db.currentUserId();
+    if (uid == null || uid.isEmpty) return null;
+    try {
+      final row = await _db.fetchDriverProfile(uid);
+      if (row == null) return null;
+      final name = row['display_name'] as String?;
+      if (name == null || name.trim().isEmpty) return null;
+      return name.trim();
+    } on DriverPermissionException {
+      return null;
+    }
+  }
 }
 
 final driverOrdersRepoProvider = Provider<DriverOrdersRepo>(
@@ -465,4 +509,21 @@ final driverAddressTextProvider = FutureProvider.family<String?, String>((
   addressId,
 ) {
   return ref.watch(driverOrdersRepoProvider).fetchAddressText(addressId);
+});
+
+/// Real driver identity from Supabase profiles.display_name where
+/// user_id==auth.uid() and role==driver, with fallback to
+/// [DriverStrings.driverNameStub]. Loading/error also fall back to stub
+/// so the AppBar never blanks (task spec: loading shows stub).
+final driverProfileProvider = FutureProvider<String>((ref) async {
+  final repo = ref.watch(driverOrdersRepoProvider);
+  final lang = ref.watch(localeNotifierProvider);
+  final fallback = DriverStrings.of(lang).driverNameStub;
+  try {
+    final name = await repo.fetchDriverDisplayName();
+    if (name != null && name.trim().isNotEmpty) return name.trim();
+    return fallback;
+  } catch (_) {
+    return fallback;
+  }
 });
