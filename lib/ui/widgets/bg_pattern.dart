@@ -56,17 +56,8 @@ class _BgPatternState extends State<BgPattern> {
     // vector_graphics; we defer instantiation and optionally warm the cache
     // via the bundle after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Intentionally deferred: previously used
-      // `precachePicture(ExactAssetPicture(SvgPicture.svgStringDecoderBuilder,
-      // 'assets/images/bg_pattern.svg'), context)` on older flutter_svg.
-      // On vector_graphics builds we just gate the SvgPicture behind the
-      // post-frame flag; the first frame is parchment only, pattern fades
-      // in next frame (150ms).
       if (!mounted) return;
-      // Next microtask ensures one frame of parchment-only paint exists.
-      Future<void>.delayed(const Duration(milliseconds: 0), () {
-        if (mounted && !_ready) setState(() => _ready = true);
-      });
+      setState(() => _ready = true);
     });
   }
 
@@ -152,9 +143,7 @@ class _TiledBgPatternState extends State<TiledBgPattern> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Future<void>.delayed(const Duration(milliseconds: 0), () {
-        if (mounted && !_ready) setState(() => _ready = true);
-      });
+      setState(() => _ready = true);
     });
   }
 

@@ -54,6 +54,9 @@ class FakePaginatedMenuRepo implements MenuRepository {
     if (offset >= _all.length) return (categories, <MenuItem>[]);
     return (categories, _all.sublist(offset, end));
   }
+
+  @override
+  Future<List<MenuCategory>> fetchAllCategories() async => categories;
 }
 
 /// Locale fixed to Arabic to check RTL and Western digits.
@@ -193,6 +196,11 @@ class _ErrorMenuRepo implements MenuRepository {
 
   @override
   Future<CatalogSnapshot> fetchPage({int offset = 0, int limit = 20}) async {
+    throw Exception('network');
+  }
+
+  @override
+  Future<List<MenuCategory>> fetchAllCategories() async {
     throw Exception('network');
   }
 }

@@ -53,6 +53,9 @@ class FakeMenuRepo implements MenuRepository {
     // Real impl merges per-page categories.
     return (_allCategories, slice);
   }
+
+  @override
+  Future<List<MenuCategory>> fetchAllCategories() async => _allCategories;
 }
 
 void main() {

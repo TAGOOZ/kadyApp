@@ -29,6 +29,22 @@ class SupabaseMenuRepository implements MenuRepository {
   }
 
   @override
+  Future<List<MenuCategory>> fetchAllCategories() async {
+    final rows = await _client
+        .from('menu_categories')
+        .select('slug, name_ar, name_en, sort')
+        .order('sort', ascending: true);
+    return [
+      for (final row in List<Map<String, dynamic>>.from(rows as List))
+        MenuCategory(
+          slug: row['slug'] as String,
+          nameAr: (row['name_ar'] as String?) ?? row['slug'] as String,
+          nameEn: (row['name_en'] as String?) ?? row['slug'] as String,
+        ),
+    ];
+  }
+
+  @override
   Future<CatalogSnapshot> fetchCatalog() async {
     // Backwards compat: fetch all via paginated range internally.
     // Keeps contract while honoring §27 pagination (uses range).

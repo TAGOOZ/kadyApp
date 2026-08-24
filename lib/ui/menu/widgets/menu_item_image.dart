@@ -1,9 +1,9 @@
-// Menu item image with Unsplash fallback for missing photos.
-// Uses cached_network_image with downscaling and MenuPhotoPlaceholder fallback.
+// Menu item image — shows Storage photo when imageUrl exists, otherwise
+// branded placeholder with product name (no Unsplash — source.unsplash 503
+// causes CanvasKit texImage2D no image and unrelated generic images).
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/images/unsplash.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/menu_models.dart';
 
@@ -16,12 +16,14 @@ class MenuPhotoPlaceholder extends StatelessWidget {
     this.width,
     this.iconSize = 32,
     this.radius = AppRadii.mdLg12,
+    this.label,
   });
 
   final double height;
   final double? width;
   final double iconSize;
   final double radius;
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +39,28 @@ class MenuPhotoPlaceholder extends StatelessWidget {
         borderRadius: BorderRadius.all(Radius.circular(radius)),
       ),
       alignment: Alignment.center,
-      child: Text('☕', style: TextStyle(fontSize: iconSize)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('☕', style: TextStyle(fontSize: iconSize)),
+          if (label != null && label!.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                label!,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelMd.copyWith(
+                  color: AppColors.coffeeBean,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -64,8 +87,26 @@ class MenuItemImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedUrl = unsplashUrlForItem(item);
-    // Downscale hints: use ~2x logical pixels when dimension is finite.
+    final rawUrl = item.imageUrl;
+    final hasUrl = rawUrl != null && rawUrl.trim().isNotEmpty;
+    if (!hasUrl) {
+      // No photo yet — show branded placeholder with product name
+      // instead of unrelated Unsplash generic (source.unsplash returns 503
+      // and causes CanvasKit texImage2D no image). Product name is always
+      // related; real photos will win via imageUrl when uploaded to
+      // Storage bucket menu-photos (ADR-0005).
+      return ClipRRect(
+        borderRadius: BorderRadius.all(Radius.circular(radius)),
+        child: MenuPhotoPlaceholder(
+          height: height,
+          width: width,
+          radius: radius,
+          iconSize: iconSize ?? (height >= 100 ? 36 : 28),
+          label: height >= 100 ? item.nameAr : null,
+        ),
+      );
+    }
+    final resolvedUrl = rawUrl.trim();
     final int? memCacheWidth = width != null && width!.isFinite
         ? (width! * 2).ceil()
         : null;
@@ -86,12 +127,14 @@ class MenuItemImage extends StatelessWidget {
           width: width,
           radius: radius,
           iconSize: effectiveIconSize,
+          label: height >= 100 ? item.nameAr : null,
         ),
         errorWidget: (context, url, error) => MenuPhotoPlaceholder(
           height: height,
           width: width,
           radius: radius,
           iconSize: effectiveIconSize,
+          label: height >= 100 ? item.nameAr : null,
         ),
       ),
     );

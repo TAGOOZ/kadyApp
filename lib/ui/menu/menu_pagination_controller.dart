@@ -79,9 +79,27 @@ class PaginatedMenuNotifier extends StateNotifier<PaginatedMenuState> {
       error: null,
     );
     try {
-      final (cats, items) = await _repo.fetchPage(offset: 0, limit: pageSize);
+      // Load all 12 categories upfront so filter pills are complete even
+      // when first page (20 items) only covers 2-3 categories. Fixes
+      // "menu filters not all shown" — categories are tiny (12 rows) so
+      // loading all is cheap; items stay paginated 20 via range.
+      final allCats = await _repo.fetchAllCategories();
+      final (pageCats, items) = await _repo.fetchPage(offset: 0, limit: pageSize);
+      // Merge: allCats is authoritative (sorted by sort), pageCats may have
+      // same slugs but ensure no missing due to empty first page.
+      final catMap = <String, MenuCategory>{for (final c in allCats) c.slug: c};
+      for (final c in pageCats) {
+        catMap.putIfAbsent(c.slug, () => c);
+      }
+      final mergedCats = catMap.values.toList()
+        ..sort((a, b) => a.slug.compareTo(b.slug));
+      // If allCats already sorted by sort, respect DB order; fallback to slug sort
+      // when allCats empty (offline fallback).
+      final orderedCats = allCats.isNotEmpty
+          ? allCats
+          : mergedCats;
       state = PaginatedMenuState(
-        categories: cats,
+        categories: orderedCats,
         items: items,
         isLoading: false,
         isLoadingMore: false,
