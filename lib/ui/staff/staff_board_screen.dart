@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_lookup.dart';
 import '../../core/l10n/strings_staff.dart';
+import '../../core/logout.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/staff_orders_repository.dart';
 import '../../domain/order_status_flow.dart';
@@ -128,6 +129,12 @@ class _StaffBoardScreenState extends ConsumerState<StaffBoardScreen> {
             tooltip: strings.checkInTooltip,
             icon: const Icon(Icons.how_to_reg_outlined),
             onPressed: () => _openCheckIn(strings),
+          ),
+          IconButton(
+            key: const Key('staff_logout'),
+            tooltip: 'تسجيل الخروج',
+            icon: const Icon(Icons.logout_outlined),
+            onPressed: () => confirmAndLogout(context, ref),
           ),
           const Padding(
             padding: EdgeInsetsDirectional.only(end: AppSpacing.xs8),

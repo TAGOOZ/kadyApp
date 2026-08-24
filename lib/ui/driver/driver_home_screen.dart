@@ -18,7 +18,14 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_driver.dart';
+import '../../core/logout.dart';
 import '../../core/launcher/app_launcher.dart' show appLauncherProvider;
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+
+import '../../core/maps/maps_config.dart';
+import '../../core/maps/maps_preview.dart';
+import '../../core/supabase/supabase_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/driver_orders_repository.dart';
 import '../../data/repos/orders_repository.dart' show cairoUtcOffset;
@@ -89,7 +96,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm16),
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs8),
               child: Center(
                 child: Text(
                   driverName,
@@ -97,6 +104,13 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                 ),
               ),
             ),
+            IconButton(
+              key: const Key('driver_logout'),
+              tooltip: 'تسجيل الخروج',
+              icon: const Icon(Icons.logout_outlined),
+              onPressed: () => confirmAndLogout(context, ref),
+            ),
+            const SizedBox(width: AppSpacing.xs8),
           ],
           bottom: TabBar(
             indicatorColor: Colors.white,
@@ -345,7 +359,7 @@ class _DriverOrderDetailScreenState
           .fetchEventStatuses(widget.order.id);
       if (!mounted) return;
       setState(() {
-        _step ??= driverProgressFrom(widget.order.status, statuses);
+        _step = driverProgressFrom(widget.order.status, statuses);
       });
     } catch (_) {
       // Events stay unreadable under current RLS — start at zero locally.
@@ -388,6 +402,9 @@ class _DriverOrderDetailScreenState
         case DriverStep.delivered:
           break;
       }
+      // Best-effort publish driver GPS after each step (live tracking).
+      // Customer tracking via driver_positions Realtime (RLS).
+      _publishTracking();
     } on DriverPermissionException {
       _showSnack(widget.strings.lockTitle);
     } catch (_) {
@@ -437,6 +454,26 @@ class _DriverOrderDetailScreenState
     _showSnack(widget.strings.callComingSoon);
   }
 
+  /// Best-effort live tracking publish — driver GPS → driver_positions realtime.
+  /// Staff/customer who can read the order also read the position (RLS).
+  Future<void> _publishTracking() async {
+    try {
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) return;
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final uid = supabase.auth.currentUser?.id;
+      if (uid == null) return;
+      await supabase.from('driver_positions').upsert({
+        'driver_id': uid,
+        'order_id': widget.order.id,
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (_) {}
+  }
+
   // Keep required substrings for verification greps (tel:+20, maps, Clipboard):
   // tel:+20 https://www.google.com/maps/search/?api=1&query= Clipboard
 
@@ -483,62 +520,31 @@ class _DriverOrderDetailScreenState
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.gutter16),
         children: [
-          // Map placeholder card — branded parchment illustration with 📍
-          // pins; directions hand off as a copied Google Maps URL.
-          Container(
-            height: 150,
-            decoration: BoxDecoration(
-              color: AppColors.parchment,
-              borderRadius: BorderRadius.circular(AppRadii.lg16),
-            ),
-            padding: const EdgeInsets.all(AppSpacing.sm16),
-            child: Stack(
-              children: [
-                const PositionedDirectional(
-                  start: 12,
-                  top: 18,
-                  child: Icon(
-                    Icons.place_outlined,
-                    size: 28,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const PositionedDirectional(
-                  end: 24,
-                  bottom: 22,
-                  child: Icon(
-                    Icons.place,
-                    size: 36,
-                    color: AppColors.secondary,
-                  ),
-                ),
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('☕ 📍 🛵'),
-                      const SizedBox(height: 6),
-                      Text(
-                        strings.mapTitle,
-                        style: AppTextStyles.labelMd.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.coffeeBean,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          // Live map — flutter_map OSM with cafe→destination markers.
+          // Destination approximated from cafe center (+0.02) until geocoded address.
+          MapsPreview(
+            height: 200,
+            center: elkadyCafeLatLng,
+            zoom: 13,
+            markers: MapsPreview.cafeToDestination(
+              const LatLng(29.086, 31.097),
             ),
           ),
           const SizedBox(height: AppSpacing.xs8),
           Align(
             alignment: AlignmentDirectional.centerEnd,
-            child: FilledButton.tonalIcon(
-              onPressed: () => _copyDirections(_addressFull),
-              icon: const Icon(Icons.directions_outlined, size: 20),
-              label: Text(strings.openDirections),
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(strings.mapTitle, style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w700, color: AppColors.coffeeBean)),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => _copyDirections(_addressFull),
+                  icon: const Icon(Icons.directions_outlined, size: 20),
+                  label: Text(strings.openDirections),
+                  style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
+                ),
+              ],
             ),
           ),
 

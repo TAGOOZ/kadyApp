@@ -102,21 +102,9 @@ class _CustomerLookupScreenState extends ConsumerState<CustomerLookupScreen> {
       return;
     }
     setState(() => _searching = true);
+    late List<CustomerHit> hits;
     try {
-      final hits =
-          await ref.read(customerLookupRepoProvider).search(term);
-      final loaded = [
-        for (final hit in hits)
-          await ref.read(customerLookupRepoProvider).loadProfile(hit.phone),
-      ];
-      if (!mounted) return;
-      setState(() {
-        _profiles = loaded;
-        _searching = false;
-        _searched = true;
-        _permissionDenied = false;
-        _loadFailed = false;
-      });
+      hits = await ref.read(customerLookupRepoProvider).search(term);
     } on StaffPermissionException {
       if (!mounted) return;
       setState(() {
@@ -124,6 +112,7 @@ class _CustomerLookupScreenState extends ConsumerState<CustomerLookupScreen> {
         _searching = false;
         _searched = false;
       });
+      return;
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -131,7 +120,27 @@ class _CustomerLookupScreenState extends ConsumerState<CustomerLookupScreen> {
         _searching = false;
         _searched = false;
       });
+      return;
     }
+    // Per-profile loads run in parallel; individual failures are isolated
+    // and never flip the whole screen to the lock panel.
+    final profiles = await Future.wait(
+      hits.map(
+        (hit) => ref
+            .read(customerLookupRepoProvider)
+            .loadProfile(hit.phone)
+            .then<CustomerProfile?>((p) => p, onError: (e, s) => null),
+      ),
+    );
+    if (!mounted) return;
+    final results = profiles.whereType<CustomerProfile>().toList();
+    setState(() {
+      _profiles = results;
+      _searching = false;
+      _searched = true;
+      _permissionDenied = false;
+      _loadFailed = false;
+    });
   }
 
   Future<void> _reloadProfile(String phone) async {

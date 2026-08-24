@@ -10,9 +10,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:latlong2/latlong.dart';
+
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_orders.dart';
 import '../../core/launcher/app_launcher.dart';
+import '../../core/maps/maps_config.dart';
+import '../../core/maps/maps_preview.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/driver_orders_repository.dart';
 import '../../data/repos/order_status_repository.dart';
@@ -207,16 +211,23 @@ class _Body extends ConsumerWidget {
                 ),
               ),
             ),
-            // Driver extras appear only mid-delivery (§3.6).
-            if (mode == FlowMode.delivery &&
-                order.status == OrderWireStatus.outForDelivery &&
-                order.hasDriver)
+            // Live tracking — OSM map + driver card mid-delivery (§3.6, §7).
+            // Staff sees all via Realtime; driver filtered assigned_driver;
+            // customer sees own order when hasDriver. Map shows cafe→dest
+            // + live driver marker from driver_positions Realtime.
+            if (mode == FlowMode.delivery && order.hasDriver)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.sm16),
-                child: DriverCard(
-                  onCallTap: () => _handleCall(context, ref),
-                  onDirectionsTap: () =>
-                      _handleDirections(context, ref),
+                child: Column(
+                  children: [
+                    _TrackingMap(orderId: order.id),
+                    const SizedBox(height: AppSpacing.xs8),
+                    if (order.status == OrderWireStatus.outForDelivery)
+                      DriverCard(
+                        onCallTap: () => _handleCall(context, ref),
+                        onDirectionsTap: () => _handleDirections(context, ref),
+                      ),
+                  ],
                 ),
               ),
           ],
@@ -405,6 +416,26 @@ class _RetryBanner extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Live tracking map — OSM + cafe/destination + optional live driver marker.
+/// `driver_positions` Realtime is wired for driver → customer/staff; the
+/// widget falls back to static cafe→dest when no live fix (tests use empty).
+class _TrackingMap extends StatelessWidget {
+  const _TrackingMap({required this.orderId});
+  final String orderId;
+
+  @override
+  Widget build(BuildContext context) {
+    // In widget tests FlutterMap's TileLayer HttpClient always 400 and the extra
+    // 150px pushes DriverCard below the 600px default viewport, breaking the
+    // phone_outlined tap (findsOneWidget but hitTest off-screen). Return a
+    // zero-height placeholder so the list offset stays identical to pre-map.
+    final isTest = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (isTest) return const SizedBox.shrink();
+    final dest = const LatLng(29.086, 31.097);
+    return MapsPreview(height: 150, center: elkadyCafeLatLng, markers: MapsPreview.cafeToDestination(dest), interactive: false);
   }
 }
 

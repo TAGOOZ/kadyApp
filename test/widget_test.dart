@@ -13,6 +13,9 @@ void main() {
   testWidgets('App boots to Arabic welcome screen in RTL',
       (WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: KadyApp()));
+    // Hydration (SharedPreferences + auth restore) is async; two pumps to welcome.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump();
 
     expect(find.text('كافيه القاضي'), findsOneWidget);
@@ -24,6 +27,8 @@ void main() {
   testWidgets('Guest skip lands on the customer shell with 4 tabs',
       (WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: KadyApp()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump();
 
     await tester.tap(find.text('تخطي الآن'));

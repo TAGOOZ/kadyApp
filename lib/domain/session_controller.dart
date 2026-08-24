@@ -49,13 +49,17 @@ class SessionState {
 
 class SessionController extends Notifier<SessionState> {
   Completer<void>? _hydrating;
+  bool _hydrated = false;
+
+  /// Synchronous hydration flag for router guards — avoids welcome flicker.
+  bool get isHydrated => _hydrated;
 
   @override
   SessionState build() {
     ref.listen(localeNotifierProvider, (_, lang) {
       state = state.copyWith(lang: lang);
     });
-    _hydrating ??= Completer<void>()..complete(_hydrate());
+    _hydrating ??= Completer<void>()..complete(_hydrate().whenComplete(() => _hydrated = true));
     return SessionState(lang: ref.read(localeNotifierProvider));
   }
 

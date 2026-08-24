@@ -157,6 +157,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(DriverCard), findsOneWidget);
+      await tester.ensureVisible(find.byIcon(Icons.phone_outlined));
       await tester.tap(find.byIcon(Icons.phone_outlined));
       await tester.pump();
       // allow async launcher calls to settle
@@ -211,6 +212,7 @@ void main() {
       ));
       await tester.pump();
 
+      await tester.ensureVisible(find.byIcon(Icons.phone_outlined));
       await tester.tap(find.byIcon(Icons.phone_outlined));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));

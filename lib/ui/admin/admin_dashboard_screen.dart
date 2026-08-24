@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_admin.dart';
+import '../../core/logout.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/admin_repositories.dart';
 import '../../domain/loyalty_controller.dart';
@@ -213,6 +214,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
             onPressed: () => context.go('/staff'),
           ),
           const SizedBox(width: AppSpacing.xs8),
+          IconButton(
+            key: const Key('admin_logout'),
+            tooltip: 'تسجيل الخروج',
+            icon: const Icon(Icons.logout_outlined, color: Colors.white),
+            onPressed: () => confirmAndLogout(context, ref),
+          ),
           const CircleAvatar(
             backgroundColor: AppColors.primaryContainer,
             foregroundColor: AppColors.primaryFixedTint,

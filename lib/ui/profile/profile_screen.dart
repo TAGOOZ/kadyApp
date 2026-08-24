@@ -1,8 +1,6 @@
 // Profile & settings tab (#011): editable fields, delivery addresses CRUD,
 // notification prefs, language switch, vouchers and logout. Guest sessions
 // get a compact sign-in panel instead of the account sections.
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,7 +82,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 85);
       if (picked == null) return;
-      final bytes = await File(picked.path).readAsBytes();
+      final bytes = await picked.readAsBytes();
       final path = '$uid/avatar.jpg';
       try {
         await supabase.storage.from('avatars').uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));

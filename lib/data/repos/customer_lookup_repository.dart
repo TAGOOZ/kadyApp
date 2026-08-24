@@ -35,6 +35,16 @@ String normalizeSearchTerm(String raw) {
   return withoutPlus;
 }
 
+/// Escapes PostgREST `ilike` wildcards and filter separators so a user-typed
+/// `%`, `_`, `,` or `\` cannot become a wildcard or break the `or()` filter.
+String escapeIlike(String s) {
+  return s
+      .replaceAll(r'\', r'\\')
+      .replaceAll('%', r'\%')
+      .replaceAll('_', r'\_')
+      .replaceAll(',', '');
+}
+
 // ---------------------------------------------------------------------------
 // Read models
 // ---------------------------------------------------------------------------
@@ -509,9 +519,12 @@ class SupabaseCustomerLookupRepo implements CustomerLookupRepo {
   Future<List<CustomerHit>> search(String term) async {
     final trimmed = term.trim();
     if (trimmed.isEmpty) return const [];
+    if (trimmed.length > 20) return const [];
     final normalized = normalizeSearchTerm(trimmed);
     if (normalized.isEmpty) return const [];
-    final rows = await _db.searchCustomers('%$normalized%', '%$trimmed%');
+    final escNormalized = escapeIlike(normalized);
+    final escTrimmed = escapeIlike(trimmed);
+    final rows = await _db.searchCustomers('%$escNormalized%', '%$escTrimmed%');
     return [
       for (final row in rows) CustomerHit.fromRow(row),
     ];
@@ -519,10 +532,16 @@ class SupabaseCustomerLookupRepo implements CustomerLookupRepo {
 
   @override
   Future<CustomerProfile> loadProfile(String phone) async {
-    final customer = await _db.fetchCustomer(phone);
-    final loyalty = await _db.fetchLoyalty(phone);
-    final orders = await _db.fetchRecentOrders(phone, 5);
-    final visits = await _db.fetchVisitsCount(phone);
+    final results = await Future.wait<dynamic>([
+      _db.fetchCustomer(phone),
+      _db.fetchLoyalty(phone),
+      _db.fetchRecentOrders(phone, 5),
+      _db.fetchVisitsCount(phone),
+    ]);
+    final customer = results[0] as Map<String, dynamic>?;
+    final loyalty = results[1] as Map<String, dynamic>?;
+    final orders = results[2] as List<Map<String, dynamic>>;
+    final visits = results[3] as int;
     return CustomerProfile(
       phone: customer?['phone'] as String? ?? phone,
       name: (customer?['name'] as String?) ?? '',
