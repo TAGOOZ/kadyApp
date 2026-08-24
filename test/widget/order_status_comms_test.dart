@@ -61,6 +61,9 @@ class _FakeDriverRepoForOrder implements DriverOrdersRepo {
   Future<String?> fetchAddressText(String addressId) async =>
       'كافيه القاضي، القاهرة';
   @override
+  Future<Map<String, String>> fetchAddressMap(Set<String> ids) async =>
+      {for (final id in ids) id: 'كافيه القاضي، القاهرة'};
+  @override
   Future<List<String>> fetchEventStatuses(String orderId) async => const [];
   @override
   Future<Map<String, String>> fetchCustomerNames() async => const {};

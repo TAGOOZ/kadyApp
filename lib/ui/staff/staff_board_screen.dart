@@ -243,6 +243,17 @@ class _BoardBody extends ConsumerWidget {
                 return Center(child: Text(strings.emptyBoard));
               }
               final names = namesAsync.value ?? const <String, String>{};
+              // Batch address lookup — single in.(...) query instead of N
+              // per-card family watches (audit #3).
+              final addressIds = {
+                for (final o in visible)
+                  if (o.addressId != null && o.addressId!.isNotEmpty)
+                    o.addressId!,
+              };
+              final idsKey = (addressIds.toList()..sort()).join(',');
+              final addressMap =
+                  ref.watch(staffAddressMapProvider(idsKey)).value ??
+                      const <String, String>{};
               return ListView.builder(
                 padding: const EdgeInsets.all(AppSpacing.gutter16),
                 itemCount: visible.length,
@@ -250,7 +261,7 @@ class _BoardBody extends ConsumerWidget {
                   final order = visible[index];
                   final addressText = order.addressId == null
                       ? null
-                      : ref.watch(staffAddressTextProvider(order.addressId!)).value;
+                      : addressMap[order.addressId!];
                   final customerName =
                       order.phone == null ? null : names[order.phone];
                   return OrderCard(

@@ -471,6 +471,11 @@ abstract class StaffOrdersRepo {
   /// Delivery target text for an `orders.address_id`.
   Future<String?> fetchAddressText(String addressId);
 
+  /// Batched address lookup for all visible delivery orders — single
+  /// in.(...) query instead of N per-card family watches (perf audit #3).
+  Future<Map<String, String>> fetchAddressMap(Set<String> ids) async =>
+      const {};
+
   /// Throws [StaffPermissionException] unless profiles.role is staff/admin.
   Future<void> ensureStaffAccess();
 
@@ -525,6 +530,17 @@ class SupabaseStaffOrdersRepo implements StaffOrdersRepo {
       if (row['address_text'] is String) return row['address_text'] as String;
     }
     return null;
+  }
+
+  @override
+  Future<Map<String, String>> fetchAddressMap(Set<String> ids) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _db.fetchAddresses(ids);
+    return {
+      for (final row in rows)
+        if (row['id'] is String && row['address_text'] is String)
+          row['id'] as String: row['address_text'] as String,
+    };
   }
 
   @override
@@ -611,4 +627,14 @@ final staffCustomerNamesProvider = FutureProvider<Map<String, String>>(
 final staffAddressTextProvider =
     FutureProvider.family<String?, String>((ref, addressId) {
   return ref.watch(staffOrdersRepoProvider).fetchAddressText(addressId);
+});
+
+/// Batched delivery address map for the current visible orders — single
+/// Supabase `in.(...)` query (audit #3). Key is comma-joined sorted ids to
+/// keep Riverpod family caching stable (Set equality is identity-based).
+final staffAddressMapProvider =
+    FutureProvider.family<Map<String, String>, String>((ref, idsKey) {
+  if (idsKey.isEmpty) return const {};
+  final ids = idsKey.split(',').where((s) => s.isNotEmpty).toSet();
+  return ref.watch(staffOrdersRepoProvider).fetchAddressMap(ids);
 });

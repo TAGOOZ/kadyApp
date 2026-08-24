@@ -193,7 +193,7 @@ class _StickyHeader extends ConsumerWidget {
 
 /// Paginated catalog list — keeps SelectedCategory filtering per page,
 /// shows shimmer while loading more, and retry on error.
-class _PaginatedCatalogList extends ConsumerWidget {
+class _PaginatedCatalogList extends ConsumerStatefulWidget {
   const _PaginatedCatalogList({
     required this.state,
     required this.lang,
@@ -207,42 +207,91 @@ class _PaginatedCatalogList extends ConsumerWidget {
   final ScrollController scrollController;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final categories = state.categories;
-    final allItems = state.items;
+  ConsumerState<_PaginatedCatalogList> createState() =>
+      _PaginatedCatalogListState();
+}
+
+class _PaginatedCatalogListState
+    extends ConsumerState<_PaginatedCatalogList> {
+  String? _lastEnsuredSlug;
+
+  String get _effectiveSlug {
+    final categories = widget.state.categories;
+    final allItems = widget.state.items;
+    final selected = ref.watch(selectedCategoryProvider);
+    if (selected != null && categories.any((c) => c.slug == selected)) {
+      return selected;
+    }
+    final slugsWithItems = allItems.map((i) => i.categorySlug).toSet();
+    final firstWithItems = categories.firstWhere(
+      (c) => slugsWithItems.contains(c.slug),
+      orElse: () => categories.first,
+    );
+    return firstWithItems.slug;
+  }
+
+  void _ensureCategory() {
+    final slug = _effectiveSlug;
+    if (slug == _lastEnsuredSlug) return;
+    final state = widget.state;
+    final items = state.items
+        .where((item) => item.categorySlug == slug)
+        .toList();
+    if (items.isEmpty &&
+        state.hasMore &&
+        !state.isLoading &&
+        !state.isLoadingMore &&
+        state.error == null) {
+      _lastEnsuredSlug = slug;
+      // Single call that loops until category appears — avoids per-frame
+      // addPostFrameCallback chain (audit #4).
+      Future.microtask(() {
+        if (!mounted) return;
+        ref
+            .read(paginatedMenuProvider.notifier)
+            .ensureCategoryHasItems(slug);
+      });
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureCategory();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PaginatedCatalogList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.items.length != widget.state.items.length ||
+        oldWidget.state.categories.length != widget.state.categories.length) {
+      _lastEnsuredSlug = null; // allow re-ensure after new page arrives
+    }
+    _ensureCategory();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = widget.state.categories;
+    final allItems = widget.state.items;
+    final lang = widget.lang;
+    final strings = widget.strings;
+    final scrollController = widget.scrollController;
 
     if (categories.isEmpty) {
       return Center(child: Text(strings.emptyCategoryLine));
     }
 
-    final selected = ref.watch(selectedCategoryProvider);
-    // Prefer selected if it exists, otherwise pick the first category that
-    // actually has items in the loaded pages (fixes empty filtered list
-    // when first page's 20 items don't contain the default category).
-    // Falls back to categories.first if none have items yet (still loading).
-    String effectiveSlug;
-    if (selected != null && categories.any((c) => c.slug == selected)) {
-      effectiveSlug = selected;
-    } else {
-      final slugsWithItems = allItems.map((i) => i.categorySlug).toSet();
-      final firstWithItems = categories.firstWhere(
-        (c) => slugsWithItems.contains(c.slug),
-        orElse: () => categories.first,
-      );
-      effectiveSlug = firstWithItems.slug;
-    }
+    final effectiveSlug = _effectiveSlug;
     final items =
         allItems.where((item) => item.categorySlug == effectiveSlug).toList();
 
-    // Auto-load next page when filtered is empty but more exists — fixes
-    // "lists are empty" after pagination when the selected category's items
-    // are beyond the first 20 (e.g. bakery at offset 80+).
-    if (items.isEmpty && state.hasMore && !state.isLoading && !state.isLoadingMore && state.error == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (ref.read(paginatedMenuProvider).hasMore) {
-          ref.read(paginatedMenuProvider.notifier).loadNext();
-        }
-      });
+    // While the batched ensureCategoryHasItems is loading, keep the spinner.
+    if (items.isEmpty &&
+        widget.state.hasMore &&
+        !widget.state.isLoading &&
+        !widget.state.isLoadingMore &&
+        widget.state.error == null) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
 
@@ -263,6 +312,10 @@ class _PaginatedCatalogList extends ConsumerWidget {
                   children: [
                     ListView.separated(
                       controller: scrollController,
+                      // Perf: disable keepAlives for 60+ cards, enable
+                      // repaint boundaries, bounded cache (audit #5).
+                      addAutomaticKeepAlives: false,
+                      addRepaintBoundaries: true,
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.gutter16,
                         AppSpacing.xs8,
@@ -275,7 +328,7 @@ class _PaginatedCatalogList extends ConsumerWidget {
                       itemBuilder: (context, index) {
                         if (index == items.length) {
                           // Bottom loader / retry / hasMore sentinel.
-                          if (state.isLoadingMore) {
+                          if (widget.state.isLoadingMore) {
                             return const Padding(
                               padding: EdgeInsets.symmetric(vertical: AppSpacing.sm16),
                               child: Center(
@@ -287,7 +340,7 @@ class _PaginatedCatalogList extends ConsumerWidget {
                               ),
                             );
                           }
-                          if (state.error != null) {
+                          if (widget.state.error != null) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs8),
                               child: Center(
@@ -311,7 +364,9 @@ class _PaginatedCatalogList extends ConsumerWidget {
                       },
                     ),
                     // Top shimmer is handled by parent; inline error banner if paginated error with data
-                    if (state.error != null && state.items.isNotEmpty && !state.isLoadingMore)
+                    if (widget.state.error != null &&
+                        widget.state.items.isNotEmpty &&
+                        !widget.state.isLoadingMore)
                       Positioned(
                         left: AppSpacing.gutter16,
                         right: AppSpacing.gutter16,
@@ -481,17 +536,19 @@ class _ItemCard extends StatelessWidget {
       ],
     );
 
-    return Opacity(
-      opacity: item.isAvailable ? 1 : 0.6,
-      child: Card(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadii.md8),
-          onTap: item.isAvailable
-              ? () => showItemDetailSheet(context, item)
-              : null,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xs8),
-            child: body,
+    return RepaintBoundary(
+      child: Opacity(
+        opacity: item.isAvailable ? 1 : 0.6,
+        child: Card(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadii.md8),
+            onTap: item.isAvailable
+                ? () => showItemDetailSheet(context, item)
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs8),
+              child: body,
+            ),
           ),
         ),
       ),

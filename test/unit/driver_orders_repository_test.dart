@@ -61,6 +61,11 @@ class _FakeDriverOrdersDb implements DriverOrdersDb {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> fetchCustomersByPhones(
+          Set<String> phones) async =>
+      const [];
+
+  @override
   Future<String?> fetchOwnRole(String googleUserId) async => ownRole;
 
   @override

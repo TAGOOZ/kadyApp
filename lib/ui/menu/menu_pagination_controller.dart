@@ -183,6 +183,24 @@ class PaginatedMenuNotifier extends StateNotifier<PaginatedMenuState> {
   }
 
   Future<void> refresh() async => _loadInitial();
+
+  /// Ensures the given [slug] has at least one item loaded — keeps loading
+  /// next pages until it appears or `hasMore` is false. Avoids the
+  /// per-frame addPostFrameCallback chain in the UI (audit #4).
+  Future<void> ensureCategoryHasItems(String slug) async {
+    if (slug.isEmpty) return;
+    // Quick check: already have it.
+    if (state.items.any((i) => i.categorySlug == slug)) return;
+    while (state.hasMore &&
+        !state.isLoading &&
+        !state.isLoadingMore &&
+        state.error == null) {
+      if (state.items.any((i) => i.categorySlug == slug)) break;
+      await loadNext();
+      // loop guard: if we just loaded and still empty but hasMore is false,
+      // loop exits; if loadNext set error, loop exits.
+    }
+  }
 }
 
 final paginatedMenuProvider =

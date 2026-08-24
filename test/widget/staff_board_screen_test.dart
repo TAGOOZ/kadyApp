@@ -39,6 +39,10 @@ class _FakeStaffOrdersRepo implements StaffOrdersRepo {
       'القاهرة الجديدة، شارع التسعين، التجمع الخامس';
 
   @override
+  Future<Map<String, String>> fetchAddressMap(Set<String> ids) async =>
+      {for (final id in ids) id: 'القاهرة الجديدة، شارع التسعين، التجمع الخامس'};
+
+  @override
   Future<void> ensureStaffAccess() async {
     final error = accessError;
     if (error != null) throw error;

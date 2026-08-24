@@ -56,8 +56,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final lang = ref.watch(localeNotifierProvider);
     final strings = HomeStringsCatalog.of(lang);
     final auth = ref.watch(authControllerProvider);
-    final loyalty = ref.watch(loyaltyProvider);
-    final session = ref.watch(sessionControllerProvider);
+    // Select only the fields this hub actually displays — avoids rebuilding
+    // on spinnerTokens/matchTokens churn (audit #5).
+    final tier = ref.watch(loyaltyProvider.select((s) => s.tier));
+    final points = ref.watch(loyaltyProvider.select((s) => s.points));
+    final stamps = ref.watch(loyaltyProvider.select((s) => s.stamps));
+    final completedCards =
+        ref.watch(loyaltyProvider.select((s) => s.completedCards));
+    final sessionRole =
+        ref.watch(sessionControllerProvider.select((s) => s.role));
     final signedIn = auth.phase == AuthPhase.ready;
 
     final googleName = auth.googleUser?.name.trim() ?? '';
@@ -81,7 +88,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               GreetingHeader(
                 firstName: firstName,
-                tier: loyalty.tier,
+                tier: tier,
                 strings: strings,
                 isGuest: !signedIn,
                 onAvatarTap: () => context.go('/profile'),
@@ -95,21 +102,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: AppSpacing.sm16),
               PointsCard(
                 key: const Key('home_points_card'),
-                points: signedIn ? loyalty.points : 0,
+                points: signedIn ? points : 0,
                 strings: strings,
                 signedIn: signedIn,
               ),
               const SizedBox(height: AppSpacing.sm16),
               StampCardWidget(
-                stamps: signedIn ? loyalty.stamps : 0,
-                completedCards: signedIn ? loyalty.completedCards : 0,
+                stamps: signedIn ? stamps : 0,
+                completedCards: signedIn ? completedCards : 0,
                 strings: strings,
               ),
               const SizedBox(height: AppSpacing.sm16),
               QuickActionsRow(
                 strings: strings,
                 onComingSoon: () {
-                  if (session.role == AppRole.staff) {
+                  if (sessionRole == AppRole.staff) {
                     context.push('/staff/lookup');
                   } else {
                     // TODO(FEATURES §6 QR check-in): Customer Scan & earn —
