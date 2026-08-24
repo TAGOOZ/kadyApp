@@ -1,5 +1,8 @@
-// Four quick-action tiles (#005): order now, scan & earn (placeholder),
-// games hub, rewards/profile.
+// Four quick-action tiles (#005): order now, scan & earn (role-aware),
+// games hub, rewards/profile. Scan & earn is wired role-aware in
+// HomeScreen (FEATURES §3.2/§6) — staff → /staff/lookup (QR + phone
+// fallback); customer shows comingSoon SnackBar until the customer scanner
+// screen lands. See HomeScreen onComingSoon for the role guard.
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,7 +26,12 @@ class QuickActionsRow extends StatelessWidget {
         _Tile(
           icon: Icons.local_cafe_outlined,
           label: strings.actionOrderNow,
-          onTap: () => context.go('/mode-selection'),
+          // Order flow is outside StatefulShell — push preserves Home in the
+          // stack (consistent with ActiveOrderStrip's push('/orders')). For
+          // shell tabs (/games, /profile) push also keeps Home reachable via
+          // back; StatefulShell's goBranch would replace the branch instead.
+          // push is intentional here (see router.dart StatefulShellRoute).
+          onTap: () => context.push('/mode-selection'),
         ),
         _Tile(
           icon: Icons.qr_code_scanner,
@@ -33,12 +41,12 @@ class QuickActionsRow extends StatelessWidget {
         _Tile(
           icon: Icons.videogame_asset_outlined,
           label: strings.actionPlay,
-          onTap: () => context.go('/games'),
+          onTap: () => context.push('/games'),
         ),
         _Tile(
           icon: Icons.card_giftcard,
           label: strings.actionRewards,
-          onTap: () => context.go('/profile'),
+          onTap: () => context.push('/profile'),
         ),
       ],
     );

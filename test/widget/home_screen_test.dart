@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kady_app/data/repos/order_queries.dart';
 import 'package:kady_app/domain/auth_controller.dart';
 import 'package:kady_app/domain/loyalty_controller.dart';
+import 'package:kady_app/domain/session_controller.dart';
 import 'package:kady_app/ui/home/home_screen.dart';
 import 'package:kady_app/ui/home/widgets/banner_carousel.dart';
 
@@ -31,22 +32,63 @@ class _FixedLoyalty extends LoyaltyController {
   LoyaltyState build() => _state;
 }
 
+class _FixedSession extends SessionController {
+  _FixedSession(this._state);
+
+  final SessionState _state;
+
+  @override
+  SessionState build() => _state;
+}
+
 GoRouter _router() {
   return GoRouter(
     initialLocation: '/home',
     routes: [
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(
+        path: '/menu',
+        builder: (_, _) => const Scaffold(body: Text('MENU_STUB')),
+      ),
+      GoRoute(
         path: '/games',
         builder: (_, _) => const Scaffold(body: Text('GAMES_STUB')),
+      ),
+      GoRoute(
+        path: '/games/spinner',
+        builder: (_, _) => const Scaffold(body: Text('SPINNER_STUB')),
+      ),
+      GoRoute(
+        path: '/games/match',
+        builder: (_, _) => const Scaffold(body: Text('MATCH_STUB')),
+      ),
+      GoRoute(
+        path: '/games/scratch',
+        builder: (_, _) => const Scaffold(body: Text('SCRATCH_STUB')),
+      ),
+      GoRoute(
+        path: '/games/quests',
+        builder: (_, _) => const Scaffold(body: Text('QUESTS_STUB')),
       ),
       GoRoute(
         path: '/profile',
         builder: (_, _) => const Scaffold(body: Text('PROFILE_STUB')),
       ),
       GoRoute(
+        path: '/orders',
+        builder: (_, _) => const Scaffold(body: Text('ORDERS_STUB')),
+      ),
+      GoRoute(
+        path: '/orders/:id',
+        builder: (_, _) => const Scaffold(body: Text('ORDER_STATUS_STUB')),
+      ),
+      GoRoute(
         path: '/mode-selection',
         builder: (_, _) => const Scaffold(body: Text('MODES_STUB')),
+      ),
+      GoRoute(
+        path: '/staff/lookup',
+        builder: (_, _) => const Scaffold(body: Text('STAFF_LOOKUP_STUB')),
       ),
     ],
   );
@@ -57,12 +99,16 @@ Future<void> _pump(
   required AuthState authState,
   LoyaltyState loyalty = const LoyaltyState(),
   List<Map<String, dynamic>> activeOrders = const [],
+  AppRole sessionRole = AppRole.customer,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         authControllerProvider.overrideWith(() => _FixedAuth(authState)),
         loyaltyProvider.overrideWith(() => _FixedLoyalty(loyalty)),
+        sessionControllerProvider.overrideWith(
+          () => _FixedSession(SessionState(role: sessionRole)),
+        ),
         activeOrdersFetcherProvider.overrideWith(
           (ref) => (String phone) async => activeOrders,
         ),
@@ -190,5 +236,83 @@ void main() {
 
     expect(find.byKey(const Key('home_active_order_strip')), findsOneWidget);
     expect(find.text('طلبك #1023 — قيد التحضير'), findsOneWidget);
+  });
+
+  testWidgets('active order strip tap navigates to /orders', (tester) async {
+    await _pump(
+      tester,
+      authState: _readyAuth,
+      loyalty: _demoLoyalty,
+      activeOrders: const [
+        {'id': 'o1', 'display_number': 1023, 'status': 'in_prep', 'mode': 'pickup'},
+      ],
+    );
+
+    await tester.tap(find.byKey(const Key('home_active_order_strip')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ORDERS_STUB'), findsOneWidget);
+    expect(find.text('قريبًا'), findsNothing);
+  });
+
+  testWidgets(
+      'quick action امسح واكسب — customer shows comingSoon SnackBar (FEATURES §6)',
+      (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    expect(find.text('امسح واكسب'), findsOneWidget);
+    await tester.tap(find.text('امسح واكسب'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('قريبًا'), findsOneWidget);
+    expect(find.text('MENU_STUB'), findsNothing);
+    expect(find.text('STAFF_LOOKUP_STUB'), findsNothing);
+  });
+
+  testWidgets('quick action امسح واكسب — staff routes to /staff/lookup',
+      (tester) async {
+    await _pump(
+      tester,
+      authState: _readyAuth,
+      loyalty: _demoLoyalty,
+      sessionRole: AppRole.staff,
+    );
+
+    expect(find.text('امسح واكسب'), findsOneWidget);
+    await tester.tap(find.text('امسح واكسب'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('STAFF_LOOKUP_STUB'), findsOneWidget);
+    expect(find.text('قريبًا'), findsNothing);
+  });
+
+  testWidgets('banner tap navigates to /games/quests', (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    // First banner card key is home_banner_0.
+    expect(find.byKey(const ValueKey('home_banner_0')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('home_banner_0')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('QUESTS_STUB'), findsOneWidget);
+    expect(find.text('قريبًا'), findsNothing);
+  });
+
+  testWidgets('quick action Play still navigates to /games', (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    await tester.tap(find.text('العب'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('GAMES_STUB'), findsOneWidget);
+  });
+
+  testWidgets('quick action المكافآت still navigates to /profile', (tester) async {
+    await _pump(tester, authState: _readyAuth, loyalty: _demoLoyalty);
+
+    await tester.tap(find.text('المكافآت'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('PROFILE_STUB'), findsOneWidget);
   });
 }

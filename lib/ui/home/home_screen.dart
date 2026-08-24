@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repos/order_queries.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/loyalty_controller.dart';
+import '../../domain/session_controller.dart';
 import 'widgets/active_order_strip.dart';
 import 'widgets/banner_carousel.dart';
 import 'widgets/greeting_header.dart';
@@ -50,18 +51,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _refresh() => _loadActiveOrders();
 
-  void _comingSoon(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final lang = ref.watch(localeNotifierProvider);
     final strings = HomeStringsCatalog.of(lang);
     final auth = ref.watch(authControllerProvider);
     final loyalty = ref.watch(loyaltyProvider);
+    final session = ref.watch(sessionControllerProvider);
     final signedIn = auth.phase == AuthPhase.ready;
 
     final googleName = auth.googleUser?.name.trim() ?? '';
@@ -94,7 +90,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ActiveOrderStrip(
                 orders: _activeOrders,
                 strings: strings,
-                onTap: () => _comingSoon(context, strings.comingSoon),
+                onTap: () => context.push('/orders'),
               ),
               const SizedBox(height: AppSpacing.sm16),
               PointsCard(
@@ -112,13 +108,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: AppSpacing.sm16),
               QuickActionsRow(
                 strings: strings,
-                onComingSoon: () => _comingSoon(context, strings.comingSoon),
+                onComingSoon: () {
+                  if (session.role == AppRole.staff) {
+                    context.push('/staff/lookup');
+                  } else {
+                    // TODO(FEATURES §6 QR check-in): Customer Scan & earn —
+                    // QR + manual fallback (phone/table) is not yet wired for
+                    // customer role; show comingSoon SnackBar until the
+                    // scanner screen lands. Staff role already routes to
+                    // /staff/lookup which hosts mobile_scanner + phone entry
+                    // (#013). See FEATURES §3.2 quick actions.
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(strings.comingSoon)),
+                    );
+                  }
+                },
               ),
               const SizedBox(height: AppSpacing.md24),
+              // TODO(FEATURES §3.2 banner carousel): static 3-banner fallback
+              // is intentional until the campaign feed lands; replace
+              // strings.banners with a remote config / Supabase campaign
+              // query when available.
               BannerCarousel(
                 strings: strings,
                 autoAdvance: kBannerAutoAdvance,
-                onTapBanner: () => _comingSoon(context, strings.comingSoon),
+                onTapBanner: () => context.push('/games/quests'),
               ),
             ],
           ),
