@@ -16,12 +16,44 @@ class SupabaseMenuRepository implements MenuRepository {
 
   final SupabaseClient _client;
 
+  /// Paginated fetch via Supabase `.range(offset, offset+limit-1)` (inclusive).
+  /// 20 per page per FEATURES §27.
   @override
-  Future<CatalogSnapshot> fetchCatalog() async {
+  Future<CatalogSnapshot> fetchPage({int offset = 0, int limit = 20}) async {
     final rows = await _client
         .from('menu_items')
         .select('*, menu_categories(slug, name_ar, name_en, sort)')
-        .order('sort', ascending: true);
+        .order('sort', ascending: true)
+        .range(offset, offset + limit - 1);
+    return _parseRows(rows);
+  }
+
+  @override
+  Future<CatalogSnapshot> fetchCatalog() async {
+    // Backwards compat: fetch all via paginated range internally.
+    // Keeps contract while honoring §27 pagination (uses range).
+    const chunk = 20;
+    var offset = 0;
+    final allCategories = <String, MenuCategory>{};
+    final allItems = <MenuItem>[];
+    while (true) {
+      final (cats, items) = await fetchPage(offset: offset, limit: chunk);
+      for (final c in cats) {
+        allCategories.putIfAbsent(c.slug, () => c);
+      }
+      allItems.addAll(items);
+      if (items.length < chunk) break;
+      offset += chunk;
+      // Safety: if catalog is huge, cap at reasonable upper bound to avoid infinite loop.
+      if (offset > 10000) break;
+    }
+    final sortedCategories = allCategories.values.toList()
+      ..sort((a, b) => a.slug.compareTo(b.slug));
+    return (sortedCategories, allItems);
+  }
+
+  CatalogSnapshot _parseRows(dynamic rows) {
+    // Shared parser for fetchPage/fetchCatalog range results.
 
     final categories = <String, MenuCategory>{};
     final items = <MenuItem>[];

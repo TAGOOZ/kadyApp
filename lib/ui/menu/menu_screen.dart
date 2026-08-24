@@ -1,5 +1,7 @@
-// Menu tab (issue #002): sticky header + cart badge, category pills, item
-// cards. Catalog loads via a FutureProvider over MenuRepository.
+// Menu tab — paginated infinite scroll 20 per page (FEATURES §27, ADR-0011).
+// Catalog loads via paginated StateNotifier over MenuRepository.fetchPage(offset, limit)
+// using Supabase .range(offset, offset+limit-1). Keeps legacy menuCatalogProvider
+// for backwards compat (now delegates to paginated fetch via fetchCatalog).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,9 +15,12 @@ import '../../data/repos/supabase_menu_repository.dart';
 import '../../domain/cart_controller.dart';
 import '../widgets/bg_pattern.dart';
 import 'item_detail_sheet.dart';
+import 'menu_pagination_controller.dart';
 import 'widgets/menu_item_image.dart';
 
 /// Whole-catalog snapshot; invalidated by the retry button on error.
+/// Kept for backwards compat — still works but internally uses range pagination
+/// (SupabaseMenuRepository.fetchCatalog now loops via fetchPage).
 final menuCatalogProvider = FutureProvider<CatalogSnapshot>((ref) async {
   return ref.watch(menuRepositoryProvider).fetchCatalog();
 });
@@ -32,15 +37,70 @@ final selectedCategoryProvider =
     NotifierProvider<SelectedCategoryNotifier, String?>(
         SelectedCategoryNotifier.new);
 
-class MenuScreen extends ConsumerWidget {
+class MenuScreen extends ConsumerStatefulWidget {
   const MenuScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MenuScreen> createState() => _MenuScreenState();
+}
+
+class _MenuScreenState extends ConsumerState<MenuScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    // Guard: no scrollable extent yet (short list)
+    if (position.maxScrollExtent == 0) return;
+    // 80% threshold per spec: detect 80% scroll to trigger next page.
+    if (position.pixels >= position.maxScrollExtent * 0.8) {
+      final state = ref.read(paginatedMenuProvider);
+      if (!state.isLoading &&
+          !state.isLoadingMore &&
+          state.hasMore &&
+          state.error == null) {
+        ref.read(paginatedMenuProvider.notifier).loadNext();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final lang = ref.watch(localeNotifierProvider);
     final strings = AppStrings.of(lang);
     final menuStrings = MenuStringsCatalog.of(lang);
-    final catalog = ref.watch(menuCatalogProvider);
+    final paginated = ref.watch(paginatedMenuProvider);
+
+    Widget body;
+    if (paginated.isLoading && paginated.items.isEmpty) {
+      body = _LoadingShimmer();
+    } else if (paginated.error != null && paginated.items.isEmpty) {
+      body = _ErrorRetry(
+        message: menuStrings.errorTitle,
+        retryLabel: menuStrings.retry,
+        onRetry: () => ref.read(paginatedMenuProvider.notifier).retry(),
+      );
+    } else {
+      body = _PaginatedCatalogList(
+        state: paginated,
+        lang: lang,
+        strings: menuStrings,
+        scrollController: _scrollController,
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.parchment,
@@ -51,24 +111,11 @@ class MenuScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _StickyHeader(menuTitle: strings.tabMenu, menuStrings: menuStrings),
-            Expanded(
-              child: catalog.when(
-                loading: () => _LoadingShimmer(),
-                error: (_, _) => _ErrorRetry(
-                  message: menuStrings.errorTitle,
-                  retryLabel: menuStrings.retry,
-                ),
-                data: (snapshot) => _CatalogList(
-                  snapshot: snapshot,
-                  lang: lang,
-                  strings: menuStrings,
-                ),
-              ),
-            ),
-          ],
+              Expanded(child: body),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 }
@@ -137,20 +184,26 @@ class _StickyHeader extends ConsumerWidget {
   }
 }
 
-class _CatalogList extends ConsumerWidget {
-  const _CatalogList({
-    required this.snapshot,
+/// Paginated catalog list — keeps SelectedCategory filtering per page,
+/// shows shimmer while loading more, and retry on error.
+class _PaginatedCatalogList extends ConsumerWidget {
+  const _PaginatedCatalogList({
+    required this.state,
     required this.lang,
     required this.strings,
+    required this.scrollController,
   });
 
-  final CatalogSnapshot snapshot;
+  final PaginatedMenuState state;
   final AppLang lang;
   final MenuStrings strings;
+  final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final (categories, allItems) = snapshot;
+    final categories = state.categories;
+    final allItems = state.items;
+
     if (categories.isEmpty) {
       return Center(child: Text(strings.emptyCategoryLine));
     }
@@ -175,21 +228,96 @@ class _CatalogList extends ConsumerWidget {
         Expanded(
           child: items.isEmpty
               ? Center(child: Text(strings.emptyCategoryLine))
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.gutter16,
-                    AppSpacing.xs8,
-                    AppSpacing.gutter16,
-                    AppSpacing.lg32,
-                  ),
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(height: AppSpacing.xs8),
-                  itemBuilder: (context, index) =>
-                      _ItemCard(item: items[index], lang: lang),
+              : Stack(
+                  children: [
+                    ListView.separated(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.gutter16,
+                        AppSpacing.xs8,
+                        AppSpacing.gutter16,
+                        AppSpacing.lg32,
+                      ),
+                      itemCount: items.length + 1,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: AppSpacing.xs8),
+                      itemBuilder: (context, index) {
+                        if (index == items.length) {
+                          // Bottom loader / retry / hasMore sentinel.
+                          if (state.isLoadingMore) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: AppSpacing.sm16),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            );
+                          }
+                          if (state.error != null) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs8),
+                              child: Center(
+                                child: FilledButton(
+                                  onPressed: () => ref
+                                      .read(paginatedMenuProvider.notifier)
+                                      .retry(),
+                                  child: Text(strings.retry),
+                                ),
+                              ),
+                            );
+                          }
+                          // No more or not loading — empty sentinel to keep scroll physics stable.
+                          return const SizedBox(height: AppSpacing.xs8);
+                        }
+                        return _ItemCard(item: items[index], lang: lang);
+                      },
+                    ),
+                    // Top shimmer is handled by parent; inline error banner if paginated error with data
+                    if (state.error != null && state.items.isNotEmpty && !state.isLoadingMore)
+                      Positioned(
+                        left: AppSpacing.gutter16,
+                        right: AppSpacing.gutter16,
+                        bottom: AppSpacing.xs8,
+                        child: _InlineError(
+                          message: strings.errorTitle,
+                          onRetry: () => ref.read(paginatedMenuProvider.notifier).retry(),
+                        ),
+                      ),
+                  ],
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _InlineError extends StatelessWidget {
+  const _InlineError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.xs8),
+      decoration: BoxDecoration(
+        color: AppColors.paperWhite,
+        borderRadius: BorderRadius.circular(AppRadii.md8),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        boxShadow: AppShadows.coffeeShadows(),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+          const SizedBox(width: AppSpacing.xs8),
+          Expanded(child: Text(message, style: AppTextStyles.bodySm)),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
     );
   }
 }
@@ -412,10 +540,12 @@ class _LoadingShimmerState extends State<_LoadingShimmer>
 }
 
 class _ErrorRetry extends ConsumerWidget {
-  const _ErrorRetry({required this.message, required this.retryLabel});
+  const _ErrorRetry(
+      {required this.message, required this.retryLabel, this.onRetry});
 
   final String message;
   final String retryLabel;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -428,7 +558,12 @@ class _ErrorRetry extends ConsumerWidget {
           Text(message, textAlign: TextAlign.center, style: AppTextStyles.bodyLg),
           const SizedBox(height: AppSpacing.sm16),
           FilledButton(
-            onPressed: () => ref.invalidate(menuCatalogProvider),
+            onPressed: onRetry ??
+                () {
+                  // Default: invalidate both providers for back-compat
+                  ref.invalidate(menuCatalogProvider);
+                  ref.invalidate(paginatedMenuProvider);
+                },
             child: Text(retryLabel),
           ),
         ],
