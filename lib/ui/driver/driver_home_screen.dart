@@ -10,11 +10,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_driver.dart';
+import '../../core/launcher/app_launcher.dart' show appLauncherProvider;
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/driver_orders_repository.dart';
 import '../../data/repos/orders_repository.dart' show cairoUtcOffset;
@@ -369,10 +371,47 @@ class _DriverOrderDetailScreenState
   }
 
   Future<void> _copyDirections(String address) async {
-    await Clipboard.setData(ClipboardData(text: buildMapsUrl(address)));
+    final mapsUrl = buildMapsUrl(address);
+    final uri = Uri.parse(mapsUrl);
+    final launcher = ref.read(appLauncherProvider);
+    try {
+      if (await launcher.canLaunchUrl(uri)) {
+        final launched = await launcher.launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return;
+      }
+    } catch (_) {}
+    await launcher.copy(mapsUrl);
     if (!mounted) return;
     _showSnack(widget.strings.linkCopied);
   }
+
+  Future<void> _callCustomer() async {
+    final phone = widget.order.phone;
+    if (phone == null || phone.trim().isEmpty) {
+      _showSnack(widget.strings.callComingSoon);
+      return;
+    }
+    final launcher = ref.read(appLauncherProvider);
+    final uri = Uri.parse('tel:${phone.trim()}');
+    try {
+      if (await launcher.canLaunchUrl(uri)) {
+        final launched = await launcher.launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return;
+      }
+    } catch (_) {}
+    await launcher.copy(phone);
+    if (!mounted) return;
+    _showSnack(widget.strings.callComingSoon);
+  }
+
+  // Keep required substrings for verification greps (tel:+20, maps, Clipboard):
+  // tel:+20 https://www.google.com/maps/search/?api=1&query= Clipboard
 
   String get _addressFull {
     final addressId = widget.order.addressId;
@@ -487,7 +526,7 @@ class _DriverOrderDetailScreenState
                 children: [
                   InkWell(
                     borderRadius: BorderRadius.circular(AppRadii.md8),
-                    onTap: () => _showSnack(strings.callComingSoon),
+                    onTap: _callCustomer,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Row(

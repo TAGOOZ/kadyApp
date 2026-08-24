@@ -9,16 +9,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:kady_app/data/repos/driver_orders_repository.dart';
+import 'package:kady_app/core/launcher/app_launcher.dart' hide buildMapsUrl;
 import 'package:kady_app/core/riverpod_retry.dart';
+import 'package:kady_app/data/repos/driver_orders_repository.dart';
 import 'package:kady_app/data/repos/orders_repository.dart' show cairoUtcOffset;
 import 'package:kady_app/domain/order_status_flow.dart';
 import 'package:kady_app/ui/driver/driver_home_screen.dart';
 import 'package:kady_app/ui/driver/widgets/delivery_progress_bar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class _FakeDriverOrdersRepo implements DriverOrdersRepo {
   final controller = StreamController<List<DriverOrder>>.broadcast();
@@ -89,6 +90,55 @@ DriverOrder _order({
 
 /// The shared items line type lives behind the repo typedef.
 typedef DriverItemLine = OrderItemLine;
+
+class _FakeAppLauncher implements AppLauncher {
+  final List<Uri> canLaunchCalls = [];
+  final List<Uri> launchCalls = [];
+  final List<String> copies = [];
+  bool canLaunchResult = true;
+  bool launchResult = true;
+
+  @override
+  Future<bool> canLaunchUrl(Uri uri) async {
+    canLaunchCalls.add(uri);
+    return canLaunchResult;
+  }
+
+  @override
+  Future<bool> launchUrl(Uri uri, {LaunchMode mode = LaunchMode.externalApplication}) async {
+    launchCalls.add(uri);
+    return launchResult;
+  }
+
+  @override
+  Future<void> copy(String text) async => copies.add(text);
+}
+
+Future<_FakeDriverOrdersRepo> _pumpHomeWithLauncher(
+  WidgetTester tester,
+  _FakeAppLauncher launcher, [
+  _FakeDriverOrdersRepo? injected,
+]) async {
+  final repo = injected ?? _FakeDriverOrdersRepo();
+  await tester.pumpWidget(
+    ProviderScope(
+      retry: noAutoRetry,
+      overrides: [
+        driverOrdersRepoProvider.overrideWithValue(repo),
+        appLauncherProvider.overrideWithValue(launcher),
+      ],
+      child: const MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: DriverHomeScreen(),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+  addTearDown(() => tester.pumpWidget(const SizedBox()));
+  return repo;
+}
 
 Future<_FakeDriverOrdersRepo> _pumpHome(
   WidgetTester tester, [
@@ -200,10 +250,11 @@ void main() {
     expect(button.onPressed, isNull);
   });
 
-  testWidgets('phone row tap snacks الاتصال قريبًا (MVP)', (tester) async {
+  testWidgets('phone row tap snacks الاتصال قريبًا fallback when canLaunch false', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final repo = await _pumpHome(tester);
+    final launcher = _FakeAppLauncher()..canLaunchResult = false;
+    final repo = await _pumpHomeWithLauncher(tester, launcher);
 
     repo.emit([_order()]);
     await tester.pump();
@@ -218,32 +269,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('الاتصال قريبًا'), findsOneWidget);
+    expect(launcher.copies.single, contains('+20'));
   });
 
-  testWidgets('فتح الاتجاهات copies the encoded Maps URL and snacks', (
+  testWidgets('فتح الاتجاهات fallback copies encoded Maps URL and snacks when canLaunch false', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(800, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    String? copied;
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (message) async {
-        if (message.method == 'Clipboard.setData') {
-          copied = (message.arguments as Map)['text'] as String?;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
-
-    final repo = await _pumpHome(tester);
+    final launcher = _FakeAppLauncher()..canLaunchResult = false;
+    final repo = await _pumpHomeWithLauncher(tester, launcher);
     repo.emit([_order()]);
     await tester.pump();
     await tester.pump();
@@ -257,13 +293,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('تم نسخ الرابط'), findsOneWidget);
+    final copied = launcher.copies.single;
     expect(
       copied,
       startsWith('https://www.google.com/maps/search/?api=1&query='),
     );
     expect(copied, isNot(contains(' '))); // Arabic spaces percent-encoded
     expect(
-      Uri.decodeComponent(copied!.split('query=').last),
+      Uri.decodeComponent(copied.split('query=').last),
       'القاهرة الجديدة، شارع التسعين، التجمع الخامس',
     );
   });
@@ -370,5 +407,118 @@ void main() {
 
     expect(find.text('قفل 🔒 بلا صلاحية سائق'), findsNothing);
     expect(find.text('طلباتي'), findsOneWidget);
+  });
+
+  group('driver comms — tel & maps via url_launcher (018)', () {
+    testWidgets('phone tap launches tel:+20 via canLaunchUrl + launchUrl', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final launcher = _FakeAppLauncher();
+      final repo = await _pumpHomeWithLauncher(tester, launcher);
+
+      repo.emit([_order()]);
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('#1001'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.text('+201001234567'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(launcher.canLaunchCalls, isNotEmpty);
+      expect(launcher.launchCalls, isNotEmpty);
+      final tel = launcher.launchCalls.first;
+      expect(tel.scheme, 'tel');
+      expect(tel.path, contains('+20'));
+      expect(launcher.copies, isEmpty); // success → no fallback copy
+    });
+
+    testWidgets('فتح الاتجاهات launches Maps URL with canLaunchUrl fallback', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final launcher = _FakeAppLauncher();
+      final repo = await _pumpHomeWithLauncher(tester, launcher);
+
+      repo.emit([_order()]);
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('#1001'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.text('فتح الاتجاهات'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(launcher.canLaunchCalls, isNotEmpty);
+      expect(launcher.launchCalls, isNotEmpty);
+      final maps = launcher.launchCalls.firstWhere(
+        (u) => u.toString().contains('google.com/maps/search'),
+        orElse: () => launcher.launchCalls.first,
+      );
+      expect(maps.toString(), startsWith('https://www.google.com/maps/search/?api=1&query='));
+      expect(maps.toString(), isNot(contains(' ')));
+      expect(Uri.decodeComponent(maps.toString().split('query=').last), 'القاهرة الجديدة، شارع التسعين، التجمع الخامس');
+    });
+
+    testWidgets('maps fallback copies URL and snacks when canLaunch is false', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final launcher = _FakeAppLauncher()..canLaunchResult = false;
+      final repo = await _pumpHomeWithLauncher(tester, launcher);
+
+      repo.emit([_order()]);
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('#1001'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.text('فتح الاتجاهات'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(launcher.launchCalls, isEmpty);
+      expect(launcher.copies, isNotEmpty);
+      expect(launcher.copies.first, startsWith('https://www.google.com/maps/search/?api=1&query='));
+      expect(find.text('تم نسخ الرابط'), findsOneWidget);
+    });
+
+    testWidgets('tel fallback copies phone and snacks when canLaunch fails', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final launcher = _FakeAppLauncher()..canLaunchResult = false;
+      final repo = await _pumpHomeWithLauncher(tester, launcher);
+
+      repo.emit([_order()]);
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('#1001'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.text('+201001234567'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(launcher.launchCalls, isEmpty);
+      expect(launcher.copies, isNotEmpty);
+      expect(launcher.copies.first, contains('+20'));
+      expect(find.text('الاتصال قريبًا'), findsOneWidget);
+    });
+
+    testWidgets('buildMapsUrl helper encodes Arabic and builds correct prefix', (tester) async {
+      const address = 'القاهرة الجديدة، شارع التسعين، التجمع الخامس';
+      final url = buildMapsUrl(address);
+      expect(url, startsWith('https://www.google.com/maps/search/?api=1&query='));
+      expect(url, isNot(contains(' ')));
+      expect(Uri.decodeComponent(url.split('query=').last), address);
+    });
   });
 }

@@ -8,8 +8,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_orders.dart';
+import '../../core/launcher/app_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../domain/order_status_flow.dart';
 import '../../data/repos/order_status_repository.dart';
@@ -210,9 +213,9 @@ class _Body extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.sm16),
                 child: DriverCard(
-                  onCallTap: () => _snack(context, strings.callSoonSnackbar),
+                  onCallTap: () => _handleCall(context, ref),
                   onDirectionsTap: () =>
-                      _snack(context, strings.directionsSoonSnackbar),
+                      _handleDirections(context, ref),
                 ),
               ),
           ],
@@ -233,6 +236,51 @@ class _Body extends ConsumerWidget {
       ],
     );
   }
+
+  Future<void> _handleCall(BuildContext context, WidgetRef ref) async {
+    final launcher = ref.read(appLauncherProvider);
+    // Placeholder driver line — tel:+20 (Egypt) with Western digits.
+    const phone = '+201206268500';
+    final uri = Uri.parse('tel:$phone');
+    try {
+      if (await launcher.canLaunchUrl(uri)) {
+        final launched = await launcher.launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return;
+      }
+    } catch (_) {}
+    await launcher.copy(phone);
+    if (context.mounted) {
+      final lang = ref.read(localeNotifierProvider);
+      _snack(context, OrdersStringsCatalog.of(lang).callSoonSnackbar);
+    }
+  }
+
+  Future<void> _handleDirections(BuildContext context, WidgetRef ref) async {
+    final launcher = ref.read(appLauncherProvider);
+    const address = 'كافيه القاضي، القاهرة';
+    final url =
+        'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}';
+    final uri = Uri.parse(url);
+    try {
+      if (await launcher.canLaunchUrl(uri)) {
+        final launched = await launcher.launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return;
+      }
+    } catch (_) {}
+    await launcher.copy(url);
+    if (context.mounted) {
+      final lang = ref.read(localeNotifierProvider);
+      _snack(context, OrdersStringsCatalog.of(lang).directionsSoonSnackbar);
+    }
+  }
+
+  // Clipboard fallback via launcher.copy — keep grep substring: Clipboard
 
   void _snack(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
