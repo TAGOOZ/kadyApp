@@ -16,16 +16,16 @@ import '../ui/orders/orders_list_screen.dart';
 import '../ui/orders/order_status_screen.dart';
 import '../ui/profile/profile_screen.dart';
 import '../ui/games/games_hub_screen.dart';
-import '../ui/games/spinner/spinner_screen.dart';
-import '../ui/games/match/match_screen.dart';
-import '../ui/games/scratch/scratch_screen.dart';
-import '../ui/quests/quests_badges_screen.dart';
-import '../ui/staff/staff_board_screen.dart';
-import '../ui/lookup/customer_lookup_screen.dart';
-import '../ui/driver/driver_home_screen.dart';
-import '../ui/admin/admin_dashboard_screen.dart';
 import '../ui/screens/auth_stub_screen.dart';
 import '../ui/screens/welcome_screen.dart';
+import '../ui/games/spinner/spinner_screen.dart' deferred as spinner;
+import '../ui/games/match/match_screen.dart' deferred as match hide MatchOutcomeX;
+import '../ui/games/scratch/scratch_screen.dart' deferred as scratch;
+import '../ui/quests/quests_badges_screen.dart' deferred as quests show QuestsBadgesScreen;
+import '../ui/staff/staff_board_screen.dart' deferred as staff_board;
+import '../ui/lookup/customer_lookup_screen.dart' deferred as lookup;
+import '../ui/driver/driver_home_screen.dart' deferred as driver_home;
+import '../ui/admin/admin_dashboard_screen.dart' deferred as admin_dashboard;
 
 String _homeFor(AppRole role) {
   return switch (role) {
@@ -185,36 +185,116 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/games/spinner',
-        builder: (context, state) => const SpinnerScreen(),
+        builder: (context, state) => FutureBuilder<void>(
+          future: spinner.loadLibrary(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return spinner.SpinnerScreen();
+          },
+        ),
       ),
       GoRoute(
         path: '/games/match',
-        builder: (context, state) => const MatchScreen(),
+        builder: (context, state) => FutureBuilder<void>(
+          future: match.loadLibrary(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return match.MatchScreen();
+          },
+        ),
       ),
       GoRoute(
         path: '/games/scratch',
-        builder: (context, state) => const ScratchScreen(),
+        builder: (context, state) => FutureBuilder<void>(
+          future: scratch.loadLibrary(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return scratch.ScratchScreen();
+          },
+        ),
       ),
       GoRoute(
         path: '/games/quests',
-        builder: (context, state) => const QuestsBadgesScreen(),
+        builder: (context, state) => FutureBuilder<void>(
+          future: quests.loadLibrary(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return quests.QuestsBadgesScreen();
+          },
+        ),
       ),
       GoRoute(
         path: '/staff',
-        builder: (context, state) => const StaffBoardScreen(),
+        builder: (context, state) => FutureBuilder<void>(
+          future: staff_board.loadLibrary(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return staff_board.StaffBoardScreen();
+          },
+        ),
       ),
       // Customer lookup + manual rewards (#013, FEATURES §6.4).
       GoRoute(
         path: '/staff/lookup',
-        builder: (context, state) => const CustomerLookupScreen(),
+        builder: (context, state) => FutureBuilder<void>(
+          future: lookup.loadLibrary(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return lookup.CustomerLookupScreen();
+          },
+        ),
       ),
       GoRoute(
         path: '/driver',
-        builder: (context, state) => const DriverHomeScreen(),
+        builder: (context, state) => FutureBuilder<void>(
+          future: driver_home.loadLibrary(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return driver_home.DriverHomeScreen();
+          },
+        ),
       ),
       GoRoute(
         path: '/admin',
-        builder: (context, state) => const AdminDashboardScreen(),
+        builder: (context, state) => FutureBuilder<void>(
+          future: admin_dashboard.loadLibrary(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return admin_dashboard.AdminDashboardScreen();
+          },
+        ),
       ),
     ],
   );
