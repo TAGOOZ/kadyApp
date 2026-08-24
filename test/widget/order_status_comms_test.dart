@@ -66,6 +66,8 @@ class _FakeDriverRepoForOrder implements DriverOrdersRepo {
   Future<Map<String, String>> fetchCustomerNames() async => const {};
   @override
   Future<void> ensureDriverAccess() async {}
+  @override
+  Future<String?> fetchDriverDisplayName() async => null;
 }
 
 CustomerOrder _order({
