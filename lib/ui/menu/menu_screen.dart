@@ -217,6 +217,7 @@ class _PaginatedCatalogListState
 
   String get _effectiveSlug {
     final categories = widget.state.categories;
+    if (categories.isEmpty) return '';
     final allItems = widget.state.items;
     final selected = ref.watch(selectedCategoryProvider);
     if (selected != null && categories.any((c) => c.slug == selected)) {
@@ -231,8 +232,9 @@ class _PaginatedCatalogListState
   }
 
   void _ensureCategory() {
+    if (widget.state.categories.isEmpty) return;
     final slug = _effectiveSlug;
-    if (slug == _lastEnsuredSlug) return;
+    if (slug.isEmpty || slug == _lastEnsuredSlug) return;
     final state = widget.state;
     final items = state.items
         .where((item) => item.categorySlug == slug)
@@ -283,6 +285,9 @@ class _PaginatedCatalogListState
     }
 
     final effectiveSlug = _effectiveSlug;
+    if (effectiveSlug.isEmpty) {
+      return Center(child: Text(strings.emptyCategoryLine));
+    }
     final items =
         allItems.where((item) => item.categorySlug == effectiveSlug).toList();
 

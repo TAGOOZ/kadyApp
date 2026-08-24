@@ -1,12 +1,18 @@
+// ignore_for_file: use_null_aware_elements
 // Zones editor panel — zoned delivery fees (FEATURES §11.7).
 // Flat `delivery_fee` in app_config is edited in Rules; polygon fees in
-// `public.zones` (0009_zones.sql) are CRUD here (name_ar/name_en/fee).
-// Polygon JSON is Phase 2 — shown as raw in detail, banner explains.
+// `public.zones` (0009_zones.sql) are CRUD here. Map preview via flutter_map.
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../core/l10n/strings_admin.dart';
+import '../../../core/maps/maps_config.dart';
+import '../../../core/maps/maps_preview.dart';
 import '../../../core/supabase/supabase_config.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -40,6 +46,33 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
       if (!mounted) return;
       setState(() => _loading = false);
     }
+  }
+
+  List<LatLng>? _parsePolygon(Object? raw) {
+    if (raw == null) return null;
+    try {
+      dynamic data = raw;
+      if (data is String) data = jsonDecode(data);
+      // GeoJSON Polygon: {type: Polygon, coordinates: [[[lng,lat],...]]}
+      if (data is Map && data['coordinates'] is List) {
+        final coords = data['coordinates'] as List;
+        final ring = coords.isNotEmpty ? coords[0] as List : coords;
+        return [
+          for (final p in ring)
+            if (p is List && p.length >= 2) LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()),
+        ];
+      }
+      if (data is List) {
+        // List of [lat,lng] or {lat,lng}
+        return [
+          for (final p in data)
+            if (p is List && p.length >= 2) LatLng((p[0] as num).toDouble(), (p[1] as num).toDouble())
+            else if (p is Map && p['lat'] != null && p['lng'] != null)
+              LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()),
+        ];
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _deleteZone(String id) async {
@@ -77,6 +110,7 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
     final nameArCtrl = TextEditingController(text: zone?['name_ar'] as String? ?? '');
     final nameEnCtrl = TextEditingController(text: zone?['name_en'] as String? ?? '');
     final feeCtrl = TextEditingController(text: (zone?['fee']?.toString() ?? '15'));
+    final polygonCtrl = TextEditingController(text: zone?['polygon'] == null ? '' : jsonEncode(zone!['polygon']));
     final formKey = GlobalKey<FormState>();
     final result = await showModalBottomSheet<Map<String, dynamic>?>(
       context: context,
@@ -118,6 +152,19 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
                     return null;
                   },
                 ),
+                const SizedBox(height: AppSpacing.xs8),
+                TextFormField(
+                  controller: polygonCtrl,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Polygon JSON (GeoJSON Polygon) — اختياري',
+                    hintText: '{"type":"Polygon","coordinates":[[[31.0,29.0],...]]}',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs8),
+                if (isEdit && _parsePolygon(zone['polygon']) != null)
+                  MapsPreview(height: 160, polygonPoints: _parsePolygon(zone['polygon']), markers: const []),
                 const SizedBox(height: AppSpacing.sm16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -127,10 +174,20 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
                     FilledButton(
                       onPressed: () {
                         if (!(formKey.currentState?.validate() ?? false)) return;
+                        dynamic polygon;
+                        final raw = polygonCtrl.text.trim();
+                        if (raw.isNotEmpty) {
+                          try {
+                            polygon = jsonDecode(raw);
+                          } catch (_) {
+                            polygon = raw;
+                          }
+                        }
                         Navigator.of(ctx).pop({
                           'name_ar': nameArCtrl.text.trim(),
                           'name_en': nameEnCtrl.text.trim().isEmpty ? null : nameEnCtrl.text.trim(),
                           'fee': int.parse(feeCtrl.text.trim()),
+                          if (polygon != null) 'polygon': polygon,
                         });
                       },
                       child: Text(widget.strings.save),
@@ -162,6 +219,13 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    final allPolygons = <LatLng>[];
+    if (_zones != null) {
+      for (final z in _zones!) {
+        final pts = _parsePolygon(z['polygon']);
+        if (pts != null) allPolygons.addAll(pts);
+      }
+    }
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -176,10 +240,17 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
                 children: [
                   const Icon(Icons.info_outline, color: AppColors.primary),
                   const SizedBox(width: AppSpacing.xs8),
-                  Expanded(child: Text('Zones — flat fee in Rules is live. Polygon fees editable here. Zones / منطقة / سعر — Polygon editor Phase 2.', style: AppTextStyles.bodySm)),
+                  Expanded(child: Text('Zones — flat fee in Rules is live. Polygon preview via map. Zones / منطقة / سعر', style: AppTextStyles.bodySm)),
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: AppSpacing.sm16),
+          MapsPreview(
+            height: 200,
+            center: allPolygons.isNotEmpty ? allPolygons.first : elkadyCafeLatLng,
+            polygonPoints: allPolygons.isEmpty ? null : allPolygons,
+            markers: allPolygons.isEmpty ? const [] : [Marker(point: elkadyCafeLatLng, width: 36, height: 36, child: Icon(Icons.local_cafe, color: AppColors.primary, size: 28))],
           ),
           const SizedBox(height: AppSpacing.xs8),
           Align(
@@ -197,33 +268,43 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
             for (final z in _zones!)
               Card(
                 margin: const EdgeInsets.only(bottom: AppSpacing.xs8),
-                child: ListTile(
-                  title: Text(z['name_ar'] as String? ?? '—', style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w600)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(z['name_en'] as String? ?? '', style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted)),
-                      const SizedBox(height: 2),
-                      Row(
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(z['name_ar'] as String? ?? '—', style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w600)),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: AppColors.primaryContainer.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppRadii.pill)),
-                            child: Text('${z['fee']} ${widget.strings.currencySuffix} / zonas / منطقة', style: AppTextStyles.labelMd.copyWith(color: AppColors.primary)),
+                          Text(z['name_en'] as String? ?? '', style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted)),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(color: AppColors.primaryContainer.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppRadii.pill)),
+                                child: Text('${z['fee']} ${widget.strings.currencySuffix} / zonas / منطقة', style: AppTextStyles.labelMd.copyWith(color: AppColors.primary)),
+                              ),
+                              const Spacer(),
+                              if (z['polygon'] != null) const Icon(Icons.map_outlined, size: 16, color: AppColors.outline),
+                            ],
                           ),
-                          const Spacer(),
-                          if (z['polygon'] != null) const Icon(Icons.map_outlined, size: 16, color: AppColors.outline),
                         ],
                       ),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(icon: const Icon(Icons.edit_outlined, size: 20), tooltip: widget.strings.edit, onPressed: () => _openEditor(zone: z)),
-                      IconButton(icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error), tooltip: widget.strings.delete, onPressed: () => _deleteZone(z['id'] as String)),
-                    ],
-                  ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(icon: const Icon(Icons.edit_outlined, size: 20), tooltip: widget.strings.edit, onPressed: () => _openEditor(zone: z)),
+                          IconButton(icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error), tooltip: widget.strings.delete, onPressed: () => _deleteZone(z['id'] as String)),
+                        ],
+                      ),
+                    ),
+                    if (_parsePolygon(z['polygon']) != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        child: MapsPreview(height: 140, polygonPoints: _parsePolygon(z['polygon']), center: _parsePolygon(z['polygon'])!.first),
+                      ),
+                  ],
                 ),
               ),
         ],

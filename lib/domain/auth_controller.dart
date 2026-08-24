@@ -142,7 +142,7 @@ class SupabaseAuthGateway implements AuthGateway {
   }
 
   @override
-  Future<void> signOut() => _client()!.signOut();
+  Future<void> signOut() => _client()!.signOut(scope: sb.SignOutScope.global);
 }
 
 /// Web goes through the CF Worker so we never use localhost as Site URL.
@@ -160,8 +160,12 @@ final authGatewayProvider =
 
 class AuthController extends Notifier<AuthState> {
   Completer<void>? _hydrating;
+  bool _hydrated = false;
   Future<void> _pendingAdoption = Future<void>.value();
   StreamSubscription<GoogleProfile?>? _subscription;
+
+  /// Synchronous hydration flag for router guards.
+  bool get isHydrated => _hydrated;
 
   @override
   AuthState build() {
@@ -180,12 +184,12 @@ class AuthController extends Notifier<AuthState> {
       }
     });
     ref.onDispose(() => _subscription?.cancel());
-    _hydrating ??= Completer<void>()..complete(_hydrate());
+    _hydrating ??= Completer<void>()..complete(_hydrate().whenComplete(() => _hydrated = true));
     return const AuthState(phase: AuthPhase.idle);
   }
 
   Future<void> get ready => (_hydrating ??= Completer<void>()
-        ..complete(_hydrate()))
+        ..complete(_hydrate().whenComplete(() => _hydrated = true)))
       .future;
 
   /// Completes once the latest OAuth-callback adoption has settled.
