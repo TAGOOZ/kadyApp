@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:kady_app/core/l10n/app_strings.dart';
 import 'package:kady_app/core/launcher/app_launcher.dart';
 import 'package:kady_app/core/riverpod_retry.dart';
+import 'package:kady_app/data/repos/driver_orders_repository.dart';
 import 'package:kady_app/data/repos/order_status_repository.dart';
 import 'package:kady_app/domain/order_status_flow.dart';
 import 'package:kady_app/ui/orders/order_status_screen.dart';
@@ -45,10 +46,34 @@ class _FakeLauncher implements AppLauncher {
   }
 }
 
+class _FakeDriverRepoForOrder implements DriverOrdersRepo {
+  @override
+  Stream<List<DriverOrder>> streamAssigned() => const Stream.empty();
+  @override
+  Future<void> accept(String orderId) async {}
+  @override
+  Future<void> markPickedUp(String orderId) async {}
+  @override
+  Future<void> markDelivered(String orderId) async {}
+  @override
+  Future<List<DriverOrder>> fetchHistory() async => const [];
+  @override
+  Future<String?> fetchAddressText(String addressId) async =>
+      'كافيه القاضي، القاهرة';
+  @override
+  Future<List<String>> fetchEventStatuses(String orderId) async => const [];
+  @override
+  Future<Map<String, String>> fetchCustomerNames() async => const {};
+  @override
+  Future<void> ensureDriverAccess() async {}
+}
+
 CustomerOrder _order({
   required String modeWire,
   required OrderWireStatus status,
   bool hasDriver = false,
+  String? phone,
+  String? addressId,
 }) {
   return CustomerOrder(
     id: 'o1',
@@ -57,6 +82,8 @@ CustomerOrder _order({
     status: status,
     createdAtUtc: DateTime.utc(2026, 8, 22, 9),
     hasDriver: hasDriver,
+    phone: phone ?? '+201206268500',
+    addressId: addressId ?? 'addr-1',
   );
 }
 
@@ -87,11 +114,13 @@ Future<({ _FakeOrderStatusRepo repo, _FakeLauncher launcher })> _pump(
 }) async {
   final repo = _FakeOrderStatusRepo();
   final fakeLauncher = launcher ?? _FakeLauncher();
+  final fakeDriverRepo = _FakeDriverRepoForOrder();
   await tester.pumpWidget(
     ProviderScope(
       retry: noAutoRetry,
       overrides: [
         orderStatusRepoProvider.overrideWithValue(repo),
+        driverOrdersRepoProvider.overrideWithValue(fakeDriverRepo),
         localeNotifierProvider.overrideWith(() => _FixedLocale(lang)),
         appLauncherProvider.overrideWithValue(fakeLauncher),
       ],

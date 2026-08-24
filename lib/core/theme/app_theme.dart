@@ -21,6 +21,9 @@ abstract final class AppColors {
   static const error = Color(0xFFBA1A1A);
   static const outline = Color(0xFF6F7974);
 
+  static const success = Color(0xFF1F7A3D);
+  static const successContainer = Color(0xFFE3F4E8);
+
   static const facebook = Color(0xFF1877F2);
   static const instagram = Color(0xFFE4405F);
   static const tiktok = Color(0xFF000000);

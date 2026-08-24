@@ -51,11 +51,15 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       final previousIds = previous?.value?.map((o) => o.id).toSet();
       final orders = next.value;
       if (orders == null || previousIds == null) return;
+      var newCount = 0;
       for (final order in orders) {
-        if (!previousIds.contains(order.id)) {
-          _showSnack(strings.newAssignment);
-          break;
-        }
+        if (!previousIds.contains(order.id)) newCount++;
+      }
+      if (newCount > 0) {
+        final message = newCount == 1
+            ? strings.newAssignment
+            : '${strings.newAssignment} ×$newCount';
+        _showSnack(message);
       }
     });
 

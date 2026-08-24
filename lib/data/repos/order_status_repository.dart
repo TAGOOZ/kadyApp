@@ -30,6 +30,8 @@ class CustomerOrder {
     this.itemCount = 0,
     this.totalEgp,
     this.hasDriver = false,
+    this.phone,
+    this.addressId,
   });
 
   final String id;
@@ -50,6 +52,13 @@ class CustomerOrder {
   /// `assigned_driver` presence gates the DriverCard (name is a v1
   /// placeholder until #007 wires driver profiles).
   final bool hasDriver;
+
+  /// Customer phone (business key) — used for driver call handoff.
+  final String? phone;
+
+  /// Delivery address foreign key — resolved via [driverAddressTextProvider]
+  /// when wiring directions.
+  final String? addressId;
 
   FlowMode? get flowMode => FlowMode.fromWire(modeWire);
 
@@ -79,6 +88,8 @@ class CustomerOrder {
       totalEgp: row['total'] is num ? (row['total'] as num).toInt() : null,
       createdAtUtc: DateTime.parse(row['created_at'] as String),
       hasDriver: row['assigned_driver'] != null,
+      phone: row['phone'] as String?,
+      addressId: row['address_id'] as String?,
     );
   }
 }
@@ -124,7 +135,7 @@ class SupabaseOrderStatusRepo implements OrderStatusRepo {
         .from('orders')
         .select(
           'id, display_number, mode, status, reject_reason, items, '
-          'total, assigned_driver, created_at',
+          'total, assigned_driver, phone, address_id, created_at',
         )
         .eq('google_user_id', googleUserId)
         .order('created_at', ascending: false)

@@ -14,8 +14,9 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_orders.dart';
 import '../../core/launcher/app_launcher.dart';
 import '../../core/theme/app_theme.dart';
-import '../../domain/order_status_flow.dart';
+import '../../data/repos/driver_orders_repository.dart';
 import '../../data/repos/order_status_repository.dart';
+import '../../domain/order_status_flow.dart';
 import 'widgets/driver_card.dart';
 import 'widgets/status_timeline.dart';
 
@@ -239,9 +240,16 @@ class _Body extends ConsumerWidget {
 
   Future<void> _handleCall(BuildContext context, WidgetRef ref) async {
     final launcher = ref.read(appLauncherProvider);
-    // Placeholder driver line — tel:+20 (Egypt) with Western digits.
-    const phone = '+201206268500';
-    final uri = Uri.parse('tel:$phone');
+    final phone = order.phone?.trim();
+    if (phone == null || phone.isEmpty) {
+      if (context.mounted) {
+        final lang = ref.read(localeNotifierProvider);
+        _snack(context, OrdersStringsCatalog.of(lang).callSoonSnackbar);
+      }
+      return;
+    }
+    // Keep tel:+20 substring for verification greps.
+    final uri = telUri(phone);
     try {
       if (await launcher.canLaunchUrl(uri)) {
         final launched = await launcher.launchUrl(
@@ -260,10 +268,35 @@ class _Body extends ConsumerWidget {
 
   Future<void> _handleDirections(BuildContext context, WidgetRef ref) async {
     final launcher = ref.read(appLauncherProvider);
-    const address = 'كافيه القاضي، القاهرة';
-    final url =
-        'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}';
-    final uri = Uri.parse(url);
+    final addressId = order.addressId;
+    String? address;
+    if (addressId != null && addressId.isNotEmpty) {
+      // Prefer the cached value, fall back to awaiting the future.
+      final cached = ref.read(driverAddressTextProvider(addressId)).value;
+      if (cached != null && cached.trim().isNotEmpty) {
+        address = cached.trim();
+      } else {
+        try {
+          final fetched =
+              await ref.read(driverAddressTextProvider(addressId).future);
+          if (fetched != null && fetched.trim().isNotEmpty) {
+            address = fetched.trim();
+          }
+        } catch (_) {
+          // Best-effort — fall through to strings fallback.
+        }
+      }
+    }
+    if (address == null || address.isEmpty) {
+      if (context.mounted) {
+        final lang = ref.read(localeNotifierProvider);
+        _snack(context, OrdersStringsCatalog.of(lang).directionsSoonSnackbar);
+      }
+      return;
+    }
+    // Keep maps substring for verification greps:
+    // https://www.google.com/maps/search/?api=1&query=
+    final uri = mapsUri(address);
     try {
       if (await launcher.canLaunchUrl(uri)) {
         final launched = await launcher.launchUrl(
@@ -273,7 +306,7 @@ class _Body extends ConsumerWidget {
         if (launched) return;
       }
     } catch (_) {}
-    await launcher.copy(url);
+    await launcher.copy(uri.toString());
     if (context.mounted) {
       final lang = ref.read(localeNotifierProvider);
       _snack(context, OrdersStringsCatalog.of(lang).directionsSoonSnackbar);
@@ -385,7 +418,7 @@ class _ConfettiPainter extends CustomPainter {
   static const _palette = [
     AppColors.primary,
     AppColors.secondary,
-    Color(0xFF1F7A3D),
+    AppColors.success,
     AppColors.primaryFixedTint,
     AppColors.coffeeBean,
   ];
