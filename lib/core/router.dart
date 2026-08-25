@@ -389,13 +389,14 @@ class _DeferredScreenState extends State<_DeferredScreen> {
   }
 }
 
-class _NotFoundScreen extends StatelessWidget {
+class _NotFoundScreen extends ConsumerWidget {
   const _NotFoundScreen({required this.location});
 
   final String location;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(sessionControllerProvider).role;
     return Scaffold(
       appBar: AppBar(title: const Text('غير موجود')),
       body: Center(
@@ -411,7 +412,7 @@ class _NotFoundScreen extends StatelessWidget {
               Text(location, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => context.go('/home'),
+                onPressed: () => context.go(_homeFor(role)),
                 child: const Text('العودة للرئيسية'),
               ),
             ],

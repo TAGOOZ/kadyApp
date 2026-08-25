@@ -64,6 +64,25 @@ class _FakeStaffOrdersDb implements StaffOrdersDb {
   }
 
   @override
+  Future<void> transitionOrder(
+    String orderId,
+    String status, {
+    String? rejectReason,
+    String? assignedDriverId,
+    String actor = 'staff',
+  }) async {
+    orderUpdates.add(MapEntry(
+        orderId,
+        transitionOrderPatch(
+          OrderWireStatus.fromWire(status) ?? OrderWireStatus.received,
+          rejectReason: rejectReason,
+          assignedDriverId: assignedDriverId,
+        )));
+    orderEvents.add(orderEventInsertRow(
+        orderId, OrderWireStatus.fromWire(status) ?? OrderWireStatus.received));
+  }
+
+  @override
   Future<void> insertVisit(Map<String, dynamic> row) async {
     final error = visitInsertError;
     if (error != null) throw error;

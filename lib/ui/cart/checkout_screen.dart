@@ -77,7 +77,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     setState(() => _savingAddress = true);
     try {
       final saved =
-          await ref.watch(ordersRepoProvider).saveAddress(SavedAddressInput(
+          await ref.read(ordersRepoProvider).saveAddress(SavedAddressInput(
                 googleUserId: googleUserId,
                 label: _newAddrLabel,
                 addressText: text,
@@ -145,7 +145,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final googleUserId = auth.googleUser!.id;
     setState(() => _submitting = true);
     try {
-      final placed = await ref.watch(ordersRepoProvider).placeOrder(NewOrder(
+      final placed = await ref.read(ordersRepoProvider).placeOrder(NewOrder(
             mode: mode,
             googleUserId: googleUserId,
             phone: auth.phone,
@@ -159,17 +159,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             addressId: candidate.addressId,
             notes: notes.isEmpty ? null : notes,
           ));
-      // Real earn path (#007): credit exactly once for the placed order, on
-      // the discounted spend actually collected. Fire-and-forget so the
-      // confirmation navigation is never delayed by the loyalty round-trip.
-      unawaited(ref
-          .read(loyaltyProvider.notifier)
-          .creditProcessedOrder(
+      // Real earn path (#007): server trigger is authoritative (migration 0004),
+      // client credit is now awaited to avoid lost-update/double-earn race
+      // (CORRECTNESS-05). Navigation waits for the idempotent credit.
+      await ref.read(loyaltyProvider.notifier).creditProcessedOrder(
             orderId: placed.id,
             subtotalEgp: subtotalEgp,
             dineIn: mode == OrderMode.dineIn,
             redemption: redemption,
-          ));
+          );
       _unlockTimer?.cancel();
       _locked = true; // stay debounced for 30 s even after navigating away
       _unlockTimer = Timer(_debounce, () {

@@ -194,6 +194,15 @@ abstract class DriverOrdersDb {
 
   Future<void> insertOrderEvent(Map<String, dynamic> row);
 
+  Future<void> transitionOrder(
+    String orderId,
+    String status, {
+    String? actor,
+  }) async {
+    await updateOrder(orderId, {'status': status});
+    await insertOrderEvent(driverOrderEventRow(orderId, status));
+  }
+
   /// Event status wires for one order, oldest first (stepper derivation).
   Future<List<String>> fetchEventStatuses(String orderId);
 
@@ -302,6 +311,25 @@ class SupabaseDriverOrdersDb implements DriverOrdersDb {
   Future<void> insertOrderEvent(Map<String, dynamic> row) async {
     try {
       await _client.from('order_events').insert(row);
+    } on PostgrestException catch (error) {
+      rethrowAsTyped(error);
+    }
+  }
+
+  @override
+  Future<void> transitionOrder(
+    String orderId,
+    String status, {
+    String? actor,
+  }) async {
+    try {
+      await _client.rpc('transition_order', params: {
+        'p_order_id': orderId,
+        'p_status': status,
+        'p_reject_reason': null,
+        'p_assigned_driver': null,
+        'p_actor': actor ?? 'driver',
+      });
     } on PostgrestException catch (error) {
       rethrowAsTyped(error);
     }
@@ -470,8 +498,7 @@ class SupabaseDriverOrdersRepo implements DriverOrdersRepo {
 
   @override
   Future<void> markDelivered(String orderId) async {
-    await _db.updateOrder(orderId, {'status': OrderWireStatus.done.wireName});
-    await _db.insertOrderEvent(driverOrderEventRow(orderId, 'done'));
+    await _db.transitionOrder(orderId, OrderWireStatus.done.wireName, actor: 'driver');
   }
 
   @override

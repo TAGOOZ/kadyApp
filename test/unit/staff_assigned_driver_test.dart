@@ -38,6 +38,22 @@ class _FakeStaffDb implements StaffOrdersDb {
   Future<void> insertOrderEvent(Map<String, dynamic> row) async {}
 
   @override
+  Future<void> transitionOrder(
+    String orderId,
+    String status, {
+    String? rejectReason,
+    String? assignedDriverId,
+    String actor = 'staff',
+  }) async {
+    lastOrderId = orderId;
+    lastPatch = transitionOrderPatch(
+      OrderWireStatus.fromWire(status) ?? OrderWireStatus.received,
+      rejectReason: rejectReason,
+      assignedDriverId: assignedDriverId,
+    );
+  }
+
+  @override
   Future<void> insertVisit(Map<String, dynamic> row) async {}
 
   @override

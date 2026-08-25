@@ -281,6 +281,24 @@ abstract class StaffOrdersDb {
 
   Future<void> insertOrderEvent(Map<String, dynamic> row);
 
+  /// Atomic RPC: update orders + insert order_events in one transaction
+  /// (CORRECTNESS-03). Default impl falls back to two calls for fakes.
+  Future<void> transitionOrder(
+    String orderId,
+    String status, {
+    String? rejectReason,
+    String? assignedDriverId,
+    String actor = 'staff',
+  }) async {
+    await updateOrder(orderId, transitionOrderPatch(
+      OrderWireStatus.fromWire(status) ?? OrderWireStatus.received,
+      rejectReason: rejectReason,
+      assignedDriverId: assignedDriverId,
+    ));
+    await insertOrderEvent(orderEventInsertRow(orderId,
+        OrderWireStatus.fromWire(status) ?? OrderWireStatus.received));
+  }
+
   Future<void> insertVisit(Map<String, dynamic> row);
 
   Future<void> insertStaffLog(Map<String, dynamic> row);
@@ -383,6 +401,28 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
   Future<void> insertOrderEvent(Map<String, dynamic> row) async {
     try {
       await _client.from('order_events').insert(row);
+    } on PostgrestException catch (error) {
+      rethrowAsTyped(error);
+    }
+  }
+
+  @override
+  Future<void> transitionOrder(
+    String orderId,
+    String status, {
+    String? rejectReason,
+    String? assignedDriverId,
+    String actor = 'staff',
+  }) async {
+    try {
+      await _client.rpc('transition_order', params: {
+        'p_order_id': orderId,
+        'p_status': status,
+        'p_reject_reason': rejectReason,
+        'p_assigned_driver':
+            assignedDriverId == null || assignedDriverId.trim().isEmpty ? null : assignedDriverId.trim(),
+        'p_actor': actor,
+      });
     } on PostgrestException catch (error) {
       rethrowAsTyped(error);
     }
@@ -631,12 +671,13 @@ class SupabaseStaffOrdersRepo implements StaffOrdersRepo {
     String? rejectReason,
     String? assignedDriverId,
   }) async {
-    await _db.updateOrder(orderId, transitionOrderPatch(
-      toStatus,
+    await _db.transitionOrder(
+      orderId,
+      toStatus.wireName,
       rejectReason: rejectReason,
       assignedDriverId: assignedDriverId,
-    ));
-    await _db.insertOrderEvent(orderEventInsertRow(orderId, toStatus));
+      actor: 'staff',
+    );
   }
 
   @override

@@ -63,7 +63,9 @@ class SessionController extends Notifier<SessionState> {
     return SessionState(lang: ref.read(localeNotifierProvider));
   }
 
-  Future<void> get ready => _hydrating!.future;
+  Future<void> get ready => (_hydrating ??= Completer<void>()
+        ..complete(_hydrate().whenComplete(() => _hydrated = true)))
+      .future;
 
   Future<void> _hydrate() async {
     final prefs = await SharedPreferences.getInstance();

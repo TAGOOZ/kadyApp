@@ -48,6 +48,18 @@ class _FakeDriverOrdersDb implements DriverOrdersDb {
   }
 
   @override
+  Future<void> transitionOrder(
+    String orderId,
+    String status, {
+    String? actor,
+  }) async {
+    ops.add('update');
+    orderUpdates.add(MapEntry(orderId, {'status': status}));
+    ops.add('event');
+    orderEvents.add(driverOrderEventRow(orderId, status));
+  }
+
+  @override
   Future<List<String>> fetchEventStatuses(String orderId) async =>
       eventsByOrder[orderId] ?? const [];
 
