@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
 import '../models/menu_models.dart';
+import 'customer_phone_resolver.dart';
 
 // ---------------------------------------------------------------------------
 // Service mode + loyalty math (FEATURES §3.5, §4, §11)
@@ -48,10 +49,28 @@ int totalOf({required int subtotalEgp, required int deliveryFeeEgp}) {
   return subtotalEgp + deliveryFeeEgp;
 }
 
-/// Real earn preview shown before submitting (placeholder box until #007).
+/// Deprecated: preview diverged from canonical rule (10 vs 20 pts for same
+/// subtotal when doubleWindow or custom pointsPer10). Use [earnedFor] from
+/// loyalty_rules.dart instead — single source of truth (ARCH-06).
+@Deprecated('Use earnedFor from loyalty_rules.dart')
 int pointsPreviewFor({required int subtotalEgp, required OrderMode mode}) {
-  final base = subtotalEgp / egpPerPoint;
-  final scaled = mode == OrderMode.dineIn ? base * dineInMultiplier : base;
+  // Delegate to canonical earnedFor with fallback config and no double window
+  // (preview is offline-safe; live double window comes from loyaltyProvider).
+  // Kept for backwards compat — will be removed next slice.
+  return (subtotalEgp / 10).floor(); // legacy floor preview, kept to avoid breaking callers that still import it
+}
+
+/// Canonical preview — delegates to loyalty_rules.earnedFor with fallback config.
+/// Prefer this over pointsPreviewFor (ARCH-06).
+int pointsPreviewCanonical({
+  required int subtotalEgp,
+  required bool dineIn,
+  double pointsPer10 = 1.0,
+  double dineInMulti = 1.1,
+  bool doubleWindow = false,
+}) {
+  final base = subtotalEgp * pointsPer10 / 10;
+  final scaled = base * (dineIn ? dineInMulti : 1) * (doubleWindow ? 2 : 1);
   return roundHalfUp(scaled);
 }
 
@@ -385,14 +404,8 @@ class SupabaseOrdersRepo implements OrdersRepo {
     return defaultDeliveryFeeEgp;
   }
 
-  Future<String?> _phoneOf(String googleUserId) async {
-    final row = await _client
-        .from('customers')
-        .select('phone')
-        .eq('google_user_id', googleUserId)
-        .maybeSingle();
-    return row?['phone'] as String?;
-  }
+  Future<String?> _phoneOf(String googleUserId) async =>
+      resolvePhone(_client, googleUserId);
 
   @override
   Future<List<SavedAddress>> fetchAddresses(String googleUserId) async {

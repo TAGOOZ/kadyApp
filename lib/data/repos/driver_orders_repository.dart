@@ -18,8 +18,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
 import '../../domain/order_status_flow.dart';
+import 'order_items_parser.dart';
 import 'orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
-import 'staff_orders_repository.dart' as staff_repo; // shared items jsonb
+
+export 'order_items_parser.dart' show OrderItemLine, parseItemLines;
 
 // ---------------------------------------------------------------------------
 // Errors + read models
@@ -34,9 +36,8 @@ class DriverPermissionException implements Exception {
   String toString() => 'DriverPermissionException: role not elevated';
 }
 
-/// One flattened line of the `orders.items` jsonb snapshot (shared shape
-/// with the staff board — same jsonb contract, no duplication of parsing).
-typedef OrderItemLine = staff_repo.OrderItemLine;
+/// One flattened line of the `orders.items` jsonb snapshot — shared via
+/// order_items_parser.dart (ARCH-03) to avoid 3× duplication.
 
 /// Read model of one `orders` row as the Driver sees it.
 class DriverOrder {
@@ -78,7 +79,7 @@ class DriverOrder {
     status:
         OrderWireStatus.fromWire(row['status'] as String?) ??
         OrderWireStatus.received,
-    lines: staff_repo.parseItemLines(row['items']),
+    lines: parseItemLines(row['items']),
     totalEgp: row['total'] is num ? (row['total'] as num).toInt() : null,
     notes: row['notes'] as String?,
     addressId: row['address_id'] as String?,

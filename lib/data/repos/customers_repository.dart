@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
 import 'address.dart';
+import 'customer_phone_resolver.dart';
 
 class CustomerRecord {
   const CustomerRecord({
@@ -162,19 +163,9 @@ abstract class CustomerProfileRepo {
 }
 
 class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
-  /// Own phone resolved from the customers row — mirrors how #004 looks up
-  /// by google_user_id; addresses are then queried by that phone key.
-  Future<String> _phoneFor(String googleUserId) async {
-    final rows = await supabase
-        .from('customers')
-        .select('phone')
-        .eq('google_user_id', googleUserId)
-        .limit(1);
-    if (rows.isEmpty) {
-      throw StateError('no customer row for google_user_id $googleUserId');
-    }
-    return (rows.first as Map)['phone'] as String;
-  }
+  /// Own phone resolved from the customers row — now via shared resolver (ARCH-03)
+  Future<String> _phoneFor(String googleUserId) async =>
+      requirePhone(supabase, googleUserId);
 
   @override
   Future<CustomerRecord> loadByGoogleUserId(String googleUserId) async {

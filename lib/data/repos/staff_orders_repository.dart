@@ -13,7 +13,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
 import '../../domain/order_status_flow.dart';
+import 'order_items_parser.dart';
 import 'orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
+
+export 'order_items_parser.dart' show OrderItemLine, parseItemLines, itemsSummaryLine;
 
 // ---------------------------------------------------------------------------
 // Errors + results
@@ -64,35 +67,6 @@ const fallbackAvgPrepMinutes = 8;
 /// Board page size shared by the realtime feed and the phone→name input
 /// page (§11.27 bounded reads — never an unbounded table scan).
 const staffBoardPageLimit = 60;
-
-/// One flattened line of the `orders.items` jsonb snapshot.
-class OrderItemLine {
-  const OrderItemLine({required this.name, required this.qty});
-
-  final String name;
-  final int qty;
-}
-
-List<OrderItemLine> parseItemLines(Object? itemsJson) {
-  if (itemsJson is! List) return const [];
-  return [
-    for (final raw in itemsJson)
-      if (raw is Map)
-        OrderItemLine(
-          name: (raw['name_ar'] as String?) ?? '',
-          qty: raw['qty'] is num ? (raw['qty'] as num).toInt() : 1,
-        ),
-  ];
-}
-
-/// `لاتيه ×2 · كرواسون ×1` — items summary line for the board card.
-String itemsSummaryLine(List<OrderItemLine> lines,
-    {String separator = ' · '}) {
-  return [
-    for (final line in lines)
-      line.qty <= 1 ? line.name : '${line.name} ×${line.qty}',
-  ].join(separator);
-}
 
 /// Read model of one `orders` row as Staff sees it.
 class StaffOrder {

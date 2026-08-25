@@ -59,6 +59,7 @@ class SupabaseMenuRepository implements MenuRepository {
     ];
   }
 
+  @Deprecated('Use fetchPage or fetchPageByCategory with pagination — full table loop is dead code for UI (ARCH-06)')
   @override
   Future<CatalogSnapshot> fetchCatalog() async {
     // Backwards compat: fetch all via paginated range internally.
