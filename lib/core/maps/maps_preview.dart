@@ -54,7 +54,6 @@ class MapsPreview extends StatelessWidget {
                     color: AppColors.primaryContainer.withValues(alpha: 0.18),
                     borderColor: AppColors.primary,
                     borderStrokeWidth: 2,
-                    isFilled: true,
                   ),
                 ],
               ),
