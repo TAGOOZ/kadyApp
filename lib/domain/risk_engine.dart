@@ -23,7 +23,7 @@ extension RiskLevelX on RiskLevel {
         'low' => RiskLevel.low,
         'medium' => RiskLevel.medium,
         'high' => RiskLevel.high,
-        _ => RiskLevel.low,
+        _ => throw ArgumentError.value(wire, 'wire', 'unknown RiskLevel'),
       };
 }
 
@@ -41,7 +41,7 @@ extension RiskActionX on RiskAction {
         'approved' => RiskAction.approved,
         'needs_verification' => RiskAction.needsVerification,
         'rejected' => RiskAction.rejected,
-        _ => RiskAction.approved,
+        _ => throw ArgumentError.value(wire, 'wire', 'unknown RiskAction'),
       };
 }
 
@@ -84,7 +84,7 @@ extension RuleCodeX on RuleCode {
         'THREE_PLUS_SUCCESSFUL' => RuleCode.threePlusSuccessful,
         'FIVE_PLUS_SUCCESSFUL' => RuleCode.fivePlusSuccessful,
         'VERIFIED_PHONE' => RuleCode.verifiedPhone,
-        _ => RuleCode.newCustomer,
+        _ => throw ArgumentError.value(wire, 'wire', 'unknown RuleCode'),
       };
 }
 
@@ -110,7 +110,10 @@ class RiskConfig {
     this.rapidOrdersWindowMinutes = kRiskRapidOrdersWindowMinutes,
     this.maxVerificationAttempts = kRiskMaxVerificationAttempts,
     this.verificationExpiryMinutes = kRiskVerificationExpiryMinutes,
-  });
+  })  : assert(lowMaxScore < mediumMaxScore,
+            'lowMaxScore must be < mediumMaxScore'),
+        assert(lowMaxScore >= 0 && mediumMaxScore <= 100,
+            'thresholds must be within 0..100');
 
   static const RiskConfig fallback = RiskConfig();
 
@@ -129,12 +132,12 @@ class RiskConfig {
     int intFor(List<String> candidates, int fallback) {
       for (final k in candidates) {
         final v = map[k];
-        if (v is num) return v.toInt();
+        if (v is num) return v is int ? v : v.round();
         if (v is String) {
           final parsed = int.tryParse(v);
           if (parsed != null) return parsed;
           final asDouble = double.tryParse(v);
-          if (asDouble != null) return asDouble.toInt();
+          if (asDouble != null) return asDouble.round();
         }
       }
       return fallback;
@@ -285,16 +288,29 @@ class RiskResult {
 // ---------------------------------------------------------------------------
 
 RiskLevel _levelForScore(int score, RiskConfig config) {
-  if (score <= config.lowMaxScore) return RiskLevel.low;
-  if (score <= config.mediumMaxScore) return RiskLevel.medium;
+  // Defensive: normalize if admin mis-edited thresholds out of order.
+  final low = config.lowMaxScore < config.mediumMaxScore
+      ? config.lowMaxScore
+      : config.mediumMaxScore;
+  final medium = config.lowMaxScore < config.mediumMaxScore
+      ? config.mediumMaxScore
+      : config.lowMaxScore;
+  if (score <= low) return RiskLevel.low;
+  if (score <= medium) return RiskLevel.medium;
   return RiskLevel.high;
 }
 
 RiskAction _actionForScore(int score, RiskConfig config) {
   // Action thresholds mirror level thresholds (configurable via same config).
   // low → approved, medium → needs_verification, high → rejected.
-  if (score <= config.lowMaxScore) return RiskAction.approved;
-  if (score <= config.mediumMaxScore) return RiskAction.needsVerification;
+  final low = config.lowMaxScore < config.mediumMaxScore
+      ? config.lowMaxScore
+      : config.mediumMaxScore;
+  final medium = config.lowMaxScore < config.mediumMaxScore
+      ? config.mediumMaxScore
+      : config.lowMaxScore;
+  if (score <= low) return RiskAction.approved;
+  if (score <= medium) return RiskAction.needsVerification;
   return RiskAction.rejected;
 }
 
@@ -311,6 +327,9 @@ RiskResult calculateRisk(
   final catalog = rules ?? kDefaultRiskRules;
   // Index by RuleCode for O(1) lookup and enabled check.
   final byCode = {for (final r in catalog) r.code: r};
+  if (byCode.length != catalog.length) {
+    throw ArgumentError('duplicate RuleCode in risk catalog');
+  }
 
   int score = 0;
   final reasons = <RuleCode>[];
@@ -345,10 +364,15 @@ RiskResult calculateRisk(
 
   apply(RuleCode.rapidOrders, context.isRapidOrders);
 
-  // Successful-order bonuses are exclusive: 5+ supersedes 3+.
-  if (context.successfulOrders >= 5) {
+  // Successful-order bonuses are exclusive: 5+ supersedes 3+, but
+  // fallback to 3+ when 5+ is disabled (admin tuning).
+  final fiveRule = byCode[RuleCode.fivePlusSuccessful];
+  final threeRule = byCode[RuleCode.threePlusSuccessful];
+  final hasFive = fiveRule != null && fiveRule.enabled;
+  final hasThree = threeRule != null && threeRule.enabled;
+  if (context.successfulOrders >= 5 && hasFive) {
     apply(RuleCode.fivePlusSuccessful, true);
-  } else if (context.successfulOrders >= 3) {
+  } else if (context.successfulOrders >= 3 && hasThree) {
     apply(RuleCode.threePlusSuccessful, true);
   }
 

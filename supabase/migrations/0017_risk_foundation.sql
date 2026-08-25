@@ -153,7 +153,7 @@ begin
       and policyname = 'risk_rules_public_read'
   ) then
     create policy risk_rules_public_read on public.risk_rules
-      for select to public using (true);
+      for select to authenticated using (true);
   end if;
 
   if not exists (
@@ -182,6 +182,26 @@ insert into public.risk_rules (rule_code, description, score, enabled) values
   ('FIVE_PLUS_SUCCESSFUL',      'Five or more successful orders',           -30, true),
   ('VERIFIED_PHONE',            'Phone verified',                           -15, true)
 on conflict (rule_code) do nothing;
+
+-- Harden RLS for existing DBs where policy was created as TO public (review fix):
+-- anon should not read risk scores; recreate as TO authenticated if needed.
+do $risk_rls_harden$
+begin
+  -- Drop old public-read policy if it exists with TO public
+  if exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'risk_rules'
+      and policyname = 'risk_rules_public_read'
+  ) then
+    -- Check if it grants to public (roles contains public)
+    -- pg_policies.roles is array; inspect via pg_policy view
+    -- Simpler: always drop and recreate as authenticated (idempotent)
+    drop policy if exists risk_rules_public_read on public.risk_rules;
+    create policy risk_rules_public_read on public.risk_rules
+      for select to authenticated using (true);
+  end if;
+end;
+$risk_rls_harden$;
 
 -- ---------------------------------------------------------------------------
 -- 6. Fix pre-existing credit_new_order slice bug (discovered during RISK-01 smoke)
@@ -268,8 +288,8 @@ begin
     double_next_order = false,
     vouchers          = coalesce(ls->'vouchers', '[]'::jsonb),
     processed_orders  = (
-      select jsonb_agg(elem) from (
-        select elem from jsonb_array_elements(jsonb_build_array(new.id::text) || l.processed_orders) with ordinality t(elem, ord) where ord <= 100
+      select coalesce(jsonb_agg(elem), '[]'::jsonb) from (
+        select elem from jsonb_array_elements(jsonb_build_array(new.id::text) || coalesce(l.processed_orders, '[]'::jsonb)) with ordinality t(elem, ord) where ord <= 100
       ) s
     ),
     updated_at        = now()

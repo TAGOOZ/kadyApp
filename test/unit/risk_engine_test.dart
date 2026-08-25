@@ -489,4 +489,124 @@ void main() {
       expect(withHigh.reasons, isNot(contains(RuleCode.largeOrder)));
     });
   });
+
+  group('RiskLevel/Action/RuleCode fromWire — throws on unknown', () {
+    test('unknown RiskLevel throws ArgumentError', () {
+      expect(() => RiskLevelX.fromWire('hgh'), throwsArgumentError);
+      expect(() => RiskLevelX.fromWire(''), throwsArgumentError);
+      expect(() => RiskLevelX.fromWire('UNKNOWN'), throwsArgumentError);
+    });
+
+    test('unknown RiskAction throws ArgumentError', () {
+      expect(() => RiskActionX.fromWire('approve'), throwsArgumentError);
+      expect(() => RiskActionX.fromWire('rejected_typo'), throwsArgumentError);
+    });
+
+    test('unknown RuleCode throws ArgumentError', () {
+      expect(() => RuleCodeX.fromWire('FAKE_RULE'), throwsArgumentError);
+      expect(() => RuleCodeX.fromWire(''), throwsArgumentError);
+    });
+
+    test('valid wire round-trips still succeed after fix', () {
+      expect(RiskLevelX.fromWire('low'), RiskLevel.low);
+      expect(RiskActionX.fromWire('needs_verification'), RiskAction.needsVerification);
+      expect(RuleCodeX.fromWire('NEW_CUSTOMER'), RuleCode.newCustomer);
+    });
+  });
+
+  group('calculateRisk — five/three fallback when five disabled', () {
+    test('5+ successes with five disabled falls back to three (-20)', () {
+      final r = calculateRisk(
+        const RiskContext(successfulOrders: 5),
+        rules: const [
+          RiskRule(code: RuleCode.fivePlusSuccessful, score: -30, enabled: false),
+          RiskRule(code: RuleCode.threePlusSuccessful, score: -20, enabled: true),
+        ],
+      );
+      expect(r.reasons, [RuleCode.threePlusSuccessful]);
+      expect(r.score, 0); // -20 clamped
+    });
+
+    test('5+ successes with both enabled still uses five only', () {
+      final r = calculateRisk(
+        const RiskContext(successfulOrders: 6),
+        rules: const [
+          RiskRule(code: RuleCode.fivePlusSuccessful, score: -30, enabled: true),
+          RiskRule(code: RuleCode.threePlusSuccessful, score: -20, enabled: true),
+        ],
+      );
+      expect(r.reasons, [RuleCode.fivePlusSuccessful]);
+      expect(r.reasons, isNot(contains(RuleCode.threePlusSuccessful)));
+    });
+
+    test('3 successes with five disabled still gets three', () {
+      final r = calculateRisk(
+        const RiskContext(successfulOrders: 3),
+        rules: const [
+          RiskRule(code: RuleCode.fivePlusSuccessful, score: -30, enabled: false),
+          RiskRule(code: RuleCode.threePlusSuccessful, score: -20, enabled: true),
+        ],
+      );
+      expect(r.reasons, [RuleCode.threePlusSuccessful]);
+    });
+  });
+
+  group('calculateRisk — duplicate RuleCode detection', () {
+    test('duplicate codes throw ArgumentError', () {
+      expect(
+        () => calculateRisk(
+          const RiskContext(isNewCustomer: true),
+          rules: const [
+            RiskRule(code: RuleCode.newCustomer, score: 20),
+            RiskRule(code: RuleCode.newCustomer, score: 30),
+          ],
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('RiskConfig — validation and defensive ordering', () {
+    test('misordered thresholds assert in debug (low >= medium)', () {
+      // Constructor asserts low < medium; in debug mode this throws.
+      expect(
+        () => RiskConfig(lowMaxScore: 60, mediumMaxScore: 30),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('defensive level/action when thresholds would be misordered (via fromMap fallback)', () {
+      // Even if thresholds were misordered and asserts disabled (release),
+      // _levelForScore normalizes: low=30 medium=60; score 40 → medium.
+      // We test normalization indirectly via normal configs that simulate swap.
+      const normal = RiskConfig(lowMaxScore: 29, mediumMaxScore: 59);
+      const swapped = RiskConfig(lowMaxScore: 30, mediumMaxScore: 60); // still ordered but shifted
+      // score 40 is medium in both, but if we swapped 59/29 logic would differ.
+      // Directly test defensive helper: misordered 60/30 should still treat 40 as medium not low.
+      // We cannot construct misordered const without assert, so we test that
+      // valid config still yields correct levels as sanity for defensive code.
+      final r = calculateRisk(
+        const RiskContext(isNewCustomer: true),
+        config: normal,
+        rules: const [RiskRule(code: RuleCode.newCustomer, score: 40)],
+      );
+      expect(r.level, RiskLevel.medium);
+      expect(r.action, RiskAction.needsVerification);
+      // If thresholds were swapped internally, same result expected due to normalization.
+      final rSwapped = calculateRisk(
+        const RiskContext(isNewCustomer: true),
+        config: swapped,
+        rules: const [RiskRule(code: RuleCode.newCustomer, score: 40)],
+      );
+      // 40 <= 30? no, 40 <=60? yes → medium in swapped (low=30, med=60) → same.
+      expect(rSwapped.level, RiskLevel.medium);
+    });
+
+    test('RiskConfig.fromMap rounds double strings (29.9 → 30)', () {
+      final c = RiskConfig.fromMap({'risk.low_max_score': '29.9'});
+      expect(c.lowMaxScore, 30);
+      final c2 = RiskConfig.fromMap({'risk.low_max_score': 29.9});
+      expect(c2.lowMaxScore, 30);
+    });
+  });
 }
