@@ -670,30 +670,27 @@ class AdminKpiRepository {
     final monthCutoff =
         now.subtract(const Duration(days: 30)).toUtc().toIso8601String();
 
-    final ordersToday = await _readCountOrZero(
-      () => _db.count(
-        'orders',
-        gte: (column: 'created_at', value: dayStartUtc),
+    final results = await Future.wait([
+      _readCountOrZero(
+        () => _db.count(
+          'orders',
+          gte: (column: 'created_at', value: dayStartUtc),
+        ),
       ),
-    );
-    final phoneRows = await _readOrEmpty(
-      () => _db.select(
-        'orders',
-        columns: 'phone',
-        gte: (column: 'created_at', value: monthCutoff),
+      _readOrEmpty(
+        () => _db.select(
+          'orders',
+          columns: 'phone, subtotal, total',
+          gte: (column: 'created_at', value: monthCutoff),
+        ),
       ),
-    );
-    final basketRows = await _readOrEmpty(
-      () => _db.select(
-        'orders',
-        columns: 'subtotal, total',
-        gte: (column: 'created_at', value: monthCutoff),
-      ),
-    );
+    ]);
+    final ordersToday = results[0] as int;
+    final rows30d = results[1] as List<Map<String, dynamic>>;
     return AdminKpis(
       ordersToday: ordersToday,
-      activeCustomers: distinctPhones(phoneRows),
-      avgBasketEgp: averageBasketEgp(basketRows),
+      activeCustomers: distinctPhones(rows30d),
+      avgBasketEgp: averageBasketEgp(rows30d),
     );
   }
 

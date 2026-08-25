@@ -207,11 +207,10 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
   Future<List<AddressRecord>> listAddresses({
     required String googleUserId,
   }) async {
-    final phone = await _phoneFor(googleUserId);
     final rows = await supabase
         .from('addresses')
-        .select()
-        .eq('phone', phone)
+        .select('id, label, address_text, customers!inner(google_user_id)')
+        .eq('customers.google_user_id', googleUserId)
         .order('created_at', ascending: true);
     return rows
         .map((row) => AddressRecord.fromRow(Map<String, dynamic>.from(row as Map)))

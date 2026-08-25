@@ -16,7 +16,8 @@
 	"upload_source_maps": true,
 	"vars": {
 		"SUPABASE_URL": "https://zrlhtwmzuljsqricpxbb.supabase.co",
-		"FRONTEND_URL": "https://kady.pages.dev"
+		"FRONTEND_URL": "https://kady.pages.dev",
+		"WEBHOOK_SECRET": "change-me-in-cloudflare-dashboard"
 	},
 	"triggers": {
 		"crons": ["0 2 * * *"]

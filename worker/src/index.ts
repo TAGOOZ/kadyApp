@@ -39,9 +39,9 @@ export default {
 		//   URL: https://kady-api.example.workers.dev/webhooks/supabase
 		//   (optionally add secret header and verify below)
 		if (url.pathname === "/webhooks/supabase" && request.method === "POST") {
-			// Optional: verify `x-webhook-secret` header
-			// const secret = request.headers.get("x-webhook-secret");
-			// if (secret !== env.WEBHOOK_SECRET) return new Response("Forbidden", { status: 403 });
+			const secret = request.headers.get("x-webhook-secret");
+			const expected = (env as unknown as { WEBHOOK_SECRET?: string }).WEBHOOK_SECRET;
+			if (!expected || secret !== expected) return new Response("Forbidden", { status: 403 });
 			const body = await request.json().catch(() => null);
 			// Enqueue bg work without blocking the webhook response
 			ctx.waitUntil(handleSupabaseWebhook(body, env));
