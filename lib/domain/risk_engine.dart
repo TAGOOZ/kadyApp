@@ -25,6 +25,17 @@ extension RiskLevelX on RiskLevel {
         'high' => RiskLevel.high,
         _ => throw ArgumentError.value(wire, 'wire', 'unknown RiskLevel'),
       };
+
+  /// Null-tolerant variant for historic nullable `orders.risk_level`.
+  /// Returns null on null/unknown instead of throwing.
+  static RiskLevel? tryFromWire(String? wire) {
+    if (wire == null) return null;
+    try {
+      return fromWire(wire);
+    } on ArgumentError {
+      return null;
+    }
+  }
 }
 
 /// Risk action wire vocabulary — stored in orders.risk_action.
@@ -43,6 +54,16 @@ extension RiskActionX on RiskAction {
         'rejected' => RiskAction.rejected,
         _ => throw ArgumentError.value(wire, 'wire', 'unknown RiskAction'),
       };
+
+  /// Null-tolerant variant for historic nullable `orders.risk_action`.
+  static RiskAction? tryFromWire(String? wire) {
+    if (wire == null) return null;
+    try {
+      return fromWire(wire);
+    } on ArgumentError {
+      return null;
+    }
+  }
 }
 
 /// Canonical rule codes — match risk_rules.rule_code seeds (plan §7).
@@ -86,6 +107,16 @@ extension RuleCodeX on RuleCode {
         'VERIFIED_PHONE' => RuleCode.verifiedPhone,
         _ => throw ArgumentError.value(wire, 'wire', 'unknown RuleCode'),
       };
+
+  /// Null-tolerant variant; returns null on null/unknown.
+  static RuleCode? tryFromWire(String? wire) {
+    if (wire == null) return null;
+    try {
+      return fromWire(wire);
+    } on ArgumentError {
+      return null;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +158,13 @@ class RiskConfig {
 
   /// Parses flat {key: scalar} map from app_config. Keys may be dotted
   /// (risk.low_max_score) or underscored (risk_low_max_score); bare
-  /// low_max_score also accepted. Unknown/missing keys keep seed defaults.
+  /// low_max_score also accepted. Unlike [LoyaltyRulesConfig.fromMap]
+  /// (bare keys only), risk keys are namespaced so all three forms are
+  /// accepted; keep strategies consistent.
+  /// Unknown/missing keys keep seed defaults. Doubles/double-strings are
+  /// rounded (29.9→30) not truncated. Throws [ArgumentError] if thresholds
+  /// are misordered or out of 0..100 so admin mis-edits surface immediately
+  /// (release-safe, not just assert).
   factory RiskConfig.fromMap(Map<String, dynamic> map) {
     int intFor(List<String> candidates, int fallback) {
       for (final k in candidates) {
@@ -143,15 +180,32 @@ class RiskConfig {
       return fallback;
     }
 
+    final low = intFor(
+      ['risk.low_max_score', 'risk_low_max_score', 'low_max_score'],
+      RiskConfig.fallback.lowMaxScore,
+    );
+    final medium = intFor(
+      ['risk.medium_max_score', 'risk_medium_max_score', 'medium_max_score'],
+      RiskConfig.fallback.mediumMaxScore,
+    );
+    if (low >= medium) {
+      throw ArgumentError.value(
+        {'low': low, 'medium': medium},
+        'RiskConfig',
+        'lowMaxScore must be < mediumMaxScore',
+      );
+    }
+    if (low < 0 || medium > 100) {
+      throw ArgumentError.value(
+        {'low': low, 'medium': medium},
+        'RiskConfig',
+        'thresholds must be within 0..100',
+      );
+    }
+
     return RiskConfig(
-      lowMaxScore: intFor(
-        ['risk.low_max_score', 'risk_low_max_score', 'low_max_score'],
-        RiskConfig.fallback.lowMaxScore,
-      ),
-      mediumMaxScore: intFor(
-        ['risk.medium_max_score', 'risk_medium_max_score', 'medium_max_score'],
-        RiskConfig.fallback.mediumMaxScore,
-      ),
+      lowMaxScore: low,
+      mediumMaxScore: medium,
       largeOrderThreshold: intFor(
         [
           'risk.large_order_threshold',
@@ -215,6 +269,8 @@ class RiskRule {
 }
 
 /// Default catalog — scores match plan §7 and 0017 seeds; enabled honoured.
+/// `risk_rules.configuration` jsonb is reserved for per-rule tuning and
+/// currently ignored by the Dart engine; keep SQL and Dart in sync (see file header).
 const List<RiskRule> kDefaultRiskRules = [
   RiskRule(code: RuleCode.newCustomer, score: 20, description: 'First order for this phone'),
   RiskRule(code: RuleCode.newDevice, score: 10, description: 'First order from this device'),
@@ -287,30 +343,28 @@ class RiskResult {
 // Pure engine
 // ---------------------------------------------------------------------------
 
+({int low, int medium}) _normalizedThresholds(RiskConfig c) {
+  // fromMap already validates low < medium; this is last-resort for
+  // direct const misconstruction (assert disabled in release).
+  if (c.lowMaxScore < c.mediumMaxScore) {
+    return (low: c.lowMaxScore, medium: c.mediumMaxScore);
+  }
+  return (low: c.mediumMaxScore, medium: c.lowMaxScore);
+}
+
 RiskLevel _levelForScore(int score, RiskConfig config) {
-  // Defensive: normalize if admin mis-edited thresholds out of order.
-  final low = config.lowMaxScore < config.mediumMaxScore
-      ? config.lowMaxScore
-      : config.mediumMaxScore;
-  final medium = config.lowMaxScore < config.mediumMaxScore
-      ? config.mediumMaxScore
-      : config.lowMaxScore;
-  if (score <= low) return RiskLevel.low;
-  if (score <= medium) return RiskLevel.medium;
+  final t = _normalizedThresholds(config);
+  if (score <= t.low) return RiskLevel.low;
+  if (score <= t.medium) return RiskLevel.medium;
   return RiskLevel.high;
 }
 
 RiskAction _actionForScore(int score, RiskConfig config) {
   // Action thresholds mirror level thresholds (configurable via same config).
   // low → approved, medium → needs_verification, high → rejected.
-  final low = config.lowMaxScore < config.mediumMaxScore
-      ? config.lowMaxScore
-      : config.mediumMaxScore;
-  final medium = config.lowMaxScore < config.mediumMaxScore
-      ? config.mediumMaxScore
-      : config.lowMaxScore;
-  if (score <= low) return RiskAction.approved;
-  if (score <= medium) return RiskAction.needsVerification;
+  final t = _normalizedThresholds(config);
+  if (score <= t.low) return RiskAction.approved;
+  if (score <= t.medium) return RiskAction.needsVerification;
   return RiskAction.rejected;
 }
 
@@ -328,7 +382,16 @@ RiskResult calculateRisk(
   // Index by RuleCode for O(1) lookup and enabled check.
   final byCode = {for (final r in catalog) r.code: r};
   if (byCode.length != catalog.length) {
-    throw ArgumentError('duplicate RuleCode in risk catalog');
+    final seen = <RuleCode>{};
+    final dupes = <RuleCode>{};
+    for (final r in catalog) {
+      if (!seen.add(r.code)) dupes.add(r.code);
+    }
+    throw ArgumentError.value(
+      catalog,
+      'rules',
+      'duplicate RuleCode(s): ${dupes.map((c) => c.wireName).join(', ')}',
+    );
   }
 
   int score = 0;

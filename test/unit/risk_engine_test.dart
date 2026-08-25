@@ -512,6 +512,23 @@ void main() {
       expect(RiskActionX.fromWire('needs_verification'), RiskAction.needsVerification);
       expect(RuleCodeX.fromWire('NEW_CUSTOMER'), RuleCode.newCustomer);
     });
+
+    test('tryFromWire returns null on null/unknown (historic nullable rows)', () {
+      expect(RiskLevelX.tryFromWire(null), isNull);
+      expect(RiskLevelX.tryFromWire('hgh'), isNull);
+      expect(RiskLevelX.tryFromWire(''), isNull);
+      expect(RiskActionX.tryFromWire(null), isNull);
+      expect(RiskActionX.tryFromWire('bad'), isNull);
+      expect(RuleCodeX.tryFromWire(null), isNull);
+      expect(RuleCodeX.tryFromWire('FAKE'), isNull);
+    });
+
+    test('tryFromWire returns value on valid wire', () {
+      expect(RiskLevelX.tryFromWire('low'), RiskLevel.low);
+      expect(RiskLevelX.tryFromWire('high'), RiskLevel.high);
+      expect(RiskActionX.tryFromWire('approved'), RiskAction.approved);
+      expect(RuleCodeX.tryFromWire('NEW_CUSTOMER'), RuleCode.newCustomer);
+    });
   });
 
   group('calculateRisk — five/three fallback when five disabled', () {
@@ -552,7 +569,7 @@ void main() {
   });
 
   group('calculateRisk — duplicate RuleCode detection', () {
-    test('duplicate codes throw ArgumentError', () {
+    test('duplicate codes throw ArgumentError with code name', () {
       expect(
         () => calculateRisk(
           const RiskContext(isNewCustomer: true),
@@ -561,7 +578,13 @@ void main() {
             RiskRule(code: RuleCode.newCustomer, score: 30),
           ],
         ),
-        throwsArgumentError,
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            contains('NEW_CUSTOMER'),
+          ),
+        ),
       );
     });
   });
@@ -572,6 +595,40 @@ void main() {
       expect(
         () => RiskConfig(lowMaxScore: 60, mediumMaxScore: 30),
         throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('RiskConfig.fromMap throws on misordered thresholds (release-safe)', () {
+      expect(
+        () => RiskConfig.fromMap({
+          'risk.low_max_score': 60,
+          'risk.medium_max_score': 30,
+        }),
+        throwsArgumentError,
+      );
+      expect(
+        () => RiskConfig.fromMap({
+          'risk.low_max_score': 30,
+          'risk.medium_max_score': 30,
+        }),
+        throwsArgumentError,
+      );
+    });
+
+    test('RiskConfig.fromMap throws on out-of-range 0..100', () {
+      expect(
+        () => RiskConfig.fromMap({
+          'risk.low_max_score': -1,
+          'risk.medium_max_score': 50,
+        }),
+        throwsArgumentError,
+      );
+      expect(
+        () => RiskConfig.fromMap({
+          'risk.low_max_score': 29,
+          'risk.medium_max_score': 101,
+        }),
+        throwsArgumentError,
       );
     });
 
@@ -607,6 +664,16 @@ void main() {
       expect(c.lowMaxScore, 30);
       final c2 = RiskConfig.fromMap({'risk.low_max_score': 29.9});
       expect(c2.lowMaxScore, 30);
+    });
+
+    test('RiskConfig.fromMap documents dotted/underscored/bare equivalence', () {
+      // Unlike LoyaltyRulesConfig (bare keys only), risk supports all three.
+      final dotted = RiskConfig.fromMap({'risk.low_max_score': 10});
+      final underscored = RiskConfig.fromMap({'risk_low_max_score': 10});
+      final bare = RiskConfig.fromMap({'low_max_score': 10});
+      expect(dotted.lowMaxScore, 10);
+      expect(underscored.lowMaxScore, 10);
+      expect(bare.lowMaxScore, 10);
     });
   });
 }

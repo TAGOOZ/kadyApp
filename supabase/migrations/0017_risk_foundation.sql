@@ -134,7 +134,7 @@ create table if not exists public.risk_rules (
   updated_at  timestamptz not null default now()
 );
 
-comment on table public.risk_rules is 'Rule catalog for risk engine; scores match plan §7; disabled-flags honoured by calculateRisk.';
+comment on table public.risk_rules is 'Rule catalog for risk engine; scores match plan §7; disabled-flags honoured by calculateRisk. configuration jsonb reserved for future per-rule tuning (currently ignored by Dart engine — keep SQL/Dart in sync).';
 
 -- keep updated_at fresh
 drop trigger if exists trg_risk_rules_updated_at on public.risk_rules;
