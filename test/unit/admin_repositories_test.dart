@@ -194,17 +194,14 @@ void main() {
       expect(counts, hasLength(1));
       expect(counts.single.values['gte'], startsWith('created_at@2026-08-2'));
 
-      // Two windowed selects with column-bounded payloads (no `*`).
+      // One windowed select with combined phone,subtotal,total (PERF-02: was 2×30d selects)
       final selects = db.where('select', 'orders').toList();
-      expect(selects, hasLength(2));
-      expect(selects.map((s) => s.values['columns']), contains('phone'));
-      expect(
-          selects.map((s) => s.values['columns']),
-          contains('subtotal, total'));
-      for (final s in selects) {
-        expect(s.values['columns'], isNot('*'));
-        expect(s.values['gte'], startsWith('created_at@2026-07-'));
-      }
+      expect(selects, hasLength(1));
+      expect(selects.single.values['columns'], contains('phone'));
+      expect(selects.single.values['columns'], contains('subtotal'));
+      expect(selects.single.values['columns'], contains('total'));
+      expect(selects.single.values['columns'], isNot('*'));
+      expect(selects.single.values['gte'], startsWith('created_at@2026-07-'));
     });
 
     test('empty window degrades to zeros', () async {

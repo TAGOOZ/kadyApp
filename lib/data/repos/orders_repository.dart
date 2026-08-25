@@ -49,15 +49,16 @@ int totalOf({required int subtotalEgp, required int deliveryFeeEgp}) {
   return subtotalEgp + deliveryFeeEgp;
 }
 
-/// Deprecated: preview diverged from canonical rule (10 vs 20 pts for same
-/// subtotal when doubleWindow or custom pointsPer10). Use [earnedFor] from
-/// loyalty_rules.dart instead — single source of truth (ARCH-06).
+/// Deprecated: preview diverged from canonical rule when doubleWindow or
+/// custom pointsPer10 is active (preview 10 vs earnedFor 20). Kept for
+/// backwards compat; new code should use [earnedFor] from loyalty_rules.dart
+/// (ARCH-06). This still does roundHalfUp with dine-in multiplier for
+/// offline preview (no doubleWindow).
 @Deprecated('Use earnedFor from loyalty_rules.dart')
 int pointsPreviewFor({required int subtotalEgp, required OrderMode mode}) {
-  // Delegate to canonical earnedFor with fallback config and no double window
-  // (preview is offline-safe; live double window comes from loyaltyProvider).
-  // Kept for backwards compat — will be removed next slice.
-  return (subtotalEgp / 10).floor(); // legacy floor preview, kept to avoid breaking callers that still import it
+  final base = subtotalEgp / egpPerPoint;
+  final scaled = mode == OrderMode.dineIn ? base * dineInMultiplier : base;
+  return roundHalfUp(scaled);
 }
 
 /// Canonical preview — delegates to loyalty_rules.earnedFor with fallback config.

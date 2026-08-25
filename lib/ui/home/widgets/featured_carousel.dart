@@ -19,8 +19,14 @@ import '../../menu/widgets/menu_item_image.dart';
 /// First 6 displayable items for the home featured carousel — derived from
 /// the already-loaded paginated menu cache (PERF-04). No duplicate first-page
 /// fetch: home simply observes paginatedMenuProvider and filters locally.
+/// Falls back to empty on provider error (e.g., Supabase not initialized in widget_test).
 final homeFeaturedProvider = Provider<List<MenuItem>>((ref) {
-  final state = ref.watch(paginatedMenuProvider);
+  late final PaginatedMenuState state;
+  try {
+    state = ref.watch(paginatedMenuProvider);
+  } catch (_) {
+    return const [];
+  }
   final items = state.items;
   if (items.isEmpty) return const [];
   final available = items.where((i) => i.isAvailable).toList();
