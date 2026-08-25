@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/l10n/strings_admin.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../data/repos/admin_repositories.dart';
+import '../../../data/repos/admin_rules_repository.dart';
 
 class RulesEditor extends StatelessWidget {
   const RulesEditor({
