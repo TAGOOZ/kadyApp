@@ -25,9 +25,9 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/maps/maps_config.dart';
 import '../../core/maps/maps_preview.dart';
-import '../../core/supabase/supabase_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/driver_orders_repository.dart';
+import '../../data/repos/driver_positions_repository.dart';
 import '../../data/repos/orders_repository.dart' show cairoUtcOffset;
 import '../../domain/driver_profile_provider.dart';
 import 'widgets/delivery_progress_bar.dart';
@@ -464,15 +464,15 @@ class _DriverOrderDetailScreenState
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
-      final uid = supabase.auth.currentUser?.id;
+      final gateway = ref.read(driverPositionsGatewayProvider);
+      final uid = gateway.currentUserId;
       if (uid == null) return;
-      await supabase.from('driver_positions').upsert({
-        'driver_id': uid,
-        'order_id': widget.order.id,
-        'lat': pos.latitude,
-        'lng': pos.longitude,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      });
+      await gateway.upsertPosition(
+        driverId: uid,
+        orderId: widget.order.id,
+        lat: pos.latitude,
+        lng: pos.longitude,
+      );
     } catch (_) {}
   }
 

@@ -5,14 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_auth.dart';
 import '../../core/l10n/strings_profile.dart';
-import '../../core/supabase/supabase_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/address.dart';
+import '../../data/repos/avatar_storage_repository.dart';
 import '../../data/repos/customers_repository.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/loyalty_controller.dart';
@@ -84,14 +83,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (picked == null) return;
       final bytes = await picked.readAsBytes();
       final path = '$uid/avatar.jpg';
+      final storage = ref.read(avatarStorageGatewayProvider);
       try {
-        await supabase.storage.from('avatars').uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+        await storage.uploadAvatar(path, bytes);
       } catch (_) {
         // Bucket may not exist yet — show local preview anyway.
       }
       String? publicUrl;
       try {
-        publicUrl = supabase.storage.from('avatars').getPublicUrl(path);
+        publicUrl = storage.getPublicUrl(path);
       } catch (_) {}
       if (!mounted) return;
       setState(() {

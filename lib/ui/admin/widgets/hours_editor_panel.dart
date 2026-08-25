@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/l10n/strings_admin.dart';
-import '../../../core/supabase/supabase_config.dart';
+import '../../../data/repos/hours_repository.dart';
 import '../../../core/theme/app_theme.dart';
 
 class HoursEditorPanel extends ConsumerStatefulWidget {
@@ -33,10 +33,10 @@ class _HoursEditorPanelState extends ConsumerState<HoursEditorPanel> {
 
   Future<void> _load() async {
     try {
-      final rows = await supabase.from('hours').select().order('day');
+      final rows = await ref.read(hoursRepositoryProvider).fetchAll();
       if (!mounted) return;
       setState(() {
-        _hours = List<Map<String, dynamic>>.from(rows as List);
+        _hours = rows;
         _loading = false;
       });
     } catch (_) {
@@ -53,7 +53,7 @@ class _HoursEditorPanelState extends ConsumerState<HoursEditorPanel> {
     final prev = Map<String, dynamic>.from(hours[idx]);
     setState(() => _hours![idx] = {...prev, 'delivery_enabled': enabled});
     try {
-      await supabase.from('hours').update({'delivery_enabled': enabled}).eq('day', day);
+      await ref.read(hoursRepositoryProvider).updateDay(day, {'delivery_enabled': enabled});
       await _load();
     } catch (_) {
       if (!mounted) return;
@@ -93,7 +93,7 @@ class _HoursEditorPanelState extends ConsumerState<HoursEditorPanel> {
     final prev = Map<String, dynamic>.from(hours[idx]);
     setState(() => _hours![idx] = {...prev, column: newVal});
     try {
-      await supabase.from('hours').update({column: newVal}).eq('day', day);
+      await ref.read(hoursRepositoryProvider).updateDay(day, {column: newVal});
       await _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.strings.saved)));
     } catch (_) {
@@ -112,7 +112,7 @@ class _HoursEditorPanelState extends ConsumerState<HoursEditorPanel> {
     final patch = closed ? {'open': null, 'close': null} : {'open': '09:00', 'close': '23:00'};
     setState(() => _hours![idx] = {...prev, ...patch});
     try {
-      await supabase.from('hours').update(patch).eq('day', day);
+      await ref.read(hoursRepositoryProvider).updateDay(day, patch);
       await _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.strings.saved)));
     } catch (_) {

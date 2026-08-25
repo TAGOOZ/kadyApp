@@ -87,6 +87,22 @@ class _DineInDraft extends CheckoutDraftController {
   CheckoutDraft build() => const CheckoutDraft(mode: OrderMode.dineIn);
 }
 
+class _FailingOrdersRepo extends _FakeOrdersRepo {
+  @override
+  Future<PlacedOrder> placeOrder(NewOrder order) async {
+    placeOrderCalls++;
+    lastOrder = order;
+    throw Exception('RLS denied');
+  }
+}
+
+class _DeliveryFakeRepo extends _FakeOrdersRepo {
+  @override
+  Future<List<SavedAddress>> fetchAddresses(String googleUserId) async => [
+        SavedAddress(id: 'addr-1', label: AddressLabel.home, addressText: 'شارع النيل ١٠'),
+      ];
+}
+
 GoRouter _router() {
   return GoRouter(
     initialLocation: '/checkout',
@@ -101,6 +117,45 @@ GoRouter _router() {
       ),
     ],
   );
+}
+
+Future<void> _pumpWithDraft(
+  WidgetTester tester, {
+  required AuthState authState,
+  required OrdersRepo repo,
+  required CheckoutDraft Function() draftBuilder,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        ordersRepoProvider.overrideWithValue(repo),
+        authControllerProvider.overrideWith(() => _FixedAuth(authState)),
+        checkoutDraftProvider.overrideWith(
+          // ignore: avoid_types_on_closure_parameters
+          () => _CustomDraft(draftBuilder),
+        ),
+      ],
+      child: MaterialApp.router(
+        routerConfig: _router(),
+        builder: (context, child) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: child!,
+        ),
+      ),
+    ),
+  );
+  final element = tester.element(find.byType(CheckoutScreen));
+  final container = ProviderScope.containerOf(element);
+  container.read(cartProvider.notifier).addItem(_tea, const ItemConfig(), qty: 2);
+  container.read(cartProvider.notifier).addItem(_biscuit, const ItemConfig());
+  await tester.pumpAndSettle();
+}
+
+class _CustomDraft extends CheckoutDraftController {
+  _CustomDraft(this.builder);
+  final CheckoutDraft Function() builder;
+  @override
+  CheckoutDraft build() => builder();
 }
 
 Future<void> _pump(
@@ -259,5 +314,70 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('تتبع الطلب'), findsOneWidget);
+  });
+
+  testWidgets('pickup renders totals without fee and succeeds without table', (tester) async {
+    final repo = _FakeOrdersRepo();
+    await _pumpWithDraft(tester, authState: _ready, repo: repo, draftBuilder: () => const CheckoutDraft(mode: OrderMode.pickup));
+    expect(find.text('95 ج.م'), findsNWidgets(2));
+    expect(find.text('رسوم التوصيل'), findsNothing);
+    expect(find.text('استلام'), findsWidgets);
+    await tester.tap(find.text('تأكيد الطلب · 95 ج.م'));
+    await tester.pumpAndSettle();
+    expect(repo.placeOrderCalls, 1);
+    expect(repo.lastOrder!.mode, OrderMode.pickup);
+    expect(repo.lastOrder!.deliveryFeeEgp, 0);
+    expect(repo.lastOrder!.totalEgp, 95);
+    expect(repo.lastOrder!.pickupSlotUtc, isNull);
+  });
+
+  testWidgets('delivery renders fee row and total includes fee, address required', (tester) async {
+    final repo = _DeliveryFakeRepo();
+    await _pumpWithDraft(tester, authState: _ready, repo: repo, draftBuilder: () => const CheckoutDraft(mode: OrderMode.delivery, addressId: 'addr-1'));
+    // subtotal 95, fee 15, total 110
+    expect(find.text('95 ج.م'), findsOneWidget);
+    expect(find.text('15 ج.م'), findsOneWidget);
+    expect(find.text('110 ج.م'), findsOneWidget);
+    expect(find.text('رسوم التوصيل'), findsOneWidget);
+    await tester.tap(find.text('تأكيد الطلب · 110 ج.م'));
+    await tester.pumpAndSettle();
+    expect(repo.placeOrderCalls, 1);
+    expect(repo.lastOrder!.mode, OrderMode.delivery);
+    expect(repo.lastOrder!.deliveryFeeEgp, 15);
+    expect(repo.lastOrder!.totalEgp, 110);
+    expect(repo.lastOrder!.addressId, 'addr-1');
+  });
+
+  testWidgets('delivery without address blocks submit', (tester) async {
+    final repo = _DeliveryFakeRepo();
+    await _pumpWithDraft(tester, authState: _ready, repo: repo, draftBuilder: () => const CheckoutDraft(mode: OrderMode.delivery));
+    await tester.tap(find.text('تأكيد الطلب · 110 ج.م'));
+    await tester.pumpAndSettle();
+    expect(find.text('لازم تختار عنوان التوصيل الأول'), findsOneWidget);
+    expect(repo.placeOrderCalls, 0);
+  });
+
+  testWidgets('pickup with future slot persists slotUtc', (tester) async {
+    final repo = _FakeOrdersRepo();
+    final slot = DateTime.utc(2026, 8, 30, 12, 0);
+    await _pumpWithDraft(tester, authState: _ready, repo: repo, draftBuilder: () => CheckoutDraft(mode: OrderMode.pickup, pickupTiming: PickupTiming.slot(slot)));
+    await tester.tap(find.text('تأكيد الطلب · 95 ج.م'));
+    await tester.pumpAndSettle();
+    expect(repo.placeOrderCalls, 1);
+    expect(repo.lastOrder!.pickupSlotUtc, slot);
+  });
+
+  testWidgets('submit failure shows snackbar and keeps form', (tester) async {
+    final repo = _FailingOrdersRepo();
+    await _pump(tester, authState: _ready, repo: repo);
+    await tester.enterText(find.byType(TextField), '12');
+    await tester.tap(find.text('تأكيد الطلب · 95 ج.م'));
+    await tester.pumpAndSettle();
+    expect(repo.placeOrderCalls, 1);
+    // error snackbar (submitFailed) — Arabic copy
+    expect(find.text('فشل إرسال الطلب — حاول تاني'), findsOneWidget);
+    // form still present, button re-enabled
+    expect(find.text('تأكيد الطلب · 95 ج.م'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 }

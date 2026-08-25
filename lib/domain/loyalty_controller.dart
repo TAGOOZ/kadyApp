@@ -1,123 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../core/supabase/supabase_config.dart';
+import 'loyalty_gateway.dart';
 import 'loyalty_rules.dart';
+import 'loyalty_state.dart';
 
-/// Voucher types granted by stamp cards and games.
-enum VoucherType { freeDrink, freeTopping, freeSnack }
-
-extension VoucherTypeX on VoucherType {
-  String get key => switch (this) {
-        VoucherType.freeDrink => 'free_drink',
-        VoucherType.freeTopping => 'free_topping',
-        VoucherType.freeSnack => 'free_snack',
-      };
-
-  static VoucherType fromKey(String key) => switch (key) {
-        'free_drink' => VoucherType.freeDrink,
-        'free_topping' => VoucherType.freeTopping,
-        'free_snack' => VoucherType.freeSnack,
-        _ => VoucherType.freeSnack,
-      };
-}
-
-class Voucher {
-  const Voucher({required this.type, required this.grantedAt});
-  final VoucherType type;
-  final DateTime grantedAt;
-
-  Map<String, dynamic> toJson() => {'type': type.key, 'at': grantedAt.toIso8601String()};
-  factory Voucher.fromJson(Map<String, dynamic> j) => Voucher(
-        type: VoucherTypeX.fromKey(j['type'] as String),
-        grantedAt: DateTime.parse(j['at'] as String),
-      );
-}
-
-enum Tier { bronze, silver, gold }
-
-/// Tier thresholds — mirrored from `app_config` seeds (admin-editable later, #015).
-const int kTierSilver = 2000;
-const int kTierGold = 5000;
-
-Tier derivedTier(int lifetimePoints) {
-  if (lifetimePoints >= kTierGold) return Tier.gold;
-  if (lifetimePoints >= kTierSilver) return Tier.silver;
-  return Tier.bronze;
-}
-
-class LoyaltyState {
-  const LoyaltyState({
-    this.points = 0,
-    this.lifetimePoints = 0,
-    this.stamps = 0,
-    this.completedCards = 0,
-    this.spinnerTokens = 0,
-    this.matchTokens = 0,
-    this.scratchTokens = 0,
-    this.doubleNextOrder = false,
-    this.vouchers = const [],
-    this.processedOrders = const [],
-  });
-
-  final int points;
-  final int lifetimePoints;
-  final int stamps;
-  final int completedCards;
-  final int spinnerTokens;
-  final int matchTokens;
-  final int scratchTokens;
-  final bool doubleNextOrder;
-  final List<Voucher> vouchers;
-
-  /// Order ids already credited — mirrors the `loyalty_state.processed_orders`
-  /// jsonb guard list (idempotent crediting, #007).
-  final List<String> processedOrders;
-
-  Tier get tier => derivedTier(lifetimePoints);
-
-  factory LoyaltyState.fromJson(Map<String, dynamic> j) => LoyaltyState(
-        points: (j['points'] as num?)?.toInt() ?? 0,
-        lifetimePoints: (j['lifetime_points'] as num?)?.toInt() ?? 0,
-        stamps: (j['stamps'] as num?)?.toInt() ?? 0,
-        completedCards: (j['completed_cards'] as num?)?.toInt() ?? 0,
-        spinnerTokens: (j['spinner_tokens'] as num?)?.toInt() ?? 0,
-        matchTokens: (j['match_tokens'] as num?)?.toInt() ?? 0,
-        scratchTokens: (j['scratch_tokens'] as num?)?.toInt() ?? 0,
-        doubleNextOrder: (j['double_next_order'] as bool?) ?? false,
-        vouchers: ((j['vouchers'] as List?) ?? [])
-            .map((v) => Voucher.fromJson(v as Map<String, dynamic>))
-            .toList(),
-        processedOrders: ((j['processed_orders'] as List?) ?? [])
-            .map((e) => e.toString())
-            .toList(),
-      );
-
-  LoyaltyState copyWith({
-    int? points,
-    int? lifetimePoints,
-    int? stamps,
-    int? completedCards,
-    int? spinnerTokens,
-    int? matchTokens,
-    int? scratchTokens,
-    bool? doubleNextOrder,
-    List<Voucher>? vouchers,
-    List<String>? processedOrders,
-  }) =>
-      LoyaltyState(
-        points: points ?? this.points,
-        lifetimePoints: lifetimePoints ?? this.lifetimePoints,
-        stamps: stamps ?? this.stamps,
-        completedCards: completedCards ?? this.completedCards,
-        spinnerTokens: spinnerTokens ?? this.spinnerTokens,
-        matchTokens: matchTokens ?? this.matchTokens,
-        scratchTokens: scratchTokens ?? this.scratchTokens,
-        doubleNextOrder: doubleNextOrder ?? this.doubleNextOrder,
-        vouchers: vouchers ?? this.vouchers,
-        processedOrders: processedOrders ?? this.processedOrders,
-      );
-}
+export 'loyalty_state.dart';
 
 /// Reads/writes the signed-in Customer's `loyalty_state` row.
 /// Auth-less (guest) sessions resolve to an empty zero state.
@@ -125,7 +12,7 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   @override
   LoyaltyState build() => const LoyaltyState();
 
-  SupabaseClient get _client => supabase;
+  LoyaltyGateway get _gateway => ref.read(loyaltyGatewayProvider);
 
   /// Loads state for the given authenticated google_user_id.
   ///
@@ -135,17 +22,13 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   /// (a later grant would otherwise persist from the wiped base).
   Future<void> refreshFor(String googleUserId) async {
     try {
-      final rows = await _client
-          .from('customers')
-          .select('phone, loyalty_state(points, lifetime_points, stamps, completed_cards, spinner_tokens, match_tokens, scratch_tokens, double_next_order, vouchers, processed_orders)')
-          .eq('google_user_id', googleUserId)
-          .limit(1);
-      if (rows.isNotEmpty) {
-        final inner = (rows.first as Map)['loyalty_state'];
-        state = inner == null
-            ? const LoyaltyState()
-            : LoyaltyState.fromJson(Map<String, dynamic>.from(inner as Map));
+      final fetched = await _gateway.fetchState(googleUserId);
+      if (fetched != null) {
+        state = fetched.state;
       } else {
+        // No customers row → zero state (genuine empty, not failure)
+        // Check if fetch returned null due to missing row vs error:
+        // fetchState returns null only on missing row; errors throw and are caught below.
         state = const LoyaltyState();
       }
       _lastRefreshFailed = false;
@@ -177,12 +60,7 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     final cached = _configCache;
     if (cached != null) return cached;
     try {
-      final rows =
-          await _client.from('app_config').select('key,value') as List;
-      final map = <String, dynamic>{
-        for (final row in rows.cast<Map>())
-          row['key'] as String: row['value'],
-      };
+      final map = await _gateway.fetchConfig();
       _configCache = map;
       return map;
     } catch (_) {
@@ -214,21 +92,19 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     try {
       var base = state;
       String? phone;
-      final uid = _client.auth.currentUser?.id;
+      final uid = _gateway.currentUserId;
       if (uid != null) {
-        final rows = await _client
-            .from('customers')
-            .select('phone, loyalty_state(points, lifetime_points, stamps, completed_cards, spinner_tokens, match_tokens, scratch_tokens, double_next_order, vouchers, processed_orders)')
-            .eq('google_user_id', uid)
-            .limit(1);
-        if (rows.isNotEmpty) {
-          final row = (rows.first as Map);
-          phone = row['phone'] as String?;
-          final inner = row['loyalty_state'];
-          if (inner != null) {
-            base = LoyaltyState.fromJson(
-                Map<String, dynamic>.from(inner as Map));
+        try {
+          final fetched = await _gateway.fetchState(uid);
+          if (fetched != null) {
+            phone = fetched.phone;
+            base = fetched.state;
+          } else {
+            // No row yet — keep in-memory base, phone stays null → local only
+            phone = await _gateway.fetchPhone(uid);
           }
+        } catch (_) {
+          // Fetch failed → keep in-memory base, treat as offline
         }
       }
 
@@ -257,40 +133,12 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       next = markProcessed(next, orderId);
       if (doubleWindow) next = next.copyWith(doubleNextOrder: false);
 
-      // Optimistic update first; persistence via RPC (SECURITY-01: direct RLS UPDATE revoked)
+      // Optimistic update first; persistence via gateway (SECURITY-01)
       state = next;
       if (phone == null) return; // guest / customer row missing → local only
       try {
-        await _client.rpc('persist_loyalty_state', params: {
-          'p_phone': phone,
-          'p_points': next.points,
-          'p_lifetime_points': next.lifetimePoints,
-          'p_stamps': next.stamps,
-          'p_completed_cards': next.completedCards,
-          'p_spinner_tokens': next.spinnerTokens,
-          'p_match_tokens': next.matchTokens,
-          'p_scratch_tokens': next.scratchTokens,
-          'p_double_next_order': next.doubleNextOrder,
-          'p_vouchers': next.vouchers.map((v) => v.toJson()).toList(),
-          'p_processed_orders': next.processedOrders,
-        });
-      } catch (_) {
-        // Fallback to direct update for tests/fake that haven't mocked RPC yet
-        try {
-          await _client.from('loyalty_state').update({
-            'points': next.points,
-            'lifetime_points': next.lifetimePoints,
-            'stamps': next.stamps,
-            'completed_cards': next.completedCards,
-            'spinner_tokens': next.spinnerTokens,
-            'match_tokens': next.matchTokens,
-            'scratch_tokens': next.scratchTokens,
-            'double_next_order': next.doubleNextOrder,
-            'vouchers': next.vouchers.map((v) => v.toJson()).toList(),
-            'processed_orders': next.processedOrders,
-          }).eq('phone', phone);
-        } catch (_) {}
-      }
+        await _gateway.persist(phone, next);
+      } catch (_) {}
     } catch (_) {
       // Offline policy: optimistic local state stands.
     }
@@ -298,47 +146,14 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   // -- Game tokens & grants (shared seam for slices #008/#009/#010) ----------
 
   /// Best-effort persist of the current [state] to the signed-in Customer's
-  /// `loyalty_state` row via RPC (SECURITY-01). No-op when unauthenticated.
+  /// `loyalty_state` row via gateway (SECURITY-01). No-op when unauthenticated.
   Future<void> _persist() async {
     try {
-      final uid = _client.auth.currentUser?.id;
+      final uid = _gateway.currentUserId;
       if (uid == null) return;
-      final rows = await _client
-          .from('customers')
-          .select('phone')
-          .eq('google_user_id', uid)
-          .limit(1);
-      if (rows.isEmpty) return;
-      final phone = (rows.first as Map)['phone'] as String;
-      try {
-        await _client.rpc('persist_loyalty_state', params: {
-          'p_phone': phone,
-          'p_points': state.points,
-          'p_lifetime_points': state.lifetimePoints,
-          'p_stamps': state.stamps,
-          'p_completed_cards': state.completedCards,
-          'p_spinner_tokens': state.spinnerTokens,
-          'p_match_tokens': state.matchTokens,
-          'p_scratch_tokens': state.scratchTokens,
-          'p_double_next_order': state.doubleNextOrder,
-          'p_vouchers': state.vouchers.map((v) => v.toJson()).toList(),
-          'p_processed_orders': state.processedOrders,
-        });
-      } catch (_) {
-        // Fallback for fakes/tests
-        await _client.from('loyalty_state').update({
-          'points': state.points,
-          'lifetime_points': state.lifetimePoints,
-          'stamps': state.stamps,
-          'completed_cards': state.completedCards,
-          'spinner_tokens': state.spinnerTokens,
-          'match_tokens': state.matchTokens,
-          'scratch_tokens': state.scratchTokens,
-          'double_next_order': state.doubleNextOrder,
-          'vouchers': state.vouchers.map((v) => v.toJson()).toList(),
-          'processed_orders': state.processedOrders,
-        }).eq('phone', phone);
-      }
+      final phone = await _gateway.fetchPhone(uid);
+      if (phone == null) return;
+      await _gateway.persist(phone, state);
     } catch (_) {
       // Offline policy: optimistic local state stands.
     }

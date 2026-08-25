@@ -7,7 +7,7 @@
 import 'dart:math' as math;
 
 import '../data/repos/orders_repository.dart';
-import 'loyalty_controller.dart';
+import 'loyalty_state.dart';
 
 // ---------------------------------------------------------------------------
 // Config — seed constants (offline fallbacks) + parse from app_config rows

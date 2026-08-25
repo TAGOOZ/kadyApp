@@ -72,9 +72,12 @@ abstract class CustomersRepo {
 }
 
 class SupabaseCustomersRepo implements CustomersRepo {
+  SupabaseCustomersRepo(this._client);
+  final SupabaseClient _client;
+
   @override
   Future<CustomerRecord?> findByGoogleUserId(String googleUserId) async {
-    final row = await supabase
+    final row = await _client
         .from('customers')
         .select()
         .eq('google_user_id', googleUserId)
@@ -86,7 +89,7 @@ class SupabaseCustomersRepo implements CustomersRepo {
   @override
   Future<CustomerRecord> upsert(CustomerUpsert customer) async {
     try {
-      final row = await supabase
+      final row = await _client
           .from('customers')
           .upsert(customer.toRow(), onConflict: 'phone')
           .select()
@@ -163,13 +166,16 @@ abstract class CustomerProfileRepo {
 }
 
 class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
+  SupabaseCustomerProfileRepo(this._client);
+  final SupabaseClient _client;
+
   /// Own phone resolved from the customers row — now via shared resolver (ARCH-03)
   Future<String> _phoneFor(String googleUserId) async =>
-      requirePhone(supabase, googleUserId);
+      requirePhone(_client, googleUserId);
 
   @override
   Future<CustomerRecord> loadByGoogleUserId(String googleUserId) async {
-    final row = await supabase
+    final row = await _client
         .from('customers')
         .select()
         .eq('google_user_id', googleUserId)
@@ -185,7 +191,7 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
     required String phone,
     required CustomerPatch patch,
   }) async {
-    final row = await supabase
+    final row = await _client
         .from('customers')
         .update(patch.toRow())
         .eq('phone', phone)
@@ -198,7 +204,7 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
   Future<List<AddressRecord>> listAddresses({
     required String googleUserId,
   }) async {
-    final rows = await supabase
+    final rows = await _client
         .from('addresses')
         .select('id, label, address_text, customers!inner(google_user_id)')
         .eq('customers.google_user_id', googleUserId)
@@ -215,7 +221,7 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
     required String addressText,
   }) async {
     final phone = await _phoneFor(googleUserId);
-    final row = await supabase.from('addresses').insert({
+    final row = await _client.from('addresses').insert({
       'phone': phone,
       'label': label.key,
       'address_text': addressText.trim(),
@@ -227,7 +233,7 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
   Future<AddressRecord> updateAddress({
     required AddressRecord address,
   }) async {
-    final row = await supabase
+    final row = await _client
         .from('addresses')
         .update({
           'label': address.label.key,
@@ -241,14 +247,14 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
 
   @override
   Future<void> deleteAddress({required String addressId}) async {
-    await supabase.from('addresses').delete().eq('id', addressId);
+    await _client.from('addresses').delete().eq('id', addressId);
   }
 }
 
 final customersRepoProvider = Provider<CustomersRepo>(
-  (ref) => SupabaseCustomersRepo(),
+  (ref) => SupabaseCustomersRepo(supabase),
 );
 
 final customerProfileRepoProvider = Provider<CustomerProfileRepo>(
-  (ref) => SupabaseCustomerProfileRepo(),
+  (ref) => SupabaseCustomerProfileRepo(supabase),
 );

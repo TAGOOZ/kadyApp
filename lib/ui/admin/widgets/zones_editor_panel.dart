@@ -13,7 +13,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/l10n/strings_admin.dart';
 import '../../../core/maps/maps_config.dart';
 import '../../../core/maps/maps_preview.dart';
-import '../../../core/supabase/supabase_config.dart';
+import '../../../data/repos/zones_repository.dart';
 import '../../../core/theme/app_theme.dart';
 
 class ZonesEditorPanel extends ConsumerStatefulWidget {
@@ -36,10 +36,10 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
 
   Future<void> _load() async {
     try {
-      final rows = await supabase.from('zones').select().order('fee');
+      final rows = await ref.read(zonesRepositoryProvider).fetchAll();
       if (!mounted) return;
       setState(() {
-        _zones = List<Map<String, dynamic>>.from(rows as List);
+        _zones = rows;
         _loading = false;
       });
     } catch (_) {
@@ -95,7 +95,7 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
     final prev = List<Map<String, dynamic>>.from(zones);
     setState(() => _zones!.removeAt(idx));
     try {
-      await supabase.from('zones').delete().eq('id', id);
+      await ref.read(zonesRepositoryProvider).delete(id);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.strings.saved)));
       await _load();
     } catch (_) {
@@ -203,9 +203,9 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
     if (result == null) return;
     try {
       if (isEdit) {
-        await supabase.from('zones').update(result).eq('id', zone['id']);
+        await ref.read(zonesRepositoryProvider).update(zone['id'] as String, result);
       } else {
-        await supabase.from('zones').insert(result);
+        await ref.read(zonesRepositoryProvider).insert(result);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.strings.saved)));
