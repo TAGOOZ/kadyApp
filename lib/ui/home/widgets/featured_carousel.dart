@@ -12,19 +12,18 @@ import '../../../core/l10n/strings_home.dart';
 import '../../../core/l10n/strings_menu.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/menu_models.dart';
-import '../../../data/repos/supabase_menu_repository.dart';
+import '../../menu/menu_pagination_controller.dart';
 import '../../menu/item_detail_sheet.dart';
 import '../../menu/widgets/menu_item_image.dart';
 
-/// First 6 displayable items for the home featured carousel.
-/// V1: first page (20) filtered to available + image-or-not, take 6.
-/// No new DB column; keeps the home off the category pills. Next slice
-/// (`menu_items.is_featured bool`) will replace the filter when adopted.
-final homeFeaturedProvider = FutureProvider<List<MenuItem>>((ref) async {
-  final repo = ref.watch(menuRepositoryProvider);
-  final (_, items) = await repo.fetchPage(offset: 0, limit: 20);
+/// First 6 displayable items for the home featured carousel — derived from
+/// the already-loaded paginated menu cache (PERF-04). No duplicate first-page
+/// fetch: home simply observes paginatedMenuProvider and filters locally.
+final homeFeaturedProvider = Provider<List<MenuItem>>((ref) {
+  final state = ref.watch(paginatedMenuProvider);
+  final items = state.items;
+  if (items.isEmpty) return const [];
   final available = items.where((i) => i.isAvailable).toList();
-  // Prefer items with photos, fall back to any available.
   final withPhoto = available
       .where((i) => i.imageUrl != null && i.imageUrl!.trim().isNotEmpty)
       .toList();

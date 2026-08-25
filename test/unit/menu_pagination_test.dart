@@ -56,6 +56,19 @@ class FakeMenuRepo implements MenuRepository {
 
   @override
   Future<List<MenuCategory>> fetchAllCategories() async => _allCategories;
+
+  @override
+  Future<CatalogSnapshot> fetchPageByCategory({
+    required String categorySlug,
+    int offset = 0,
+    int limit = 20,
+  }) async {
+    final filtered = _allItems.where((i) => i.categorySlug == categorySlug).toList();
+    final end = (offset + limit).clamp(0, filtered.length);
+    final slice = offset >= filtered.length ? <MenuItem>[] : filtered.sublist(offset, end);
+    final cats = _allCategories.where((c) => c.slug == categorySlug).toList();
+    return (cats, slice);
+  }
 }
 
 void main() {

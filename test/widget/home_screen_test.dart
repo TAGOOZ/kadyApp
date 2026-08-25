@@ -123,7 +123,7 @@ Future<void> _pump(
         lastCompletedOrderFetcherProvider.overrideWith(
           (ref) => (String phone) async => lastCompletedOrder,
         ),
-        homeFeaturedProvider.overrideWith((ref) async => featured),
+        homeFeaturedProvider.overrideWith((ref) => featured),
       ],
       child: MaterialApp.router(
         routerConfig: _router(),

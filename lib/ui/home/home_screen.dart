@@ -13,7 +13,6 @@ import '../../core/l10n/strings_home.dart';
 import '../../core/theme/app_theme.dart';
 import '../../domain/qr_checkin.dart';
 import '../staff/widgets/qr_scanner_sheet.dart';
-import '../../data/models/menu_models.dart';
 import '../../data/repos/order_queries.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/loyalty_controller.dart';
@@ -88,12 +87,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final firstName =
         signedIn && googleName.isNotEmpty ? googleName.split(' ').first : '';
 
-    // Featured discovery — curated 6 (v1: first page without migration;
-    // v2 will use menu_items.is_featured when it lands).
-    final featuredAsync = ref.watch(homeFeaturedProvider);
-    final featured = featuredAsync.hasValue
-        ? (featuredAsync.value ?? const <MenuItem>[])
-        : const <MenuItem>[];
+    // Featured discovery — derived from paginated cache (PERF-04, no duplicate fetch)
+    final featured = ref.watch(homeFeaturedProvider);
 
     final blocks = <Widget>[
       GreetingHeader(

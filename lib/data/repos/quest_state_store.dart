@@ -174,12 +174,17 @@ class SupabaseQuestFeed implements QuestFeedRepo {
 
   @override
   Future<List<QuestOrderInput>> fetchCompletedOrders(String googleUserId) async {
+    final monthStart = DateTime(DateTime.now().year, DateTime.now().month, 1)
+        .toUtc()
+        .toIso8601String();
     final rows = await _client //
         .from('orders')
         .select('id, mode, created_at, items')
         .eq('google_user_id', googleUserId)
         .eq('status', 'done')
-        .order('created_at', ascending: false);
+        .gte('created_at', monthStart)
+        .order('created_at', ascending: false)
+        .limit(100);
     return [
       for (final row in List<Map<String, dynamic>>.from(rows as List))
         QuestOrderInput(
@@ -283,8 +288,12 @@ final questSnapshotProvider = FutureProvider.autoDispose<QuestSnapshot>(
       offline = true;
     }
     try {
-      final orders = await feed.fetchCompletedOrders(googleUserId);
-      final categories = await feed.fetchItemCategories();
+      final results = await Future.wait([
+        feed.fetchCompletedOrders(googleUserId),
+        feed.fetchItemCategories(),
+      ]);
+      final orders = results[0] as List<QuestOrderInput>;
+      final categories = results[1] as Map<String, String>;
       return QuestSnapshot(
         orders: applyMatchNightFlags(orders, windows.matchNight),
         itemCategories: categories,

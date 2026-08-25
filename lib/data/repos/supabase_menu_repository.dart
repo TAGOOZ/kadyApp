@@ -29,6 +29,21 @@ class SupabaseMenuRepository implements MenuRepository {
   }
 
   @override
+  Future<CatalogSnapshot> fetchPageByCategory({
+    required String categorySlug,
+    int offset = 0,
+    int limit = 20,
+  }) async {
+    final rows = await _client
+        .from('menu_items')
+        .select('*, menu_categories!inner(slug, name_ar, name_en, sort)')
+        .eq('menu_categories.slug', categorySlug)
+        .order('sort', ascending: true)
+        .range(offset, offset + limit - 1);
+    return _parseRows(rows);
+  }
+
+  @override
   Future<List<MenuCategory>> fetchAllCategories() async {
     final rows = await _client
         .from('menu_categories')

@@ -57,6 +57,19 @@ class FakePaginatedMenuRepo implements MenuRepository {
 
   @override
   Future<List<MenuCategory>> fetchAllCategories() async => categories;
+
+  @override
+  Future<CatalogSnapshot> fetchPageByCategory({
+    required String categorySlug,
+    int offset = 0,
+    int limit = 20,
+  }) async {
+    final filtered = _all.where((i) => i.categorySlug == categorySlug).toList();
+    final end = (offset + limit).clamp(0, filtered.length);
+    final slice = offset >= filtered.length ? <MenuItem>[] : filtered.sublist(offset, end);
+    final cats = categories.where((c) => c.slug == categorySlug).toList();
+    return (cats, slice);
+  }
 }
 
 /// Locale fixed to Arabic to check RTL and Western digits.
@@ -196,6 +209,15 @@ class _ErrorMenuRepo implements MenuRepository {
 
   @override
   Future<CatalogSnapshot> fetchPage({int offset = 0, int limit = 20}) async {
+    throw Exception('network');
+  }
+
+  @override
+  Future<CatalogSnapshot> fetchPageByCategory({
+    required String categorySlug,
+    int offset = 0,
+    int limit = 20,
+  }) async {
     throw Exception('network');
   }
 

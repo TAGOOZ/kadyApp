@@ -14,6 +14,13 @@ abstract class MenuRepository {
   /// Default 20 per page per FEATURES §27 (Lists: paginated infinite scroll 20).
   Future<CatalogSnapshot> fetchPage({int offset = 0, int limit = 20});
 
+  /// Server-filtered page for one category — single RTT (PERF-06).
+  Future<CatalogSnapshot> fetchPageByCategory({
+    required String categorySlug,
+    int offset = 0,
+    int limit = 20,
+  });
+
   /// All categories (12) — used to render filter pills before items are fully
   /// paginated. Categories are tiny (id, slug, names) so loading all at once
   /// is cheap and fixes "filters not all shown" when first page only has 2-3 cats.

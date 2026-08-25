@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_admin.dart';
 import '../../core/logout.dart';
@@ -660,12 +662,19 @@ class _MenuTabState extends ConsumerState<_MenuTab> {
                           ? const Icon(Icons.image_outlined, size: 20, color: AppColors.outline)
                           : ClipRRect(
                               borderRadius: BorderRadius.circular(4),
-                              child: Image.network(
-                                item.imageUrl!,
+                              child: CachedNetworkImage(
+                                imageUrl: item.imageUrl!,
                                 width: 36,
                                 height: 36,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined, size: 20, color: AppColors.outline),
+                                placeholder: (_, _) => const SizedBox(
+                                  width: 36,
+                                  height: 36,
+                                  child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+                                ),
+                                errorWidget: (_, _, _) => const Icon(Icons.broken_image_outlined, size: 20, color: AppColors.outline),
+                                memCacheWidth: 72,
+                                memCacheHeight: 72,
                               ),
                             ),
                       title: Text(
