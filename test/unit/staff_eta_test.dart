@@ -16,10 +16,17 @@ void main() {
     });
 
     test('StaffOrder has expectedReadyAt field', () {
-      final content = File('lib/data/repos/staff_orders_repository.dart').readAsStringSync();
-      expect(content, contains('expectedReadyAt'));
-      expect(content, contains('expected_ready_at'));
-      expect(content, contains('fromRow'));
+      // ARCH-02 split: StaffOrder lives in staff_orders_models.dart, repo in
+      // staff_orders_repository.dart — check either (barrel covers both).
+      final repoContent = File('lib/data/repos/staff_orders_repository.dart').readAsStringSync();
+      final modelsContent = File('lib/data/repos/staff_orders_models.dart').readAsStringSync();
+      final barrelContent = File('lib/data/repos/staff_orders.dart').existsSync()
+          ? File('lib/data/repos/staff_orders.dart').readAsStringSync()
+          : '';
+      final combined = repoContent + modelsContent + barrelContent;
+      expect(combined, contains('expectedReadyAt'));
+      expect(combined, contains('expected_ready_at'));
+      expect(combined, contains('fromRow'));
     });
 
     test('repo has method to set expected ready time', () {

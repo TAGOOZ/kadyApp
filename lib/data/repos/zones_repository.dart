@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'admin_repositories.dart';
+import 'admin_db.dart';
 
 class ZonesRepository {
   const ZonesRepository(this._db);

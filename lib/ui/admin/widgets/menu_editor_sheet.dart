@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/l10n/strings_admin.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../data/repos/admin_repositories.dart';
+import '../../../data/repos/admin_menu_repository.dart';
 
 /// Shows the editor sheet; returns the collected [MenuItemDraft] on save,
 /// null on dismiss. For new items ([initial] absent) the slug is generated.
