@@ -25,6 +25,7 @@ import '../ui/staff/staff_board_screen.dart' deferred as staff_board;
 import '../ui/lookup/customer_lookup_screen.dart' deferred as lookup;
 import '../ui/driver/driver_home_screen.dart' deferred as driver_home;
 import '../ui/admin/admin_dashboard_screen.dart' deferred as admin_dashboard;
+import '../ui/admin/verification_screen.dart' deferred as verification_screen;
 
 String _homeFor(AppRole role) {
   return switch (role) {
@@ -130,6 +131,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       if (_isCustomerPath(location)) {
         return session.role == AppRole.customer ? null : _homeFor(session.role);
+      }
+      // Verification queue is shared between staff and admin (RISK-06) — allow both
+      if (_isPath(location, '/admin/verification') || _isPath(location, '/staff/verification')) {
+        if (session.role != AppRole.staff && session.role != AppRole.admin) {
+          return _homeFor(session.role);
+        }
+        return null;
       }
       if (_isPath(location, '/staff') && session.role != AppRole.staff) {
         return _homeFor(session.role);
@@ -299,6 +307,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (context) => admin_dashboard.AdminDashboardScreen(),
         ),
       ),
+      GoRoute(
+        path: '/admin/verification',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => _DeferredScreen(
+          loadLibrary: verification_screen.loadLibrary,
+          builder: (context) => verification_screen.VerificationScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/staff/verification',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => _DeferredScreen(
+          loadLibrary: verification_screen.loadLibrary,
+          builder: (context) => verification_screen.VerificationScreen(),
+        ),
+      ),
     ],
   );
   // Keep for test string checks - explicit FutureBuilder + loadLibrary references
@@ -313,6 +337,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     FutureBuilder<void>(future: lookup.loadLibrary(), builder: (_, _) => const SizedBox());
     FutureBuilder<void>(future: driver_home.loadLibrary(), builder: (_, _) => const SizedBox());
     FutureBuilder<void>(future: admin_dashboard.loadLibrary(), builder: (_, _) => const SizedBox());
+    FutureBuilder<void>(future: verification_screen.loadLibrary(), builder: (_, _) => const SizedBox());
   }
 
   ref.onDispose(router.dispose);
@@ -422,7 +447,6 @@ class _NotFoundScreen extends ConsumerWidget {
     );
   }
 }
-
 
 class _CustomerShell extends ConsumerWidget {
   const _CustomerShell({required this.shell});

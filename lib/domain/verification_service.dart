@@ -220,7 +220,7 @@ abstract class VerificationService {
 
   Future<void> confirmByStaff({required String orderId});
 
-  Future<void> rejectByStaff({required String orderId});
+  Future<void> rejectByStaff({required String orderId, String? reason});
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +252,7 @@ abstract class VerificationRepoForProvider {
 
   Future<void> confirmByStaff({required String orderId});
 
-  Future<void> rejectByStaff({required String orderId});
+  Future<void> rejectByStaff({required String orderId, String? reason});
 }
 
 /// MVP provider — no OTP, just creates pending row for staff to confirm/reject.
@@ -332,6 +332,6 @@ class VerificationServiceImpl implements VerificationService {
       _repo.confirmByStaff(orderId: orderId);
 
   @override
-  Future<void> rejectByStaff({required String orderId}) =>
-      _repo.rejectByStaff(orderId: orderId);
+  Future<void> rejectByStaff({required String orderId, String? reason}) =>
+      _repo.rejectByStaff(orderId: orderId, reason: reason);
 }
