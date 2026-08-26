@@ -91,10 +91,21 @@ class SupabaseVerificationRepo implements VerificationRepo {
       throw StateError('request_verification returned no row');
     } on PostgrestException catch (e) {
       _rethrowAsPermission(e);
-      // Race: concurrent insert hit partial unique index → return existing pending
+      // Race: concurrent insert hit partial unique index → return existing pending (pending-only)
       if (e.code == '23505') {
+        try {
+          final row = await _client
+              .from('verification_requests')
+              .select()
+              .eq('order_id', orderId)
+              .eq('status', 'pending')
+              .order('created_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
+          if (row != null) return VerificationRequest.fromRow(Map<String, dynamic>.from(row as Map));
+        } catch (_) {}
         final fetched = await fetchByOrderId(orderId);
-        if (fetched != null) return fetched;
+        if (fetched != null && fetched.status == VerificationStatus.pending) return fetched;
       }
       rethrow;
     } catch (e) {
@@ -197,10 +208,11 @@ class SupabaseVerificationRepo implements VerificationRepo {
           .eq('phone', phone)
           .eq('status', 'pending')
           .order('created_at', ascending: false);
+      final now = DateTime.now().toUtc();
       return [
         for (final r in List<Map<String, dynamic>>.from(rows as List))
           VerificationRequest.fromRow(r),
-      ];
+      ].where((req) => req.expiresAt == null || req.expiresAt!.toUtc().isAfter(now)).toList();
     } on PostgrestException catch (e) {
       if (e.code == '42501') throw const VerificationPermissionException();
       rethrow;

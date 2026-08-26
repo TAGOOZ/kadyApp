@@ -260,6 +260,10 @@ begin
    if not public.has_any_role(array['staff','admin']::text[]) and not exists (select 1 from public.customers where phone = v_phone and google_user_id = auth.uid()) then
      raise exception 'verification: not owner' using errcode = '42501';
    end if;
+  -- Bind p_phone to order's phone for non-staff — prevents attacker creating victim_order+attacker_phone row
+  if not public.has_any_role(array['staff','admin']::text[]) and v_phone <> v_order_phone then
+    raise exception 'verification: phone must match order phone' using errcode = '42501';
+  end if;
 
   -- Idempotent: if pending already exists for this order, return it (avoid duplicates)
    -- If expired but status still pending (lazy), flip to expired and create fresh.
