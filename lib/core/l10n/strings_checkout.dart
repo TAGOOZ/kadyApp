@@ -62,6 +62,7 @@ class CheckoutStrings {
     required this.trackCta,
     required this.trackingSoonStub,
     required this.backHomeCta,
+    required this.orderRejected,
 
     // Loyalty redemption (#007).
     required this.redeemToggleTemplate,
@@ -134,6 +135,7 @@ class CheckoutStrings {
   final String trackCta;
   final String trackingSoonStub;
   final String backHomeCta;
+  final String orderRejected;
 
   /// Loyalty redemption (#007).
   ///
@@ -233,6 +235,7 @@ abstract final class CheckoutStringsCatalog {
       trackCta: 'تتبع الطلب',
       trackingSoonStub: 'تتبع الحالة المباشر هيوصل قريب',
       backHomeCta: 'رجوع للرئيسية',
+      orderRejected: 'تم رفض الطلب تلقائياً — حاول تقليل المبلغ أو التواصل مع الدعم',
       redeemToggleTemplate: 'استخدم {cost} نقطة → {label}',
       redeemRemainingTemplate: 'رصيدك بعد الاستخدام: {points} نقطة',
       redeemLabelFreeDrink: 'مشروب مجاني',
@@ -295,6 +298,7 @@ abstract final class CheckoutStringsCatalog {
       trackCta: 'Track order',
       trackingSoonStub: 'Live tracking is coming soon',
       backHomeCta: 'Back to home',
+      orderRejected: 'Order automatically rejected — try a smaller total or contact support',
       redeemToggleTemplate: 'Use {cost} pts → {label}',
       redeemRemainingTemplate: 'Balance after: {points} pts',
       redeemLabelFreeDrink: 'Free drink',

@@ -32,6 +32,10 @@ class CustomerOrder {
     this.hasDriver = false,
     this.phone,
     this.addressId,
+    this.riskAction,
+    this.riskScore,
+    this.riskLevel,
+    this.riskReasons,
   });
 
   final String id;
@@ -60,6 +64,17 @@ class CustomerOrder {
   /// when wiring directions.
   final String? addressId;
 
+  /// RISK-04 risk gate fields (server-authoritative)
+  final String? riskAction;
+  final int? riskScore;
+  final String? riskLevel;
+  final List<String>? riskReasons;
+
+  bool get needsVerification => riskAction == 'needs_verification';
+  bool get isRejected => riskAction == 'rejected';
+  @Deprecated('Use isRejected')
+  bool get isHighRisk => isRejected;
+
   FlowMode? get flowMode => FlowMode.fromWire(modeWire);
 
   bool get isCompleted =>
@@ -77,6 +92,11 @@ class CustomerOrder {
         }
       }
     }
+    List<String>? parseReasons(Object? v) {
+      if (v is List) return v.map((e) => e.toString()).toList();
+      return null;
+    }
+
     return CustomerOrder(
       id: row['id'] as String,
       displayNumber: (row['display_number'] as num).toInt(),
@@ -90,6 +110,10 @@ class CustomerOrder {
       hasDriver: row['assigned_driver'] != null,
       phone: row['phone'] as String?,
       addressId: row['address_id'] as String?,
+      riskAction: row['risk_action'] as String?,
+      riskScore: (row['risk_score'] as num?)?.toInt(),
+      riskLevel: row['risk_level'] as String?,
+      riskReasons: parseReasons(row['risk_reasons']),
     );
   }
 }
@@ -135,7 +159,8 @@ class SupabaseOrderStatusRepo implements OrderStatusRepo {
         .from('orders')
         .select(
           'id, display_number, mode, status, reject_reason, items, '
-          'total, assigned_driver, phone, address_id, created_at',
+          'total, assigned_driver, phone, address_id, created_at, '
+          'risk_action, risk_score, risk_level, risk_reasons',
         )
         .eq('google_user_id', googleUserId)
         .order('created_at', ascending: false)

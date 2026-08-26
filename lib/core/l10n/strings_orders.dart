@@ -27,6 +27,23 @@ class OrdersStrings {
     required this.cancelReasonLabel,
     required this.deliveredBannerTemplate,
     required this.trackOrderTooltip,
+    required this.verificationTitle,
+    required this.verificationReasonsPrefix,
+    required this.verificationBody,
+    required this.rejectedBannerTemplate,
+    required this.reasonNewCustomer,
+    required this.reasonNewDevice,
+    required this.reasonPreviousFailedDelivery,
+    required this.reasonPreviousRejectedOrder,
+    required this.reasonThreePlusCancellations,
+    required this.reasonLargeOrder,
+    required this.reasonRapidOrders,
+    required this.reasonMultipleAccountsDevice,
+    required this.reasonMultipleAccountsAddress,
+    required this.reasonAddressHighFailure,
+    required this.reasonVerifiedPhone,
+    required this.reasonThreePlusSuccessful,
+    required this.reasonFivePlusSuccessful,
   });
 
   final String ordersTitle;
@@ -72,12 +89,50 @@ class OrdersStrings {
   /// Confirmation-screen snackbar fallback when the order id can't be
   /// resolved from display number alone.
   final String trackOrderTooltip;
+  final String verificationTitle;
+  final String verificationReasonsPrefix;
+  final String verificationBody;
+  final String rejectedBannerTemplate;
+  final String reasonNewCustomer;
+  final String reasonNewDevice;
+  final String reasonPreviousFailedDelivery;
+  final String reasonPreviousRejectedOrder;
+  final String reasonThreePlusCancellations;
+  final String reasonLargeOrder;
+  final String reasonRapidOrders;
+  final String reasonMultipleAccountsDevice;
+  final String reasonMultipleAccountsAddress;
+  final String reasonAddressHighFailure;
+  final String reasonVerifiedPhone;
+  final String reasonThreePlusSuccessful;
+  final String reasonFivePlusSuccessful;
 
   String itemsCount(int count) =>
       itemsCountTemplate.replaceAll('{items}', '$count');
 
   String deliveredBanner(String doneLabelAr) =>
       deliveredBannerTemplate.replaceAll('{label}', doneLabelAr);
+
+  String rejectedBanner(int score, String level) =>
+      rejectedBannerTemplate.replaceAll('{score}', '$score').replaceAll('{level}', level);
+
+  String humanizeReason(String wire) => switch (wire) {
+        'NEW_CUSTOMER' => reasonNewCustomer,
+        'NEW_DEVICE' => reasonNewDevice,
+        'PREVIOUS_FAILED_DELIVERY' => reasonPreviousFailedDelivery,
+        'PREVIOUS_REJECTED_ORDER' => reasonPreviousRejectedOrder,
+        'THREE_PLUS_CANCELLATIONS' => reasonThreePlusCancellations,
+        'LARGE_ORDER' => reasonLargeOrder,
+        'RAPID_ORDERS' => reasonRapidOrders,
+        'MULTIPLE_ACCOUNTS_DEVICE' => reasonMultipleAccountsDevice,
+        'MULTIPLE_ACCOUNTS_ADDRESS' => reasonMultipleAccountsAddress,
+        'ADDRESS_HIGH_FAILURE' => reasonAddressHighFailure,
+        'VERIFIED_PHONE' => reasonVerifiedPhone,
+        'THREE_PLUS_SUCCESSFUL' => reasonThreePlusSuccessful,
+        'FIVE_PLUS_SUCCESSFUL' => reasonFivePlusSuccessful,
+        // Unknown codes (e.g., RISK_EVALUATED summary event) are filtered — not shown to user
+        _ => '',
+      };
 
   /// `HH:mm` from a UTC instant rendered on the device clock — Western
   /// digits (§11.11).
@@ -112,6 +167,23 @@ abstract final class OrdersStringsCatalog {
       cancelReasonLabel: 'سبب الإلغاء',
       deliveredBannerTemplate: '{label} 🎉',
       trackOrderTooltip: 'لسه بنجهز تتبع الطلب — لحظات وجاي',
+      verificationTitle: 'التحقق مطلوب — جارٍ مراجعة الطلب',
+      verificationReasonsPrefix: 'الأسباب:',
+      verificationBody: 'سيتم التأكيد قريباً — لا يمكن للطاقم قبول الطلب حتى اكتمال التحقق.',
+      rejectedBannerTemplate: 'تم رفض الطلب تلقائياً — الدرجة {score} ({level})',
+      reasonNewCustomer: 'عميل جديد',
+      reasonNewDevice: 'جهاز جديد',
+      reasonPreviousFailedDelivery: 'توصيل سابق فشل',
+      reasonPreviousRejectedOrder: 'طلب سابق مرفوض',
+      reasonThreePlusCancellations: '3+ إلغاءات',
+      reasonLargeOrder: 'طلب كبير',
+      reasonRapidOrders: 'طلبات متتالية',
+      reasonMultipleAccountsDevice: 'جهاز مشترك',
+      reasonMultipleAccountsAddress: 'عنوان مشترك',
+      reasonAddressHighFailure: 'عنوان عالي الفشل',
+      reasonVerifiedPhone: 'هاتف موثق',
+      reasonThreePlusSuccessful: '3+ طلبات ناجحة',
+      reasonFivePlusSuccessful: '5+ طلبات ناجحة',
     ),
     AppLang.en: OrdersStrings(
       ordersTitle: 'My orders',
@@ -135,6 +207,23 @@ abstract final class OrdersStringsCatalog {
       cancelReasonLabel: 'Cancellation reason',
       deliveredBannerTemplate: '{label} 🎉',
       trackOrderTooltip: 'Tracking is being prepared — one moment',
+      verificationTitle: 'Verification required — order under review',
+      verificationReasonsPrefix: 'Reasons:',
+      verificationBody: 'Will be confirmed shortly — staff cannot accept until verification completes.',
+      rejectedBannerTemplate: 'Order automatically rejected — score {score} ({level})',
+      reasonNewCustomer: 'New customer',
+      reasonNewDevice: 'New device',
+      reasonPreviousFailedDelivery: 'Previous failed delivery',
+      reasonPreviousRejectedOrder: 'Previous rejected order',
+      reasonThreePlusCancellations: '3+ cancellations',
+      reasonLargeOrder: 'Large order',
+      reasonRapidOrders: 'Rapid orders',
+      reasonMultipleAccountsDevice: 'Shared device',
+      reasonMultipleAccountsAddress: 'Shared address',
+      reasonAddressHighFailure: 'High-failure address',
+      reasonVerifiedPhone: 'Verified phone',
+      reasonThreePlusSuccessful: '3+ successful',
+      reasonFivePlusSuccessful: '5+ successful',
     ),
   };
 

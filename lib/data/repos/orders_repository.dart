@@ -6,8 +6,10 @@
 // behind the OrdersRepo seam so tests never hit the network.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/supabase/supabase_config.dart';
+import '../../domain/risk_engine.dart';
 import '../models/menu_models.dart';
 import 'customer_phone_resolver.dart';
 
@@ -226,6 +228,8 @@ class OrderItemPayload {
 /// RISK-03: [deviceId] is the stable `risk.device_id` (UUID v4) per install —
 /// untrusted signal, nullable, never required. Documented choice: stored in
 /// `orders.device_id` (new column in 0021_device_and_address.sql).
+/// RISK-04: [idempotencyKey] is a per-submit UUID v4 for duplicate suppression
+/// (30s debounce in checkout_screen.dart + server unique index on (phone, idempotency_key)).
 class NewOrder {
   const NewOrder({
     required this.mode,
@@ -241,6 +245,7 @@ class NewOrder {
     this.addressId,
     this.notes,
     this.deviceId,
+    this.idempotencyKey,
   });
 
   final OrderMode mode;
@@ -256,15 +261,39 @@ class NewOrder {
   final String? addressId;
   final String? notes;
   final String? deviceId;
+  final String? idempotencyKey;
 }
 
 class PlacedOrder {
-  const PlacedOrder({required this.id, required this.displayNumber});
+  const PlacedOrder({
+    required this.id,
+    required this.displayNumber,
+    this.riskAction,
+    this.riskScore,
+    this.riskLevel,
+    this.riskReasons,
+  });
 
   final String id;
 
   /// From `order_display_seq` via the DB trigger (#1000+).
   final int displayNumber;
+
+  /// Server-computed risk gate result (RISK-04). Null for pre-risk orders.
+  /// Checkout respects this without trusting client (server-authoritative).
+  final String? riskAction;
+  final int? riskScore;
+  final String? riskLevel;
+  final List<String>? riskReasons;
+
+  /// Convenience typed getters
+  RiskAction? get riskActionTyped =>
+      riskAction == null ? null : RiskActionX.tryFromWire(riskAction!);
+  RiskLevel? get riskLevelTyped =>
+      riskLevel == null ? null : RiskLevelX.tryFromWire(riskLevel!);
+
+  bool get needsVerification => riskAction == 'needs_verification';
+  bool get isRejected => riskAction == 'rejected';
 }
 
 /// Snapshot carried to `/confirmation` through the router `extra`.
@@ -394,6 +423,11 @@ abstract class OrdersRepo {
   Future<PlacedOrder> placeOrder(NewOrder order);
 }
 
+List<String>? _parseRiskReasons(Object? v) {
+  if (v is List) return v.map((e) => e.toString()).toList();
+  return null;
+}
+
 class SupabaseOrdersRepo implements OrdersRepo {
   SupabaseOrdersRepo(this._client);
 
@@ -506,35 +540,122 @@ class SupabaseOrdersRepo implements OrdersRepo {
   @override
   Future<PlacedOrder> placeOrder(NewOrder order) async {
     final phone = order.phone ?? await _phoneOf(order.googleUserId);
-    final row = await _client //
-        .from('orders')
-        .insert({
-          'google_user_id': order.googleUserId,
-          'phone': ?phone,
-          'mode': order.mode.wireName,
-          'status': 'new',
-          'items': [for (final item in order.items) item.toJson()],
-          'subtotal': order.subtotalEgp,
-          'delivery_fee': order.deliveryFeeEgp,
-          'total': order.totalEgp,
-          if (order.tableArea != null && order.tableArea!.trim().isNotEmpty)
-            'table_area': order.tableArea,
-          if (order.pickupSlotUtc != null)
-            'pickup_slot': order.pickupSlotUtc!.toIso8601String(),
-          if (order.addressId != null && order.addressId!.trim().isNotEmpty)
-            'address_id': order.addressId,
-          if (order.notes != null && order.notes!.trim().isNotEmpty)
-            'notes': order.notes,
-          'points_preview': order.pointsPreview,
-          if (order.deviceId != null && order.deviceId!.trim().isNotEmpty)
-            'device_id': order.deviceId!.trim(),
-        })
-        .select('id, display_number')
-        .single();
-    return PlacedOrder(
-      id: row['id'] as String,
-      displayNumber: (row['display_number'] as num).toInt(),
-    );
+    final idempotencyKey = order.idempotencyKey?.trim().isNotEmpty == true
+        ? order.idempotencyKey!.trim()
+        : const Uuid().v4();
+
+    // Duplicate suppression: if an order with same (phone, idempotency_key) already
+    // exists, return it instead of inserting a new row (30s debounce is client-side,
+    // server unique index is forever — uuid per submit ensures no cross-submit collision).
+    // Handles phone-null case via google_user_id fallback index (idx_orders_idempotency_gid).
+    // Note: pre-check swallow is intentional to avoid extra latency on transient network errors;
+    // true dedup is still enforced by unique index + 23505 recovery below.
+    try {
+      Map<String, dynamic>? existing;
+      if (phone != null) {
+        existing = await _client
+            .from('orders')
+            .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+            .eq('phone', phone)
+            .eq('idempotency_key', idempotencyKey)
+            .maybeSingle();
+      } else {
+        existing = await _client
+            .from('orders')
+            .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+            .eq('google_user_id', order.googleUserId)
+            .eq('idempotency_key', idempotencyKey)
+            .maybeSingle();
+      }
+      if (existing != null) {
+        return PlacedOrder(
+          id: existing['id'] as String,
+          displayNumber: (existing['display_number'] as num).toInt(),
+          riskAction: existing['risk_action'] as String?,
+          riskScore: (existing['risk_score'] as num?)?.toInt(),
+          riskLevel: existing['risk_level'] as String?,
+          riskReasons: _parseRiskReasons(existing['risk_reasons']),
+        );
+      }
+    } catch (_) {
+      // Fall through to insert on lookup failure.
+    }
+
+    try {
+      final row = await _client //
+          .from('orders')
+          .insert({
+            'google_user_id': order.googleUserId,
+            'phone': ?phone,
+            'mode': order.mode.wireName,
+            'status': 'new',
+            'items': [for (final item in order.items) item.toJson()],
+            'subtotal': order.subtotalEgp,
+            'delivery_fee': order.deliveryFeeEgp,
+            'total': order.totalEgp,
+            if (order.tableArea != null && order.tableArea!.trim().isNotEmpty)
+              'table_area': order.tableArea,
+            if (order.pickupSlotUtc != null)
+              'pickup_slot': order.pickupSlotUtc!.toIso8601String(),
+            if (order.addressId != null && order.addressId!.trim().isNotEmpty)
+              'address_id': order.addressId,
+            if (order.notes != null && order.notes!.trim().isNotEmpty)
+              'notes': order.notes,
+            'points_preview': order.pointsPreview,
+            if (order.deviceId != null && order.deviceId!.trim().isNotEmpty)
+              'device_id': order.deviceId!.trim(),
+            'idempotency_key': idempotencyKey,
+          })
+          .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+          .single();
+      return PlacedOrder(
+        id: row['id'] as String,
+        displayNumber: (row['display_number'] as num).toInt(),
+        riskAction: row['risk_action'] as String?,
+        riskScore: (row['risk_score'] as num?)?.toInt(),
+        riskLevel: row['risk_level'] as String?,
+        riskReasons: _parseRiskReasons(row['risk_reasons']),
+      );
+    } on PostgrestException catch (e) {
+      // Unique violation on (phone, idempotency_key) or (google_user_id, idempotency_key) → race.
+      // Recovery re-fetches; inner catch is separate to preserve original 23505 context in logs
+      // (customer sees generic submitFailed, but both errors are now distinct).
+      final isUniqueViolation = e.code == '23505';
+      if (isUniqueViolation) {
+        try {
+          Map<String, dynamic> existing;
+          if (phone != null) {
+            existing = await _client
+                .from('orders')
+                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+                .eq('phone', phone)
+                .eq('idempotency_key', idempotencyKey)
+                .single();
+          } else {
+            existing = await _client
+                .from('orders')
+                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+                .eq('google_user_id', order.googleUserId)
+                .eq('idempotency_key', idempotencyKey)
+                .single();
+          }
+          return PlacedOrder(
+            id: existing['id'] as String,
+            displayNumber: (existing['display_number'] as num).toInt(),
+            riskAction: existing['risk_action'] as String?,
+            riskScore: (existing['risk_score'] as num?)?.toInt(),
+            riskLevel: existing['risk_level'] as String?,
+            riskReasons: _parseRiskReasons(existing['risk_reasons']),
+          );
+        } on PostgrestException catch (_) {
+          // Recovery fetch also failed (e.g., RLS hide); rethrow original 23505 context via new error
+          rethrow;
+        } catch (_) {
+          rethrow;
+        }
+      }
+      rethrow;
+    }
   }
 }
 
