@@ -167,11 +167,14 @@ class SupabaseVerificationRepo implements VerificationRepo {
   }
 
   @override
-  Future<void> rejectByStaff({required String orderId}) async {
+  Future<void> rejectByStaff({required String orderId, String? reason}) async {
     try {
       await _client.rpc<dynamic>(
         'reject_verification',
-        params: {'p_order_id': orderId},
+        params: {
+          'p_order_id': orderId,
+          if (reason != null && reason.trim().isNotEmpty) 'p_reason': reason.trim(),
+        },
       );
     } on PostgrestException catch (e) {
       _rethrowAsPermission(e);
@@ -430,7 +433,7 @@ class FakeVerificationRepo implements VerificationRepo {
   }
 
   @override
-  Future<void> rejectByStaff({required String orderId}) async {
+  Future<void> rejectByStaff({required String orderId, String? reason}) async {
     if (!_isStaffOrAdmin) throw const VerificationPermissionException();
     final req = _latest(orderId);
     if (req == null) throw StateError('verification: order $orderId not found');

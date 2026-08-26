@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_lookup.dart';
+import '../../core/l10n/strings_risk.dart';
 import '../../core/l10n/strings_staff.dart';
 import '../../core/logout.dart';
 import '../../core/theme/app_theme.dart';
@@ -19,6 +20,7 @@ import '../../domain/order_status_flow.dart';
 import 'widgets/checkin_sheet.dart';
 import 'widgets/order_card.dart';
 import 'widgets/staff_order_detail_sheet.dart';
+import 'widgets/verification_queue_sheet.dart';
 
 enum StaffFilter { all, dineIn, pickup, delivery }
 
@@ -118,6 +120,13 @@ class _StaffBoardScreenState extends ConsumerState<StaffBoardScreen> {
         foregroundColor: Colors.white,
         title: Text(strings.boardTitle),
         actions: [
+          // التحقق — verification queue (RISK-06) gated by has_any_role(staff,admin).
+          // Sheet is the primary staff entry (AGENTS.md §6), route is deep-link fallback.
+          IconButton(
+            tooltip: RiskStrings.of(lang).queueTitle,
+            icon: const Icon(Icons.verified_user_outlined),
+            onPressed: () => showVerificationQueueSheet(context, ref: ref),
+          ),
           // حساب العميل — customer lookup + manual rewards (#013).
           IconButton(
             tooltip:

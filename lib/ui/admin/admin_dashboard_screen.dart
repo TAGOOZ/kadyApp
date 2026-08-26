@@ -1,7 +1,9 @@
-// Admin dashboard (#015): KPI strip + 7 tabs (campaigns / menu editor /
-// loyalty rules / reports / drivers / hours / zones) over the admin repositories. Arabic-first,
-// Western digits, optimistic mutations with rollback, and a graceful
-// lock panel when RLS denies non-admin callers (Postgres 42501).
+// Admin dashboard (#015 + RISK-06): KPI strip + 8 tabs (campaigns / menu editor /
+// loyalty rules / reports / drivers / hours / zones / verification) over the
+// admin repositories. Arabic-first, Western digits, optimistic mutations with
+// rollback, and a graceful lock panel when RLS denies non-admin callers
+// (Postgres 42501). Verification queue (RISK-06) is the 8th tab — gated by
+// has_any_role(staff,admin) like staffAccessProvider.
 // Driver assignment: uses staffDriversProvider and assigned_driver via
 // DriverAssignmentPanel (tabDrivers / توصيل / سائق / Driver / tabDelivery).
 import 'package:flutter/material.dart';
@@ -10,6 +12,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_admin.dart';
+import '../../core/l10n/strings_risk.dart';
 import '../../core/logout.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/admin_db.dart';
@@ -21,6 +24,7 @@ import 'tabs/rules_tab.dart';
 import 'widgets/driver_assignment_panel.dart';
 import 'widgets/hours_editor_panel.dart';
 import 'widgets/kpi_strip.dart';
+import 'widgets/verification_queue_panel.dart';
 import 'widgets/zones_editor_panel.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
@@ -33,13 +37,10 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
     with TickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 7, vsync: this)
+  late final TabController _tabs = TabController(length: 8, vsync: this)
     ..addListener(() {
       if (mounted) setState(() => _tabIndex = _tabs.index);
     });
-
-  late final AdminStrings strings =
-      AdminStrings.of(ref.read(localeNotifierProvider));
 
   int _tabIndex = 0;
 
@@ -92,6 +93,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    final lang = ref.watch(localeNotifierProvider);
+    final strings = AdminStrings.of(lang);
+    final riskStrings = RiskStrings.of(lang);
     return Scaffold(
       floatingActionButton: _tabIndex == 0 && !_locked
           ? FloatingActionButton.extended(
@@ -105,7 +109,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeader(),
+            _buildHeader(strings),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.sm16,
@@ -137,6 +141,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
                   Tab(text: strings.tabDrivers),
                   Tab(text: strings.tabHours),
                   Tab(text: strings.tabZones),
+                  Tab(text: riskStrings.title),
                 ],
               ),
               Expanded(
@@ -178,6 +183,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
                       strings: strings,
                       onAccessDenied: _onAccessDenied,
                     ),
+                    VerificationQueuePanel(
+                      key: ValueKey('verification-$_reloadEpoch'),
+                    ),
                   ],
                 ),
               ),
@@ -188,7 +196,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AdminStrings strings) {
     return Container(
       color: AppColors.primary,
       padding: const EdgeInsets.symmetric(
