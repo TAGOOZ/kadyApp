@@ -252,17 +252,27 @@ begin
   end if;
 
   -- Ensure customer exists (FK)
-  if not exists (select 1 from public.customers where phone = v_phone) then
-    raise exception 'request_verification: customer % not found', v_phone using errcode = 'P0002';
-  end if;
+   if not exists (select 1 from public.customers where phone = v_phone) then
+     raise exception 'request_verification: customer % not found', v_phone using errcode = 'P0002';
+   end if;
+
+  -- Ownership: customer may only request for own phone unless staff/admin
+   if not public.has_any_role(array['staff','admin']::text[]) and not exists (select 1 from public.customers where phone = v_phone and google_user_id = auth.uid()) then
+     raise exception 'verification: not owner' using errcode = '42501';
+   end if;
 
   -- Idempotent: if pending already exists for this order, return it (avoid duplicates)
-  select * into v_existing from public.verification_requests
-   where order_id = p_order_id and status = 'pending'
-   order by created_at desc limit 1;
-  if v_existing.id is not null then
-    return v_existing;
-  end if;
+   -- If expired but status still pending (lazy), flip to expired and create fresh.
+   select * into v_existing from public.verification_requests
+    where order_id = p_order_id and status = 'pending'
+    order by created_at desc limit 1;
+   if v_existing.id is not null then
+     if v_existing.expires_at is not null and v_existing.expires_at < now() then
+       update public.verification_requests set status = 'expired', updated_at = now() where id = v_existing.id;
+     else
+       return v_existing;
+     end if;
+   end if;
 
   -- Configurable expiry + max_attempts from app_config (risk.*)
   begin
@@ -282,9 +292,16 @@ begin
   -- Placeholder hash — never plaintext, even manual (spec). Use pgcrypto SHA256
   v_code_hash := encode(extensions.digest(('manual:' || p_order_id::text || ':' || gen_random_uuid()::text || ':' || now()::text)::text, 'sha256'::text), 'hex');
 
-  insert into public.verification_requests (order_id, phone, device_id, status, provider, code_hash, attempts, max_attempts, expires_at)
-  values (p_order_id, v_phone, v_device_id, 'pending', v_provider, v_code_hash, 0, v_max_attempts, v_expires_at)
-  returning * into v_row;
+  begin
+    insert into public.verification_requests (order_id, phone, device_id, status, provider, code_hash, attempts, max_attempts, expires_at)
+    values (p_order_id, v_phone, v_device_id, 'pending', v_provider, v_code_hash, 0, v_max_attempts, v_expires_at)
+    returning * into v_row;
+  exception when unique_violation then
+    -- Race: concurrent insert hit idx_verification_pending_one_per_order → return existing pending
+    select * into v_row from public.verification_requests where order_id = p_order_id and status = 'pending' order by created_at desc limit 1;
+    if v_row.id is not null then return v_row; end if;
+    raise;
+  end;
 
   -- Optional ledger: emit VERIFICATION_REQUESTED for audit (not required but helpful)
   -- Keep provider-agnostic; future WhatsAppVerificationProvider will reuse same table.
@@ -329,9 +346,14 @@ begin
    where order_id = p_order_id
    order by created_at desc limit 1;
 
-  if v_req.id is null then
-    return false;
-  end if;
+   if v_req.id is null then
+     return false;
+   end if;
+
+  -- Ownership: only owner or staff/admin may verify
+   if not public.has_any_role(array['staff','admin']::text[]) and not exists (select 1 from public.customers c where c.phone = v_req.phone and c.google_user_id = auth.uid()) then
+     raise exception 'verification: not owner' using errcode = '42501';
+   end if;
 
   -- Replay of confirmed/rejected/expired/cancelled → false (spec: replay returns false)
   if v_req.status = 'confirmed' then
@@ -418,13 +440,20 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_phone text;
 begin
   if p_order_id is null then
     raise exception 'cancel_verification: p_order_id required' using errcode = '22023';
   end if;
+  -- Ownership: only owner or staff/admin may cancel
+  select phone into v_phone from public.verification_requests where order_id = p_order_id and status = 'pending' order by created_at desc limit 1;
+  if v_phone is not null and not public.has_any_role(array['staff','admin']::text[]) and not exists (select 1 from public.customers c where c.phone = v_phone and c.google_user_id = auth.uid()) then
+    raise exception 'verification: not owner' using errcode = '42501';
+  end if;
   update public.verification_requests
-     set status = 'cancelled', updated_at = now()
-   where order_id = p_order_id and status = 'pending';
+      set status = 'cancelled', updated_at = now()
+    where order_id = p_order_id and status = 'pending';
 end;
 $$;
 
@@ -464,17 +493,12 @@ begin
   end if;
 
   select id, phone, status, expires_at into v_request_id, v_phone, v_status, v_expires_at
-    from public.verification_requests
-   where order_id = p_order_id
-   order by created_at desc limit 1;
+     from public.verification_requests
+    where order_id = p_order_id
+    order by created_at desc limit 1;
 
   if v_request_id is null then
-    select phone into v_phone from public.orders where id = p_order_id;
-    if v_phone is null then
-      raise exception 'verification: order % not found', p_order_id using errcode = 'P0002';
-    end if;
-    -- No verification request: still allow flipping risk_action if held (legacy)
-    -- But per spec manual provider always creates pending, so this is edge.
+    raise exception 'verification: no pending request for order %', p_order_id using errcode = 'P0001';
   else
     -- Idempotent: already confirmed → no-op (do not re-credit, no duplicate event)
     if v_status = 'confirmed' then
@@ -566,33 +590,30 @@ begin
    where order_id = p_order_id
    order by created_at desc limit 1;
 
-  if v_request_id is not null then
-    if v_status = 'rejected' then
-      return; -- idempotent
-    end if;
-    if v_status = 'confirmed' then
-      raise exception 'verification: already confirmed' using errcode = 'P0001';
-    end if;
-    if v_status = 'cancelled' then
-      -- allow reject after cancel? treat as idempotent no-op
-      return;
-    end if;
-    -- Expired can still be rejected? Treat as already terminal → no flip but emit?
-    -- We allow reject even if expired (staff decision overrides), but keep status rejected
-    update public.verification_requests set status = 'rejected', code_hash = null, updated_at = now() where id = v_request_id;
-  else
-    select phone into v_phone from public.orders where id = p_order_id;
-    if v_phone is null then
-      raise exception 'verification: order % not found', p_order_id using errcode = 'P0002';
-    end if;
+  if v_request_id is null then
+    raise exception 'verification: no pending request for order %', p_order_id using errcode = 'P0001';
   end if;
+  if v_status = 'rejected' then
+    return; -- idempotent
+  end if;
+  if v_status = 'confirmed' then
+    raise exception 'verification: already confirmed' using errcode = 'P0001';
+  end if;
+  if v_status = 'cancelled' then
+    -- allow reject after cancel? treat as idempotent no-op
+    return;
+  end if;
+  -- Expired can still be rejected? Treat as already terminal → no flip but emit?
+  -- We allow reject even if expired (staff decision overrides), but keep status rejected
+  update public.verification_requests set status = 'rejected', code_hash = null, updated_at = now() where id = v_request_id;
 
-  -- Flip order to cancelled with reject_reason='verification_rejected' (spec)
+  -- Flip order to cancelled only when still held for verification (spec)
+  -- Guards in-flight orders (accepted/in_prep/ready/out_for_delivery/done) from late reject.
   update public.orders
-     set status = 'cancelled',
-         reject_reason = v_reason,
-         updated_at = now()
-   where id = p_order_id and status <> 'cancelled';
+      set status = 'cancelled',
+          reject_reason = v_reason,
+          updated_at = now()
+    where id = p_order_id and status = 'new' and risk_action = 'needs_verification';
 
   -- Emit ledger + staff_log (idempotent check via risk_events dedup per order+event? but we allow multiple reject events? Use distinct check)
   begin

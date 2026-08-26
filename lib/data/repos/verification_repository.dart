@@ -91,6 +91,11 @@ class SupabaseVerificationRepo implements VerificationRepo {
       throw StateError('request_verification returned no row');
     } on PostgrestException catch (e) {
       _rethrowAsPermission(e);
+      // Race: concurrent insert hit partial unique index → return existing pending
+      if (e.code == '23505') {
+        final fetched = await fetchByOrderId(orderId);
+        if (fetched != null) return fetched;
+      }
       rethrow;
     } catch (e) {
       if (e is VerificationPermissionException) rethrow;
@@ -144,6 +149,8 @@ class SupabaseVerificationRepo implements VerificationRepo {
       );
     } on PostgrestException catch (e) {
       _rethrowAsPermission(e);
+      // Map domain P0001 (expired / not pending) to StateError for UI/test parity with Fake
+      if (e.code == 'P0001') throw StateError(e.message);
       rethrow;
     }
   }
@@ -157,6 +164,7 @@ class SupabaseVerificationRepo implements VerificationRepo {
       );
     } on PostgrestException catch (e) {
       _rethrowAsPermission(e);
+      if (e.code == 'P0001') throw StateError(e.message);
       rethrow;
     }
   }
@@ -426,6 +434,17 @@ class FakeVerificationRepo implements VerificationRepo {
 
   @override
   Future<List<VerificationRequest>> fetchPendingForPhone(String phone) async {
+    // Lazy-expire before filtering so expired don't appear as pending in staff queue
+    for (final entry in _byOrder.entries) {
+      for (final r in List<VerificationRequest>.from(entry.value)) {
+        if (r.phone == phone &&
+            r.status == VerificationStatus.pending &&
+            r.expiresAt != null &&
+            DateTime.now().toUtc().isAfter(r.expiresAt!.toUtc())) {
+          _replace(entry.key, r.id, r.copyWith(status: VerificationStatus.expired));
+        }
+      }
+    }
     final all = _byOrder.values.expand((l) => l).where((r) => r.phone == phone && r.status == VerificationStatus.pending).toList();
     all.sort((a, b) => (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
     return all;
