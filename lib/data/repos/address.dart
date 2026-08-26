@@ -23,17 +23,42 @@ class AddressRecord {
     required this.phone,
     required this.label,
     required this.addressText,
+    this.latitude,
+    this.longitude,
+    this.updatedAt,
   });
 
   final String id;
   final String phone;
   final AddressLabel label;
   final String addressText;
+  final double? latitude;
+  final double? longitude;
+  final DateTime? updatedAt;
 
-  static AddressRecord fromRow(Map<String, dynamic> row) => AddressRecord(
-        id: row['id'] as String,
-        phone: row['phone'] as String,
-        label: AddressLabelX.fromKey(row['label'] as String? ?? 'other'),
-        addressText: row['address_text'] as String? ?? '',
-      );
+  static AddressRecord fromRow(Map<String, dynamic> row) {
+    double? parseDouble(Object? v) {
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v);
+      return null;
+    }
+
+    DateTime? parseTs(Object? v) {
+      if (v is DateTime) return v.toUtc();
+      if (v is String) return DateTime.tryParse(v)?.toUtc();
+      return null;
+    }
+
+    return AddressRecord(
+      id: row['id'] as String,
+      phone: row['phone'] as String,
+      label: AddressLabelX.fromKey(row['label'] as String? ?? 'other'),
+      addressText: row['address_text'] as String? ?? '',
+      latitude: parseDouble(row['latitude']),
+      longitude: parseDouble(row['longitude']),
+      updatedAt: parseTs(row['updated_at'] ?? row['updatedAt']),
+    );
+  }
 }

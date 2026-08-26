@@ -222,7 +222,8 @@ bool hasVerifiedPhone(RiskProfile p) => p.phoneVerified;
 // ---------------------------------------------------------------------------
 
 /// Convenience: derive a [RiskContext] from a persisted [RiskProfile] plus
-/// transient signals (large/rapid/device) supplied by the caller.
+/// transient signals (large/rapid/device/address) supplied by the caller.
+/// RISK-03 adds device/address extrinsic counts (signal not proof).
 RiskContext riskContextFromProfile(
   RiskProfile profile, {
   int subtotalEgp = 0,
@@ -231,6 +232,10 @@ RiskContext riskContextFromProfile(
   bool isRapidOrders = false,
   int sharedDeviceCount = 0,
   int sharedAddressCount = 0,
+  int deviceCustomerCount = 0,
+  int addressCustomerCount = 0,
+  int addressFailedCount = 0,
+  int addressOrdersCount = 0,
 }) =>
     RiskContext(
       subtotalEgp: subtotalEgp,
@@ -245,6 +250,10 @@ RiskContext riskContextFromProfile(
       isRapidOrders: isRapidOrders,
       sharedDeviceCount: sharedDeviceCount,
       sharedAddressCount: sharedAddressCount,
+      deviceCustomerCount: deviceCustomerCount,
+      addressCustomerCount: addressCustomerCount,
+      addressFailedCount: addressFailedCount,
+      addressOrdersCount: addressOrdersCount,
     );
 
 /// Append-only ledger event — mirrors `risk_events` row.
@@ -315,13 +324,19 @@ class RiskEvent {
 // Pure, tested in risk_events_test.dart; keep Dart and SQL identical.
 // ---------------------------------------------------------------------------
 
-/// Canonical event codes emitted by sync_risk_profile() (constrained subset
-/// of the unconstrained risk_events.event_type column).
+/// Canonical event codes emitted by sync_risk_profile() plus RISK-03
+/// device/address signals (constrained subset of the unconstrained
+/// risk_events.event_type column).
 class RiskEventType {
   static const successfulOrder = 'SUCCESSFUL_ORDER';
   static const cancelledOrder = 'CANCELLED_ORDER';
   static const rejectedOrder = 'REJECTED_ORDER';
   static const failedDelivery = 'FAILED_DELIVERY';
+  static const newDevice = 'NEW_DEVICE';
+  static const multipleAccountsDevice = 'MULTIPLE_ACCOUNTS_DEVICE';
+  static const multipleAccountsAddress = 'MULTIPLE_ACCOUNTS_ADDRESS';
+  static const addressReuse = 'ADDRESS_REUSE';
+  static const newCustomer = 'NEW_CUSTOMER';
 }
 
 // Keep RegExps static to avoid per-call allocation; patterns must match

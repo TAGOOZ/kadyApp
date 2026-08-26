@@ -1,3 +1,4 @@
+// ignore_for_file: use_null_aware_elements
 // Customers repository — Supabase-backed access to public.customers.
 // Phone is the canonical Customer key (ADR-0007); google_user_id links 1:1.
 // Slice #011 extends this file with profile updates + address CRUD
@@ -160,6 +161,8 @@ abstract class CustomerProfileRepo {
     required String googleUserId,
     required AddressLabel label,
     required String addressText,
+    double? latitude,
+    double? longitude,
   });
   Future<AddressRecord> updateAddress({required AddressRecord address});
   Future<void> deleteAddress({required String addressId});
@@ -206,7 +209,9 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
   }) async {
     final rows = await _client
         .from('addresses')
-        .select('id, label, address_text, customers!inner(google_user_id)')
+        .select(
+          'id, phone, label, address_text, latitude, longitude, updated_at, customers!inner(google_user_id)',
+        )
         .eq('customers.google_user_id', googleUserId)
         .order('created_at', ascending: true);
     return rows
@@ -219,12 +224,16 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
     required String googleUserId,
     required AddressLabel label,
     required String addressText,
+    double? latitude,
+    double? longitude,
   }) async {
     final phone = await _phoneFor(googleUserId);
     final row = await _client.from('addresses').insert({
       'phone': phone,
       'label': label.key,
       'address_text': addressText.trim(),
+      if (latitude case final v?) 'latitude': v,
+      if (longitude case final v?) 'longitude': v,
     }).select().single();
     return AddressRecord.fromRow(Map<String, dynamic>.from(row as Map));
   }
@@ -238,6 +247,8 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
         .update({
           'label': address.label.key,
           'address_text': address.addressText.trim(),
+          if (address.latitude case final v?) 'latitude': v,
+          if (address.longitude case final v?) 'longitude': v,
         })
         .eq('id', address.id)
         .select()

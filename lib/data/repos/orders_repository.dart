@@ -1,3 +1,4 @@
+// ignore_for_file: use_null_aware_elements
 // Orders slice data layer (issue #003): Supabase-backed orders/addresses
 // access plus the pure checkout math — points preview (round half-up with
 // dine-in ×1.1), totals with flat delivery fee, and Africa/Cairo half-hour
@@ -161,11 +162,15 @@ class SavedAddress {
     required this.id,
     required this.label,
     required this.addressText,
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
   final AddressLabel label;
   final String addressText;
+  final double? latitude;
+  final double? longitude;
 }
 
 class SavedAddressInput {
@@ -173,11 +178,15 @@ class SavedAddressInput {
     required this.googleUserId,
     required this.label,
     required this.addressText,
+    this.latitude,
+    this.longitude,
   });
 
   final String googleUserId;
   final AddressLabel label;
   final String addressText;
+  final double? latitude;
+  final double? longitude;
 }
 
 /// One cart line flattened for the `orders.items` jsonb snapshot:
@@ -214,6 +223,9 @@ class OrderItemPayload {
 
 /// Row handed to [OrdersRepo.placeOrder]; phone resolves server-side from
 /// `customers.google_user_id` when omitted.
+/// RISK-03: [deviceId] is the stable `risk.device_id` (UUID v4) per install —
+/// untrusted signal, nullable, never required. Documented choice: stored in
+/// `orders.device_id` (new column in 0021_device_and_address.sql).
 class NewOrder {
   const NewOrder({
     required this.mode,
@@ -228,6 +240,7 @@ class NewOrder {
     this.pickupSlotUtc,
     this.addressId,
     this.notes,
+    this.deviceId,
   });
 
   final OrderMode mode;
@@ -242,6 +255,7 @@ class NewOrder {
   final DateTime? pickupSlotUtc;
   final String? addressId;
   final String? notes;
+  final String? deviceId;
 }
 
 class PlacedOrder {
@@ -412,15 +426,36 @@ class SupabaseOrdersRepo implements OrdersRepo {
   Future<List<SavedAddress>> fetchAddresses(String googleUserId) async {
     final rows = await _client //
         .from('addresses')
-        .select('id, label, address_text, customers!inner(google_user_id)')
+        .select(
+          'id, label, address_text, latitude, longitude, customers!inner(google_user_id)',
+        )
         .eq('customers.google_user_id', googleUserId)
         .order('created_at', ascending: true);
+    double? parseDouble(Object? v) {
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v);
+      return null;
+    }
+
+    AddressLabel parseLabel(Object? raw) {
+      if (raw is String) {
+        for (final v in AddressLabel.values) {
+          if (v.name == raw) return v;
+        }
+      }
+      return AddressLabel.other;
+    }
+
     return [
       for (final row in List<Map<String, dynamic>>.from(rows as List))
         SavedAddress(
           id: row['id'] as String,
-          label: AddressLabel.values.byName(row['label'] as String),
+          label: parseLabel(row['label']),
           addressText: row['address_text'] as String,
+          latitude: parseDouble(row['latitude']),
+          longitude: parseDouble(row['longitude']),
         ),
     ];
   }
@@ -437,13 +472,34 @@ class SupabaseOrdersRepo implements OrdersRepo {
           'phone': phone,
           'label': input.label.name,
           'address_text': input.addressText,
+          if (input.latitude case final v?) 'latitude': v,
+          if (input.longitude case final v?) 'longitude': v,
         })
-        .select('id, label, address_text')
+        .select('id, label, address_text, latitude, longitude')
         .single();
+    double? parseDouble(Object? v) {
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v);
+      return null;
+    }
+
+    AddressLabel parseLabel(Object? raw) {
+      if (raw is String) {
+        for (final v in AddressLabel.values) {
+          if (v.name == raw) return v;
+        }
+      }
+      return AddressLabel.other;
+    }
+
     return SavedAddress(
       id: row['id'] as String,
-      label: AddressLabel.values.byName(row['label'] as String),
+      label: parseLabel(row['label']),
       addressText: row['address_text'] as String,
+      latitude: parseDouble(row['latitude']),
+      longitude: parseDouble(row['longitude']),
     );
   }
 
@@ -470,6 +526,8 @@ class SupabaseOrdersRepo implements OrdersRepo {
           if (order.notes != null && order.notes!.trim().isNotEmpty)
             'notes': order.notes,
           'points_preview': order.pointsPreview,
+          if (order.deviceId != null && order.deviceId!.trim().isNotEmpty)
+            'device_id': order.deviceId!.trim(),
         })
         .select('id, display_number')
         .single();
