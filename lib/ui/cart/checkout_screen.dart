@@ -17,6 +17,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_checkout.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/device/device_id_provider.dart';
 import '../../data/repos/orders_repository.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/cart_controller.dart';
@@ -141,6 +142,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final notifier = ref.read(checkoutDraftProvider.notifier);
     final googleUserId = auth.googleUser!.id;
     setState(() => _submitting = true);
+    // RISK-03: lightweight device signal (untrusted, nullable, never required)
+    String? deviceId;
+    try {
+      deviceId = await ref.read(deviceIdFutureProvider.future);
+    } catch (_) {
+      deviceId = null;
+    }
     try {
       final placed = await ref.read(ordersRepoProvider).placeOrder(NewOrder(
             mode: mode,
@@ -155,6 +163,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             pickupSlotUtc: timing.isNow ? null : timing.slotUtc,
             addressId: candidate.addressId,
             notes: notes.isEmpty ? null : notes,
+            deviceId: deviceId,
           ));
       // Real earn path (#007): server trigger is authoritative (migration 0004),
       // client credit is now awaited to avoid lost-update/double-earn race

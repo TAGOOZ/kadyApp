@@ -76,6 +76,8 @@ class _FakeProfileRepo implements CustomerProfileRepo {
     required String googleUserId,
     required AddressLabel label,
     required String addressText,
+    double? latitude,
+    double? longitude,
   }) async {
     addCalls++;
     final record = AddressRecord(
@@ -83,6 +85,8 @@ class _FakeProfileRepo implements CustomerProfileRepo {
       phone: profile.phone,
       label: label,
       addressText: addressText,
+      latitude: latitude,
+      longitude: longitude,
     );
     addresses.add(record);
     return record;

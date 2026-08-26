@@ -67,6 +67,7 @@ extension RiskActionX on RiskAction {
 }
 
 /// Canonical rule codes — match risk_rules.rule_code seeds (plan §7).
+/// RISK-03 adds MULTIPLE_ACCOUNTS_* as extrinsic signals (signal, not proof).
 enum RuleCode {
   newCustomer,
   newDevice,
@@ -78,6 +79,9 @@ enum RuleCode {
   threePlusSuccessful,
   fivePlusSuccessful,
   verifiedPhone,
+  multipleAccountsDevice,
+  multipleAccountsAddress,
+  addressHighFailure,
 }
 
 extension RuleCodeX on RuleCode {
@@ -92,6 +96,9 @@ extension RuleCodeX on RuleCode {
         RuleCode.threePlusSuccessful => 'THREE_PLUS_SUCCESSFUL',
         RuleCode.fivePlusSuccessful => 'FIVE_PLUS_SUCCESSFUL',
         RuleCode.verifiedPhone => 'VERIFIED_PHONE',
+        RuleCode.multipleAccountsDevice => 'MULTIPLE_ACCOUNTS_DEVICE',
+        RuleCode.multipleAccountsAddress => 'MULTIPLE_ACCOUNTS_ADDRESS',
+        RuleCode.addressHighFailure => 'ADDRESS_HIGH_FAILURE',
       };
 
   static RuleCode fromWire(String wire) => switch (wire) {
@@ -105,6 +112,9 @@ extension RuleCodeX on RuleCode {
         'THREE_PLUS_SUCCESSFUL' => RuleCode.threePlusSuccessful,
         'FIVE_PLUS_SUCCESSFUL' => RuleCode.fivePlusSuccessful,
         'VERIFIED_PHONE' => RuleCode.verifiedPhone,
+        'MULTIPLE_ACCOUNTS_DEVICE' => RuleCode.multipleAccountsDevice,
+        'MULTIPLE_ACCOUNTS_ADDRESS' => RuleCode.multipleAccountsAddress,
+        'ADDRESS_HIGH_FAILURE' => RuleCode.addressHighFailure,
         _ => throw ArgumentError.value(wire, 'wire', 'unknown RuleCode'),
       };
 
@@ -271,6 +281,8 @@ class RiskRule {
 /// Default catalog — scores match plan §7 and 0017 seeds; enabled honoured.
 /// `risk_rules.configuration` jsonb is reserved for per-rule tuning and
 /// currently ignored by the Dart engine; keep SQL and Dart in sync (see file header).
+/// RISK-03 adds MULTIPLE_ACCOUNTS_DEVICE (+10, signal not proof) — families share
+/// devices/addresses, so this never auto-rejects alone (capped in calculateRisk).
 const List<RiskRule> kDefaultRiskRules = [
   RiskRule(code: RuleCode.newCustomer, score: 20, description: 'First order for this phone'),
   RiskRule(code: RuleCode.newDevice, score: 10, description: 'First order from this device'),
@@ -282,6 +294,9 @@ const List<RiskRule> kDefaultRiskRules = [
   RiskRule(code: RuleCode.threePlusSuccessful, score: -20, description: 'Three or more successful orders'),
   RiskRule(code: RuleCode.fivePlusSuccessful, score: -30, description: 'Five or more successful orders'),
   RiskRule(code: RuleCode.verifiedPhone, score: -15, description: 'Phone verified'),
+  RiskRule(code: RuleCode.multipleAccountsDevice, score: 10, description: 'Same device used by 2+ phones (signal, not proof)'),
+  RiskRule(code: RuleCode.multipleAccountsAddress, score: 10, enabled: false, description: 'Same address used by 2+ phones (signal, not proof)'),
+  RiskRule(code: RuleCode.addressHighFailure, score: 15, enabled: false, description: 'Address with 3+ failed/cancelled deliveries'),
 ];
 
 // ---------------------------------------------------------------------------
@@ -291,6 +306,8 @@ const List<RiskRule> kDefaultRiskRules = [
 /// Inputs to the risk engine — all derived server-side before evaluation
 /// (customer_risk_profiles, customer_devices, addresses, recent orders).
 /// No auth, no clocks, no I/O.
+/// RISK-03: extrinsic device/address signals are signal-not-proof — shared
+/// device/address raises score but never auto-rejects alone (families share).
 class RiskContext {
   const RiskContext({
     this.subtotalEgp = 0,
@@ -305,6 +322,10 @@ class RiskContext {
     this.isRapidOrders = false,
     this.sharedDeviceCount = 0,
     this.sharedAddressCount = 0,
+    this.deviceCustomerCount = 0,
+    this.addressCustomerCount = 0,
+    this.addressFailedCount = 0,
+    this.addressOrdersCount = 0,
   });
 
   final int subtotalEgp;
@@ -318,10 +339,20 @@ class RiskContext {
   final bool isLargeOrder;
   final bool isRapidOrders;
 
-  /// Extrinsic signals (RISK-03) — stored but not scored in RISK-01.
-  /// Kept for future signal-not-proof scoring; currently ignored.
+  /// Extrinsic signals (RISK-01 legacy) — kept for backwards compat.
+  /// RISK-03 prefers [deviceCustomerCount]/[addressCustomerCount].
   final int sharedDeviceCount;
   final int sharedAddressCount;
+
+  /// RISK-03 extrinsic counts — server-derived at evaluate time:
+  /// - deviceCustomerCount: distinct phones using same device_id (≥2 → MULTIPLE_ACCOUNTS_DEVICE +10)
+  /// - addressCustomerCount: distinct phones using same address_id
+  /// - addressFailedCount: failed/cancelled deliveries at same address
+  /// - addressOrdersCount: total orders at same address (for enrichment)
+  final int deviceCustomerCount;
+  final int addressCustomerCount;
+  final int addressFailedCount;
+  final int addressOrdersCount;
 }
 
 /// Engine output — persisted to orders.risk_*.
@@ -441,8 +472,32 @@ RiskResult calculateRisk(
 
   apply(RuleCode.verifiedPhone, context.isVerifiedPhone);
 
-  // sharedDeviceCount / sharedAddressCount intentionally not scored in RISK-01
-  // (signal, not proof — RISK-03 will add MULTIPLE_ACCOUNTS_DEVICE etc.).
+  // RISK-03 extrinsic signals — signal, not proof (families share devices/addresses
+  // in Mahmoudia). Scores are tunable via risk_rules enabled flag.
+  // Legacy sharedDeviceCount / sharedAddressCount remain unscored for RISK-01
+  // backwards compat (see risk_engine_test legacy assertion); new callers should
+  // use deviceCustomerCount / addressCustomerCount.
+  apply(RuleCode.multipleAccountsDevice, context.deviceCustomerCount >= 2);
+  apply(RuleCode.multipleAccountsAddress, context.addressCustomerCount >= 2);
+  apply(RuleCode.addressHighFailure, context.addressFailedCount >= 3);
+
+  // Also support addressOrdersCount enrichment — no direct scoring, just for future
+  // area checks (counts derived via SELECT count(*) FROM orders WHERE address_id = ...).
+  // Kept as field for RISK-04 evaluate-time derivation, not scored here.
+
+  // Extrinsic-only cap: shared device/address signals alone must never push to
+  // HIGH (signal not proof). If every contributing reason is extrinsic, clamp to
+  // mediumMax (59) so decision stays at worst needs_verification.
+  const extrinsicCodes = {
+    RuleCode.newDevice,
+    RuleCode.multipleAccountsDevice,
+    RuleCode.multipleAccountsAddress,
+    RuleCode.addressHighFailure,
+  };
+  final extrinsicOnly = reasons.isNotEmpty && reasons.every(extrinsicCodes.contains);
+  if (extrinsicOnly && score > config.mediumMaxScore) {
+    score = config.mediumMaxScore;
+  }
 
   // Clamp to DB check constraint 0..100; negative bonuses not below 0.
   if (score < 0) score = 0;
