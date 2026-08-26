@@ -13,6 +13,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_checkout.dart';
@@ -51,6 +52,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _redeemed = false; // loyalty redemption toggle (#007)
   Timer? _unlockTimer;
   String? _validationError;
+  String? _pendingIdempotencyKey; // RISK-04: hold for retry idempotency (#1)
 
   @override
   void dispose() {
@@ -142,13 +144,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final notifier = ref.read(checkoutDraftProvider.notifier);
     final googleUserId = auth.googleUser!.id;
     setState(() => _submitting = true);
-    // RISK-03: lightweight device signal (untrusted, nullable, never required)
+    // RISK-03/RISK-04: device signal (untrusted, nullable, never required) + idempotency.
+    // Device: non-blocking read so widget tests without SharedPreferences mock don't hang.
+    // Real app: deviceIdFutureProvider loads from SharedPreferences; if still loading, send null (signal not proof).
+    // Documented trade-off: first order after cold start may miss device signal; next order will have it.
     String? deviceId;
     try {
-      deviceId = await ref.read(deviceIdFutureProvider.future);
+      deviceId = ref.read(deviceIdProvider);
     } catch (_) {
-      deviceId = null;
+      try {
+        deviceId = ref.read(deviceIdFutureProvider).asData?.value;
+        if (deviceId != null && deviceId.isEmpty) deviceId = null;
+      } catch (_) {
+        deviceId = null;
+      }
     }
+    // Idempotency: generate once per submit and hold for retry (fixes #1). Reused if retry within debounce.
+    final idempotencyKey = _pendingIdempotencyKey ??= const Uuid().v4();
     try {
       final placed = await ref.read(ordersRepoProvider).placeOrder(NewOrder(
             mode: mode,
@@ -164,38 +176,64 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             addressId: candidate.addressId,
             notes: notes.isEmpty ? null : notes,
             deviceId: deviceId,
+            idempotencyKey: idempotencyKey,
           ));
-      // Real earn path (#007): server trigger is authoritative (migration 0004),
-      // client credit is now awaited to avoid lost-update/double-earn race
-      // (CORRECTNESS-05). Navigation waits for the idempotent credit.
-      await ref.read(loyaltyProvider.notifier).creditProcessedOrder(
-            orderId: placed.id,
-            subtotalEgp: subtotalEgp,
-            dineIn: mode == OrderMode.dineIn,
-            redemption: redemption,
-          );
+      // RISK-04: loyalty gate — server trigger suppresses credit while held for verification
+      // (WHEN risk_action = 'approved'). Client respects gate without trusting client.
+      final needsVerification = placed.needsVerification;
+      final isRejected = placed.isRejected;
+      if (isRejected) {
+        // Rejected is terminal — keep debounce so user can't spam, but clear idempotency immediately
+        // so a retry with a smaller cart total gets a fresh key and fresh risk evaluation (#3).
+        _pendingIdempotencyKey = null;
+        _unlockTimer?.cancel();
+        _locked = true;
+        _unlockTimer = Timer(_debounce, () {
+          if (mounted) setState(() => _locked = false);
+        });
+        if (mounted) _showError(s, s.orderRejected);
+        return;
+      }
+      if (!needsVerification) {
+        // Real earn path (#007): server trigger is authoritative (migration 0004),
+        // client credit is now awaited to avoid lost-update/double-earn race
+        // (CORRECTNESS-05). Navigation waits for the idempotent credit.
+        await ref.read(loyaltyProvider.notifier).creditProcessedOrder(
+              orderId: placed.id,
+              subtotalEgp: subtotalEgp,
+              dineIn: mode == OrderMode.dineIn,
+              redemption: redemption,
+            );
+      }
+      // Success path: arm debounce and clear pending key on next order
       _unlockTimer?.cancel();
-      _locked = true; // stay debounced for 30 s even after navigating away
+      _locked = true;
+      _pendingIdempotencyKey = null; // success clears key; next order gets fresh UUID
       _unlockTimer = Timer(_debounce, () {
         if (mounted) setState(() => _locked = false);
       });
       if (!mounted) return;
-      context.pushReplacement(
-        '/confirmation',
-        extra: ConfirmationArgs(
-          displayNumber: placed.displayNumber,
-          mode: mode,
-          items: items,
-          subtotalEgp: subtotalEgp,
-          deliveryFeeEgp: feeEgp,
-          totalEgp:
-              totalOf(subtotalEgp: subtotalEgp, deliveryFeeEgp: feeEgp),
-          pointsPreview: previewPoints,
-        ),
-      );
+      if (needsVerification) {
+        // Branch to order status with verification banner instead of normal confirmation
+        context.pushReplacement('/orders/${placed.id}');
+      } else {
+        context.pushReplacement(
+          '/confirmation',
+          extra: ConfirmationArgs(
+            displayNumber: placed.displayNumber,
+            mode: mode,
+            items: items,
+            subtotalEgp: subtotalEgp,
+            deliveryFeeEgp: feeEgp,
+            totalEgp:
+                totalOf(subtotalEgp: subtotalEgp, deliveryFeeEgp: feeEgp),
+            pointsPreview: previewPoints,
+          ),
+        );
+      }
       notifier.reset();
     } catch (_) {
-      // Standard error policy: snackbar + form preserved for retry.
+      // Standard error policy: snackbar + form preserved for retry; keep pending key for idempotent retry (#1).
       if (mounted) _showError(s, s.submitFailed);
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -214,6 +252,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Widget build(BuildContext context) {
     final lang = ref.watch(localeNotifierProvider);
     final s = CheckoutStringsCatalog.of(lang);
+
+    // Clear pending idempotency when cart mutates so retry with new total gets fresh evaluation (#3).
+    ref.listen(cartProvider, (prev, next) {
+      if (prev != null && (prev.length != next.length || prev.toString() != next.toString())) {
+        _pendingIdempotencyKey = null;
+      }
+    });
 
     final draft = ref.watch(checkoutDraftProvider);
     final mode = draft.mode ?? OrderMode.pickup; // flow guarantees a pick

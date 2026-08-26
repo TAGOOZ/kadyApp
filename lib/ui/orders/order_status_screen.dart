@@ -189,6 +189,8 @@ class _Body extends ConsumerWidget {
         ListView(
           padding: const EdgeInsets.all(AppSpacing.gutter16),
           children: [
+            if (order.needsVerification) _VerificationBanner(order: order),
+            if (order.isRejected) _RejectedBanner(order: order),
             if (currentIndex >= 0 &&
                 steps[currentIndex].status == OrderWireStatus.done)
               _DeliveredBanner(
@@ -350,6 +352,106 @@ class _Body extends ConsumerWidget {
         byStatus[step.status.wireName] ??
             (step.status == OrderWireStatus.received ? createdAtUtc : null),
     ];
+  }
+}
+
+class _VerificationBanner extends ConsumerWidget {
+  const _VerificationBanner({required this.order});
+  final CustomerOrder order;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lang = ref.watch(localeNotifierProvider);
+    final strings = OrdersStringsCatalog.of(lang);
+    final humanized = order.riskReasons
+            ?.map(strings.humanizeReason)
+            .where((s) => s.isNotEmpty)
+            .join(', ') ??
+        '';
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryFixedTint.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(AppRadii.md8),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.verified_user_outlined, color: AppColors.secondary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  strings.verificationTitle,
+                  style: AppTextStyles.bodySm.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.coffeeBean,
+                  ),
+                ),
+                if (humanized.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${strings.verificationReasonsPrefix} $humanized',
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    strings.verificationBody,
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RejectedBanner extends ConsumerWidget {
+  const _RejectedBanner({required this.order});
+  final CustomerOrder order;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lang = ref.watch(localeNotifierProvider);
+    final strings = OrdersStringsCatalog.of(lang);
+    final score = order.riskScore ?? 0;
+    final level = order.riskLevel ?? '';
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadii.md8),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.block_outlined, color: AppColors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              strings.rejectedBanner(score, level),
+              style: AppTextStyles.bodySm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.error,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
