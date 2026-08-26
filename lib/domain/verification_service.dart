@@ -296,9 +296,15 @@ class VerificationServiceImpl implements VerificationService {
   final VerificationProvider? _fallback;
 
   VerificationProvider _providerFor(String provider) {
-    final p = _providers[provider] ?? _providers['manual'] ?? _fallback;
+    final p = _providers[provider] ?? _fallback;
     if (p != null) return p;
-    throw ArgumentError.value(provider, 'provider', 'unknown verification provider');
+    // No silent fallback to manual — typo like 'whattsapp' must surface immediately
+    // rather than creating a manual row and hiding mis-configuration.
+    throw ArgumentError.value(
+      provider,
+      'provider',
+      'unknown verification provider (registered: ${_providers.keys.join(',')})',
+    );
   }
 
   @override
@@ -309,6 +315,11 @@ class VerificationServiceImpl implements VerificationService {
   }) =>
       _providerFor(provider).requestVerification(orderId: orderId, phone: phone);
 
+  /// Verify is intentionally repo-centralized (hash compare via pgcrypto).
+  /// Providers are request-only (create pending row); verification is provider-agnostic
+  /// code_hash check in 0024, so WhatsAppVerificationProvider reuses same table and
+  /// verify path without touching risk_engine. If future provider needs external OTP
+  /// validation, extend here to lookup provider by order_id and delegate.
   @override
   Future<bool> verify({
     required String orderId,

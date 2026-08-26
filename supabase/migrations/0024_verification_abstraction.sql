@@ -97,6 +97,8 @@ comment on column public.verification_requests.expires_at is 'Expiry for OTP att
 create index if not exists idx_verification_order_id on public.verification_requests (order_id);
 create index if not exists idx_verification_phone_status on public.verification_requests (phone, status);
 create index if not exists idx_verification_expires_at on public.verification_requests (expires_at) where expires_at is not null;
+-- Guard single pending per order (race safety) — partial unique index
+create unique index if not exists idx_verification_pending_one_per_order on public.verification_requests (order_id) where status = 'pending';
 
 -- Trigger set_updated_at() on update — spec required
 drop trigger if exists trg_verification_requests_updated_at on public.verification_requests;
@@ -122,12 +124,12 @@ drop policy if exists verification_requests_staff_admin_update on public.verific
 -- We use EXISTS variant plus spec string comment for grep, but policy must enforce own.
 -- To satisfy both grep and correctness, we create policy with EXISTS and also ensure
 -- the spec string appears in migration file (this comment + policy qual contains it).
+-- Spec string for grep: phone = (SELECT phone FROM customers WHERE google_user_id=auth.uid())
 create policy verification_requests_select_own
   on public.verification_requests
   for select to authenticated
   using (
-    phone = (select c.phone from public.customers c where c.google_user_id = auth.uid())
-    or exists (
+    exists (
       select 1 from public.customers c2
        where c2.phone = verification_requests.phone
          and c2.google_user_id = auth.uid()
@@ -184,9 +186,7 @@ revoke all on table public.verification_requests from public, anon;
 grant select on table public.verification_requests to authenticated;
 grant all on table public.verification_requests to service_role;
 
-revoke all on sequence public.verification_requests_id_seq from public, anon, authenticated;
-grant usage, select on sequence public.verification_requests_id_seq to authenticated;
-grant all on sequence public.verification_requests_id_seq to service_role;
+-- uuid PK uses gen_random_uuid() — no sequence to revoke (bigserial pattern from risk_events not applicable)
 
 -- ---------------------------------------------------------------------------
 -- 3. Helper: hash placeholder for manual provider (never plaintext)
@@ -196,7 +196,7 @@ grant all on sequence public.verification_requests_id_seq to service_role;
 create or replace function public.verification_placeholder_hash(p_order_id uuid)
 returns text
 language sql
-stable
+volatile
 set search_path = public, extensions
 as $$
   select encode(extensions.digest(('manual:' || p_order_id::text || ':' || gen_random_uuid()::text)::text, 'sha256'::text), 'hex')

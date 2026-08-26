@@ -57,11 +57,9 @@ class SupabaseVerificationRepo implements VerificationRepo {
     }
   }
 
-  // Simple placeholder hash for client-side preview if needed (not stored).
-  // Server does real SHA256 via pgcrypto; we just need to ensure Dart never
-  // stores plaintext — code_hash is always server-generated.
-  String _placeholderHash(String orderId) =>
-      'ph_${orderId.hashCode}_${DateTime.now().microsecondsSinceEpoch}';
+  // Removed unused _placeholderHash — server generates placeholder via
+  // pgcrypto extensions.digest; Dart never stores plaintext (code_hash is
+  // always server-generated). Kept for reference but not needed client-side.
 
   @override
   Future<VerificationRequest> requestVerification({
@@ -116,11 +114,11 @@ class SupabaseVerificationRepo implements VerificationRepo {
       if (result is int) return result != 0;
       return false;
     } on PostgrestException catch (e) {
-      // Expired or replay returns false, not exception — but 42501 maps to permission
       if (e.code == '42501') throw const VerificationPermissionException();
-      return false;
-    } catch (_) {
-      return false;
+      // Expected domain failures that map to "wrong code / expired" → false
+      if (e.code == 'P0001' || e.code == 'P0002' || e.code == '22023') return false;
+      // Network / auth / unexpected → propagate so caller can distinguish from wrong code
+      rethrow;
     }
   }
 
@@ -175,8 +173,10 @@ class SupabaseVerificationRepo implements VerificationRepo {
           .maybeSingle();
       if (row == null) return null;
       return VerificationRequest.fromRow(Map<String, dynamic>.from(row as Map));
-    } on PostgrestException {
-      return null;
+    } on PostgrestException catch (e) {
+      if (e.code == '42501') throw const VerificationPermissionException();
+      // PGRST116 (no rows) is handled via maybeSingle → null, not exception
+      rethrow;
     }
   }
 
@@ -193,8 +193,9 @@ class SupabaseVerificationRepo implements VerificationRepo {
         for (final r in List<Map<String, dynamic>>.from(rows as List))
           VerificationRequest.fromRow(r),
       ];
-    } on PostgrestException {
-      return [];
+    } on PostgrestException catch (e) {
+      if (e.code == '42501') throw const VerificationPermissionException();
+      rethrow;
     }
   }
 }
@@ -251,14 +252,16 @@ class FakeVerificationRepo implements VerificationRepo {
     final sorted = List<VerificationRequest>.from(list)
       ..sort((a, b) => (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
           .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
-    return sorted.first;
-  }
-
-  void _expireIfNeeded(VerificationRequest req) {
-    if (req.expiresAt != null && DateTime.now().toUtc().isAfter(req.expiresAt!.toUtc())) {
-      final expired = req.copyWith(status: VerificationStatus.expired);
-      _replace(req.orderId, req.id, expired);
+    final latest = sorted.first;
+    // Lazily expire if needed so fetch reflects current wall-clock
+    if (latest.expiresAt != null &&
+        latest.status == VerificationStatus.pending &&
+        DateTime.now().toUtc().isAfter(latest.expiresAt!.toUtc())) {
+      final expired = latest.copyWith(status: VerificationStatus.expired);
+      _replace(orderId, latest.id, expired);
+      return expired;
     }
+    return latest;
   }
 
   void _replace(String orderId, String id, VerificationRequest updated) {
