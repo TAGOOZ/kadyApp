@@ -248,7 +248,6 @@ class FakeVerificationRepo implements VerificationRepo {
 
   final Map<String, List<VerificationRequest>> _byOrder = {};
   final Map<String, String> _codeHashByOrder = {}; // orderId -> hash
-  final Map<String, DateTime> _expiresAtByOrder = {};
 
   // Expose internal hash for test "plaintext never stored"
   String? codeHashFor(String orderId) => _codeHashByOrder[orderId];
@@ -305,6 +304,16 @@ class FakeVerificationRepo implements VerificationRepo {
     String provider = 'manual',
     String? deviceId,
   }) async {
+    // Rate limiting: max attempts per order per window (mirrors server make_interval check)
+    final now = DateTime.now().toUtc();
+    final windowStart = now.subtract(Duration(minutes: expiryMinutes));
+    final recentCount = (_byOrder[orderId] ?? [])
+        .where((r) => r.createdAt != null && r.createdAt!.toUtc().isAfter(windowStart))
+        .length;
+    if (recentCount >= defaultMaxAttempts) {
+      throw StateError('verification rate limited');
+    }
+
     // Idempotent: if pending already exists, return it
     final existing = _latest(orderId);
     if (existing != null && existing.status == VerificationStatus.pending) {
@@ -317,7 +326,6 @@ class FakeVerificationRepo implements VerificationRepo {
       }
     }
 
-    final now = DateTime.now().toUtc();
     final expiresAt = now.add(Duration(minutes: expiryMinutes));
     final id = 'vr_${orderId}_$now';
     final req = VerificationRequest(
@@ -334,7 +342,6 @@ class FakeVerificationRepo implements VerificationRepo {
     );
     _byOrder.putIfAbsent(orderId, () => []).add(req);
     _codeHashByOrder[orderId] = _placeholderHash(orderId);
-    _expiresAtByOrder[orderId] = expiresAt;
     return req;
   }
 
@@ -367,10 +374,10 @@ class FakeVerificationRepo implements VerificationRepo {
     final stored = _codeHashByOrder[orderId];
 
     if (stored != null && stored == hash) {
-      // Success — invalidate code_hash=NULL after confirmed (spec)
+      // Success — invalidate code_hash=NULL, attempts=0 immediately (RISK-07 spec)
       final confirmed = req.copyWith(
         status: VerificationStatus.confirmed,
-        attempts: req.attempts + 1,
+        attempts: 0,
         updatedAt: DateTime.now().toUtc(),
       );
       _replace(orderId, req.id, confirmed);
@@ -426,6 +433,7 @@ class FakeVerificationRepo implements VerificationRepo {
     }
     final confirmed = req.copyWith(
       status: VerificationStatus.confirmed,
+      attempts: 0,
       updatedAt: DateTime.now().toUtc(),
     );
     _replace(orderId, req.id, confirmed);
@@ -438,8 +446,9 @@ class FakeVerificationRepo implements VerificationRepo {
     final req = _latest(orderId);
     if (req == null) throw StateError('verification: order $orderId not found');
     if (req.status == VerificationStatus.rejected) return; // idempotent
+    if (req.status == VerificationStatus.cancelled) return; // idempotent — matches server 0025:626
     if (req.status == VerificationStatus.confirmed) throw StateError('verification: already confirmed');
-    final rejected = req.copyWith(status: VerificationStatus.rejected, updatedAt: DateTime.now().toUtc());
+    final rejected = req.copyWith(status: VerificationStatus.rejected, attempts: 0, updatedAt: DateTime.now().toUtc());
     _replace(orderId, req.id, rejected);
     _codeHashByOrder[orderId] = '';
   }
@@ -474,7 +483,6 @@ class FakeVerificationRepo implements VerificationRepo {
   void clear() {
     _byOrder.clear();
     _codeHashByOrder.clear();
-    _expiresAtByOrder.clear();
   }
 }
 
