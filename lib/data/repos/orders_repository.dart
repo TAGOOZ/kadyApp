@@ -136,6 +136,15 @@ Duration cairoUtcOffset(DateTime utcInstant) {
       : const Duration(hours: 2);
 }
 
+/// Cairo `dd/MM HH:mm` for `risk_evaluated_at` display — Western digits §11.11,
+/// UTC storage `timestamptz` → Cairo wall via [cairoUtcOffset] (ADR-0009).
+/// Mirrors `formatLookupWhenUtc` but lives beside [cairoUtcOffset].
+String formatRiskEvaluatedAt(DateTime utcInstant) {
+  assert(utcInstant.isUtc, 'pass DateTime.now().toUtc() — isUtc must be true');
+  final cairo = utcInstant.add(cairoUtcOffset(utcInstant));
+  return '${_two(cairo.day)}/${_two(cairo.month)} ${_two(cairo.hour)}:${_two(cairo.minute)}';
+}
+
 /// [nowUtc] must be a UTC instant. Slots are the next [count] half-hour
 /// boundaries on the Cairo wall clock (the first one may be exactly "now"
 /// when called on a whole half hour); labels are Cairo `HH:mm`, instants UTC.

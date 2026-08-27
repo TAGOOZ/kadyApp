@@ -155,3 +155,69 @@ RPC). Verify after first real order:
 select points, stamps from loyalty_state;
 select * from order_events where actor = 'system:loyalty';
 ```
+
+## Risk / Verification — migrations 0017→0026 (RISK epic, issues #46→#53)
+
+Apply in order; each migration is idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`) and re-applies safely.
+
+| File | Scope |
+|---|---|
+| `0017_risk_foundation.sql` | `orders.risk_*` columns, `risk_rules` catalog (10→13 seeds), `app_config` thresholds (`risk.*`), patched `orders_guard_update` risk-substrate, trigger fix for `credit_new_order` jsonb |
+| `0018_risk_profile_and_events.sql` | `customer_risk_profiles` + `risk_events` (unconstrained `event_type`), centralised `sync_risk_profile()` counters |
+| `0019_risk_profile_fixes.sql` | `REVOKE/GRANT` hardening (no client write to profiles/events) |
+| `0020_risk_events_sequence_hardening.sql` | `risk_events_id_seq` grants |
+| `0021_device_and_address.sql` | `orders.device_id`, `customer_devices`, address extrinsic signals |
+| `0022_risk_evaluation_gate.sql` | `evaluate_order_risk_trigger` SQL mirror of Dart engine (alphabetical `trg_a_validate → trg_b_evaluate → trg_c_rate_limit`), `verification_requests` stub, `create_risk_events` AFTER, `WHEN` loyalty NOT held, `P0001` dispatch gate (`orders_guard_update` + `transition_order`), `confirm_verification` helper |
+| `0023_risk_gate_fixes.sql` | Gate idempotency / expired guards |
+| `0024_verification_abstraction.sql` | Enriched `verification_requests` (`pgcrypto` placeholder hash, `expires_at = now()+risk.verification_expiry_minutes`, `max_attempts`, `idx_verification_pending_one_per_order` partial unique), RPCs `request_verification`, `verify_verification_code`, `cancel/confirm/reject_verification` |
+| `0025_risk_07_hardening.sql` | Drops staff direct `UPDATE` policy, `orders_guard_update` allows `risk_*/device_id` only for `staff/admin` or `SECURITY DEFINER`, bcrypt `crypt/gen_salt`, `make_interval` expiry, per-order `max_attempts` window rate-limit, indexes |
+| `0026_risk_07_fixes.sql` | Follow-up fixes |
+
+### Smoke queries
+
+```sql
+-- risk gate result per order (same fields shown in verification queue UI)
+SELECT risk_score, risk_level, risk_action, risk_reasons, risk_evaluated_at
+FROM orders ORDER BY created_at DESC LIMIT 5;
+
+-- ledger audit (unconstrained event_type = extensible, canonical codes are subset)
+SELECT event_type, metadata, created_at
+FROM risk_events ORDER BY created_at DESC LIMIT 5;
+
+-- pending verification queue (what Staff/Admin see)
+SELECT id, order_id, phone, status, provider, expires_at
+FROM verification_requests WHERE status='pending' ORDER BY created_at DESC LIMIT 20;
+
+-- rule catalog as staff sees it
+SELECT rule_code, score, enabled FROM risk_rules ORDER BY rule_code;
+
+-- thresholds as admin edits them
+SELECT key, value FROM app_config WHERE key LIKE 'risk.%' ORDER BY key;
+```
+
+Expected: `risk_score 0..100`, `risk_level ∈ {low,medium,high}`, `risk_action ∈ {approved,needs_verification,rejected}`, `risk_events` rows per reason + `RISK_EVALUATED` / `VERIFICATION_*`, `verification_requests` pending → confirmed/rejected.
+
+### Role elevation for staff verification tests
+
+```sql
+-- see who you are (Supabase Auth)
+SELECT id, email FROM auth.users ORDER BY created_at DESC LIMIT 5;
+-- promote to staff (or admin for RulesTab thresholds)
+UPDATE profiles SET role='staff' WHERE user_id='<auth-user-id>';
+-- SELECT verifies:
+SELECT user_id, role FROM profiles WHERE user_id='<auth-user-id>';
+```
+
+Without elevation, `confirm_verification` / `reject_verification` and pending-queue `SELECT` return `42501` (`VerificationPermissionException` in Dart, lock panel `VerificationStrings.lockTitle` §11.11).
+
+### Verify migration ordering (triggers run alphabetically)
+
+```sql
+SELECT trigger_name, event_object_table, action_statement
+FROM information_schema.triggers WHERE event_object_table='orders'
+ORDER BY trigger_name;
+-- expect trg_a_validate_order_pricing < trg_b_evaluate_order_risk < trg_c_enforce_order_rate_limit
+--      trg_a_after_create_risk_events < trg_b_after_credit_new_order < trg_c_after_track_device
+```
+
+Full details: `docs/RISK_VERIFICATION.md` + `docs/adr/0013-risk-engine.md`.
