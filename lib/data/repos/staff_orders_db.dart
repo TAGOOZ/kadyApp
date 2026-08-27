@@ -285,9 +285,11 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
   @override
   Future<List<Map<String, dynamic>>> fetchDriverProfiles() async {
     try {
+      // profiles has only user_id, role, created_at (0001_init.sql) — display_name missing.
+      // Select user_id only; displayName stays null and UI falls back to userId substring.
       final rows = await _client
           .from('profiles')
-          .select('user_id, display_name')
+          .select('user_id')
           .eq('role', 'driver');
       return List<Map<String, dynamic>>.from(rows as List);
     } on PostgrestException catch (error) {

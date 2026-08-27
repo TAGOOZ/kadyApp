@@ -405,9 +405,10 @@ class SupabaseDriverOrdersDb implements DriverOrdersDb {
   @override
   Future<Map<String, dynamic>?> fetchDriverProfile(String userId) async {
     try {
+      // profiles has no display_name (0001_init.sql) — select role only; displayName stays null.
       final row = await _client
           .from('profiles')
-          .select('display_name, role')
+          .select('role')
           .eq('user_id', userId)
           .eq('role', 'driver')
           .maybeSingle();
