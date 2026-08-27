@@ -215,11 +215,10 @@ class _PaginatedCatalogListState
     extends ConsumerState<_PaginatedCatalogList> {
   String? _lastEnsuredSlug;
 
-  String get _effectiveSlug {
+  String _effectiveSlugFor(String? selected) {
     final categories = widget.state.categories;
     if (categories.isEmpty) return '';
     final allItems = widget.state.items;
-    final selected = ref.watch(selectedCategoryProvider);
     if (selected != null && categories.any((c) => c.slug == selected)) {
       return selected;
     }
@@ -231,9 +230,12 @@ class _PaginatedCatalogListState
     return firstWithItems.slug;
   }
 
+  String get _effectiveSlug => _effectiveSlugFor(ref.watch(selectedCategoryProvider));
+
   void _ensureCategory() {
     if (widget.state.categories.isEmpty) return;
-    final slug = _effectiveSlug;
+    final selected = ref.read(selectedCategoryProvider);
+    final slug = _effectiveSlugFor(selected);
     if (slug.isEmpty || slug == _lastEnsuredSlug) return;
     final state = widget.state;
     final items = state.items
@@ -266,14 +268,25 @@ class _PaginatedCatalogListState
   void didUpdateWidget(covariant _PaginatedCatalogList oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.state.items.length != widget.state.items.length ||
-        oldWidget.state.categories.length != widget.state.categories.length) {
-      _lastEnsuredSlug = null; // allow re-ensure after new page arrives
+        oldWidget.state.categories.length != widget.state.categories.length ||
+        oldWidget.state.error != widget.state.error) {
+      _lastEnsuredSlug = null; // allow re-ensure after new page/error cleared
     }
     _ensureCategory();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Listen to pill selection to trigger ensure for empty categories (clears stale _lastEnsuredSlug).
+    ref.listen<String?>(selectedCategoryProvider, (prev, next) {
+      if (prev != next) {
+        _lastEnsuredSlug = null;
+        Future.microtask(() {
+          if (mounted) _ensureCategory();
+        });
+      }
+    });
+
     final categories = widget.state.categories;
     final allItems = widget.state.items;
     final lang = widget.lang;
@@ -465,22 +478,28 @@ class _CategoryPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm16),
-        decoration: BoxDecoration(
-          // Active chip = deep-forest fill, inactive = cream fill.
-          color: active ? AppColors.primary : AppColors.parchment,
-          borderRadius: const BorderRadius.all(Radius.circular(AppRadii.pill)),
-          border: Border.all(color: AppColors.outline.withValues(alpha: 0.25)),
-        ),
-        child: Text(
-          label,
-          style: AppTextStyles.bodySm.copyWith(
-            fontWeight: FontWeight.w600,
-            color: active ? Colors.white : AppColors.coffeeBean,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(Radius.circular(AppRadii.pill)),
+        child: Ink(
+          decoration: BoxDecoration(
+            // Active chip = deep-forest fill, inactive = cream fill.
+            color: active ? AppColors.primary : AppColors.parchment,
+            borderRadius: const BorderRadius.all(Radius.circular(AppRadii.pill)),
+            border: Border.all(color: AppColors.outline.withValues(alpha: 0.25)),
+          ),
+          child: Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm16),
+            child: Text(
+              label,
+              style: AppTextStyles.bodySm.copyWith(
+                fontWeight: FontWeight.w600,
+                color: active ? Colors.white : AppColors.coffeeBean,
+              ),
+            ),
           ),
         ),
       ),

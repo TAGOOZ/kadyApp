@@ -96,10 +96,9 @@ class PaginatedMenuNotifier extends StateNotifier<PaginatedMenuState> {
       for (final c in pageCats) {
         catMap.putIfAbsent(c.slug, () => c);
       }
-      final mergedCats = catMap.values.toList()
-        ..sort((a, b) => a.slug.compareTo(b.slug));
-      // If allCats already sorted by sort, respect DB order; fallback to slug sort
-      // when allCats empty (offline fallback).
+      final mergedCats = catMap.values.toList();
+      // If allCats already sorted by sort, respect DB order; fallback to insertion order
+      // when allCats empty.
       final orderedCats = allCats.isNotEmpty
           ? allCats
           : mergedCats;
@@ -139,12 +138,11 @@ class PaginatedMenuNotifier extends StateNotifier<PaginatedMenuState> {
     try {
       final offset = state.items.length;
       final (cats, newItems) = await _repo.fetchPage(offset: offset, limit: pageSize);
-      // Merge categories distinct by slug, sorted.
-      final catMap = <String, MenuCategory>{for (final c in state.categories) c.slug: c};
+      // Merge categories preserving DB order (allCats order); append new slugs.
+      final mergedCats = [...state.categories];
       for (final c in cats) {
-        catMap.putIfAbsent(c.slug, () => c);
+        if (!mergedCats.any((e) => e.slug == c.slug)) mergedCats.add(c);
       }
-      final mergedCats = catMap.values.toList()..sort((a, b) => a.slug.compareTo(b.slug));
       state = PaginatedMenuState(
         categories: mergedCats,
         items: [...state.items, ...newItems],
@@ -197,11 +195,10 @@ class PaginatedMenuNotifier extends StateNotifier<PaginatedMenuState> {
         limit: pageSize,
       );
       if (items.isEmpty) return;
-      final catMap = <String, MenuCategory>{for (final c in state.categories) c.slug: c};
+      final mergedCats = [...state.categories];
       for (final c in cats) {
-        catMap.putIfAbsent(c.slug, () => c);
+        if (!mergedCats.any((e) => e.slug == c.slug)) mergedCats.add(c);
       }
-      final mergedCats = catMap.values.toList()..sort((a, b) => a.slug.compareTo(b.slug));
       state = PaginatedMenuState(
         categories: mergedCats,
         items: [...state.items, ...items.where((i) => !state.items.any((e) => e.id == i.id))],
