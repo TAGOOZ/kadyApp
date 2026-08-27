@@ -47,3 +47,25 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 .env
+
+# local stray assets — untracked by design (RISK-08 cleanup)
+17803653_5891577.svg
+El_Kady_Menu.xlsx
+*.xlsx
+
+# draft plans not yet promoted (005-009)
+plans/005-avatars-rls-owner-only.md
+plans/006-profile-avatar-web-compat.md
+plans/007-redemption-cost-server-validation.md
+plans/008-staff-lookup-parallel-and-escape.md
+plans/009-menu-category-crash-and-driver-stepper.md
+
+# supabase local cache
+supabase/.temp/
+
+# worker local / build output (Cloudflare)
+worker/.vscode/
+worker/node_modules/
+worker/public/
+worker/test/
+worker/.wrangler/
