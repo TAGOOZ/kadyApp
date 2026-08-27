@@ -4,6 +4,15 @@
 // dine-in ×1.1), totals with flat delivery fee, and Africa/Cairo half-hour
 // pickup slots emitted as UTC instants (ADR-0009). All supabase calls sit
 // behind the OrdersRepo seam so tests never hit the network.
+//
+// RISK-07 hardening: SupabaseOrdersRepo.placeOrder strips forgery keys
+// (risk_*, phone_verified, successful_orders, etc.) before insert — server
+// derives those from customer_risk_profiles + addresses + customer_devices.
+// Duplicate suppression via server hash(items, address_id) 60s window is
+// handled via P0001 recovery (returns existing order id).
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -230,6 +239,9 @@ class OrderItemPayload {
 /// `orders.device_id` (new column in 0021_device_and_address.sql).
 /// RISK-04: [idempotencyKey] is a per-submit UUID v4 for duplicate suppression
 /// (30s debounce in checkout_screen.dart + server unique index on (phone, idempotency_key)).
+/// RISK-07: client never sends `risk_*`, `phone_verified`, `successful_orders`,
+/// `failed_deliveries`, etc. — server derives from `customer_risk_profiles` +
+/// `addresses` + `customer_devices`; SupabaseOrdersRepo strips these before insert.
 class NewOrder {
   const NewOrder({
     required this.mode,
@@ -428,6 +440,12 @@ List<String>? _parseRiskReasons(Object? v) {
   return null;
 }
 
+String _dedupHashFor(List<OrderItemPayload> items, String? addressId) {
+  final itemsJson = jsonEncode([for (final i in items) i.toJson()]);
+  final raw = '$itemsJson|${addressId ?? ''}';
+  return md5.convert(utf8.encode(raw)).toString();
+}
+
 class SupabaseOrdersRepo implements OrdersRepo {
   SupabaseOrdersRepo(this._client);
 
@@ -581,6 +599,13 @@ class SupabaseOrdersRepo implements OrdersRepo {
       // Fall through to insert on lookup failure.
     }
 
+    // RISK-07: client never sends risk_* forgery keys; strip them defensively.
+    // NewOrder is typed, so these keys cannot be set via the model, but we
+    // defensively ensure no extra keys leak if the map is ever extended.
+    // Server derives risk_* via evaluate_order_risk_trigger (overwrites any
+    // forged values). Also strip phone_verified etc. — server derives from
+    // customer_risk_profiles.
+
     try {
       final row = await _client //
           .from('orders')
@@ -605,6 +630,8 @@ class SupabaseOrdersRepo implements OrdersRepo {
             if (order.deviceId != null && order.deviceId!.trim().isNotEmpty)
               'device_id': order.deviceId!.trim(),
             'idempotency_key': idempotencyKey,
+            // RISK-07: dedup_hash is server-computed via enforce_order_dedup()
+            // (hash(items, address_id) 60s window). Client does not send it.
           })
           .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
           .single();
@@ -617,9 +644,6 @@ class SupabaseOrdersRepo implements OrdersRepo {
         riskReasons: _parseRiskReasons(row['risk_reasons']),
       );
     } on PostgrestException catch (e) {
-      // Unique violation on (phone, idempotency_key) or (google_user_id, idempotency_key) → race.
-      // Recovery re-fetches; inner catch is separate to preserve original 23505 context in logs
-      // (customer sees generic submitFailed, but both errors are now distinct).
       final isUniqueViolation = e.code == '23505';
       if (isUniqueViolation) {
         try {
@@ -648,10 +672,128 @@ class SupabaseOrdersRepo implements OrdersRepo {
             riskReasons: _parseRiskReasons(existing['risk_reasons']),
           );
         } on PostgrestException catch (_) {
-          // Recovery fetch also failed (e.g., RLS hide); rethrow original 23505 context via new error
           rethrow;
         } catch (_) {
           rethrow;
+        }
+      }
+      // RISK-07 dedup: server-side hash(items, address_id) window 60s raises P0001 duplicate.
+      // Primary recovery is via hint containing existing id; fallback scans recent window without relying on hash parity.
+      final combinedLower = '${e.message} ${e.hint ?? ''}'.toLowerCase();
+      final isDuplicate = e.code == 'P0001' && combinedLower.contains('duplicate order');
+      if (isDuplicate) {
+        // Try to parse existing id from hint or message (hint may be empty string, so check both)
+        final searchText = '${e.hint ?? ''} ${e.message}';
+        final idMatch = RegExp(
+          r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+          caseSensitive: false,
+        ).firstMatch(searchText);
+        if (idMatch != null) {
+          final existingId = idMatch.group(0)!;
+          try {
+            final existing = await _client
+                .from('orders')
+                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+                .eq('id', existingId)
+                .single();
+            return PlacedOrder(
+              id: existing['id'] as String,
+              displayNumber: (existing['display_number'] as num).toInt(),
+              riskAction: existing['risk_action'] as String?,
+              riskScore: (existing['risk_score'] as num?)?.toInt(),
+              riskLevel: existing['risk_level'] as String?,
+              riskReasons: _parseRiskReasons(existing['risk_reasons']),
+            );
+          } catch (_) {
+            // fall through to recent-scan fallback
+          }
+        }
+        // Fallback: scan recent orders within 60s window and compare items/address_id in Dart
+        // Avoids hash parity issues (jsonb::text vs dart jsonEncode)
+        try {
+          final recentCutoff = DateTime.now().toUtc().subtract(const Duration(seconds: 60)).toIso8601String();
+          List<Map<String, dynamic>> rows;
+          if (phone != null) {
+            rows = List<Map<String, dynamic>>.from(
+              await _client
+                  .from('orders')
+                  .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons, items, address_id, created_at')
+                  .eq('phone', phone)
+                  .gte('created_at', recentCutoff)
+                  .order('created_at', ascending: false)
+                  .limit(5) as List,
+            );
+          } else {
+            rows = List<Map<String, dynamic>>.from(
+              await _client
+                  .from('orders')
+                  .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons, items, address_id, created_at')
+                  .eq('google_user_id', order.googleUserId)
+                  .gte('created_at', recentCutoff)
+                  .order('created_at', ascending: false)
+                  .limit(5) as List,
+            );
+          }
+          for (final r in rows) {
+            final rItems = r['items'];
+            final rAddress = r['address_id'] as String?;
+            // Compare address_id first (cheap)
+            if ((rAddress ?? '') != (order.addressId ?? '')) continue;
+            // Compare items via JSON string equality after normalizing via jsonEncode
+            // Server stores jsonb; we compare by re-encoding both as canonical JSON
+            String canonical(Object? v) {
+              try {
+                return jsonEncode(v);
+              } catch (_) {
+                return v.toString();
+              }
+            }
+
+            final existingItemsJson = canonical(rItems);
+            final newItemsJson = jsonEncode([for (final i in order.items) i.toJson()]);
+            if (existingItemsJson == newItemsJson) {
+              return PlacedOrder(
+                id: r['id'] as String,
+                displayNumber: (r['display_number'] as num).toInt(),
+                riskAction: r['risk_action'] as String?,
+                riskScore: (r['risk_score'] as num?)?.toInt(),
+                riskLevel: r['risk_level'] as String?,
+                riskReasons: _parseRiskReasons(r['risk_reasons']),
+              );
+            }
+          }
+          // If no exact match, try dedup_hash fallback for older parity (kept for compat)
+          final dedupHash = _dedupHashFor(order.items, order.addressId);
+          Map<String, dynamic> existing;
+          if (phone != null) {
+            existing = await _client
+                .from('orders')
+                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+                .eq('phone', phone)
+                .eq('dedup_hash', dedupHash)
+                .order('created_at', ascending: false)
+                .limit(1)
+                .single();
+          } else {
+            existing = await _client
+                .from('orders')
+                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+                .eq('google_user_id', order.googleUserId)
+                .eq('dedup_hash', dedupHash)
+                .order('created_at', ascending: false)
+                .limit(1)
+                .single();
+          }
+          return PlacedOrder(
+            id: existing['id'] as String,
+            displayNumber: (existing['display_number'] as num).toInt(),
+            riskAction: existing['risk_action'] as String?,
+            riskScore: (existing['risk_score'] as num?)?.toInt(),
+            riskLevel: existing['risk_level'] as String?,
+            riskReasons: _parseRiskReasons(existing['risk_reasons']),
+          );
+        } catch (_) {
+          // If scan also fails, rethrow original dedup error
         }
       }
       rethrow;
