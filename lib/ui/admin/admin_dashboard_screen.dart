@@ -17,6 +17,7 @@ import '../../core/logout.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/admin_db.dart';
 import '../../data/repos/admin_kpi_repository.dart';
+import '../widgets/role_badge.dart';
 import 'tabs/campaigns_tab.dart';
 import 'tabs/menu_tab.dart';
 import 'tabs/reports_tab.dart';
@@ -133,15 +134,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
                 controller: _tabs,
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
+                labelStyle: AppTextStyles.labelMd,
+                unselectedLabelStyle: AppTextStyles.labelMd,
                 tabs: [
-                  Tab(text: strings.tabCampaigns),
-                  Tab(text: strings.tabMenu),
-                  Tab(text: strings.tabRules),
-                  Tab(text: strings.tabReports),
-                  Tab(text: strings.tabDrivers),
-                  Tab(text: strings.tabHours),
-                  Tab(text: strings.tabZones),
-                  Tab(text: riskStrings.title),
+                  Tab(icon: Icon(Icons.campaign_outlined, size: 18), text: strings.tabCampaigns),
+                  Tab(icon: Icon(Icons.restaurant_menu_outlined, size: 18), text: strings.tabMenu),
+                  Tab(icon: Icon(Icons.tune_outlined, size: 18), text: strings.tabRules),
+                  Tab(icon: Icon(Icons.bar_chart_outlined, size: 18), text: strings.tabReports),
+                  Tab(icon: Icon(Icons.pedal_bike_outlined, size: 18), text: strings.tabDrivers),
+                  Tab(icon: Icon(Icons.schedule_outlined, size: 18), text: strings.tabHours),
+                  Tab(icon: Icon(Icons.map_outlined, size: 18), text: strings.tabZones),
+                  Tab(icon: Icon(Icons.verified_user_outlined, size: 18), text: riskStrings.title),
                 ],
               ),
               Expanded(
@@ -197,6 +200,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
   }
 
   Widget _buildHeader(AdminStrings strings) {
+    final lang = ref.watch(localeNotifierProvider);
     return Container(
       color: AppColors.primary,
       padding: const EdgeInsets.symmetric(
@@ -206,15 +210,27 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              strings.title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  strings.title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                      ),
+                ),
+                Text(
+                  lang == AppLang.ar ? 'مدير • اضغط الشارة للتبديل' : 'Admin • tap badge to switch',
+                  style: AppTextStyles.labelMd.copyWith(
+                    color: Colors.white.withValues(alpha: 0.78),
                   ),
+                ),
+              ],
             ),
           ),
           ActionChip(
-            avatar: const Icon(Icons.receipt_long, size: 18),
+            avatar: const Icon(Icons.receipt_long, size: 18, color: Colors.white),
             label: Text(strings.staffBoardChip),
             side: const BorderSide(color: Colors.white54),
             labelStyle: AppTextStyles.labelMd.copyWith(color: Colors.white),
@@ -224,14 +240,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
           const SizedBox(width: AppSpacing.xs8),
           IconButton(
             key: const Key('admin_logout'),
-            tooltip: 'تسجيل الخروج',
+            tooltip: lang == AppLang.ar ? 'تسجيل الخروج' : 'Sign out',
             icon: const Icon(Icons.logout_outlined, color: Colors.white),
             onPressed: () => confirmAndLogout(context, ref),
           ),
-          const CircleAvatar(
+          const SizedBox(width: 4),
+          // Leftmost — admin badge: clean RoleBadge handles debug sheet vs release quick-toggle.
+          const RoleBadge(
+            icon: Icons.admin_panel_settings_outlined,
+            radius: 18,
             backgroundColor: AppColors.primaryContainer,
             foregroundColor: AppColors.primaryFixedTint,
-            child: Icon(Icons.admin_panel_settings_outlined),
           ),
         ],
       ),

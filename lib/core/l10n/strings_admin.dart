@@ -170,7 +170,7 @@ class AdminStrings {
       };
 
   static final AdminStrings _ar = AdminStrings(
-    title: 'إدارة الحملات',
+    title: 'لوحة الإدارة',
     staffBoardChip: 'لوحة الطلبات',
     tabCampaigns: 'الحملات',
     tabMenu: 'القائمة',
@@ -264,7 +264,7 @@ class AdminStrings {
   );
 
   static final AdminStrings _en = AdminStrings(
-    title: 'Campaigns Admin',
+    title: 'Admin',
     staffBoardChip: 'Orders board',
     tabCampaigns: 'Campaigns',
     tabMenu: 'Menu',

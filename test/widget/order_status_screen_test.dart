@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kady_app/core/l10n/app_strings.dart';
 import 'package:kady_app/core/launcher/app_launcher.dart';
+import 'package:kady_app/core/maps/maps_config.dart';
 import 'package:kady_app/core/riverpod_retry.dart';
 import 'package:kady_app/data/repos/order_status_repository.dart';
 import 'package:kady_app/domain/order_status_flow.dart';
@@ -92,6 +93,7 @@ Future<void> _pump(
         orderStatusRepoProvider.overrideWithValue(repo),
         localeNotifierProvider.overrideWith(() => _FixedLocale(lang)),
         appLauncherProvider.overrideWithValue(fakeLauncher),
+        mapsTestModeProvider.overrideWithValue(true),
       ],
       child: MaterialApp(
         home: Directionality(

@@ -22,7 +22,7 @@ class ModeShareChart extends StatelessWidget {
   static const _colors = {
     'dine_in': AppColors.primary,
     'pickup': AppColors.secondary,
-    'delivery': AppColors.coffeeBean,
+    'delivery': AppColors.success,
   };
 
   String _labelFor(String mode) => switch (mode) {

@@ -185,30 +185,14 @@ class _HoursEditorPanelState extends ConsumerState<HoursEditorPanel> {
                         ),
                       ),
                     ),
-                    trailing: Switch(
-                      value: delivery,
-                      onChanged: closed ? null : (v) => _toggleDelivery(day, v),
-                    ),
-                  ),
-                  if (!closed)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-                      child: Row(
-                        children: [
-                          ActionChip(
-                            label: Text(isAr ? 'تعديل الفتح: $open' : 'Edit open: $open'),
-                            avatar: const Icon(Icons.edit_outlined, size: 16),
-                            onPressed: () => _editTime(day, 'open'),
-                          ),
-                          const SizedBox(width: 8),
-                          ActionChip(
-                            label: Text(isAr ? 'الإغلاق: $close' : 'Close: $close'),
-                            avatar: const Icon(Icons.edit_outlined, size: 16),
-                            onPressed: () => _editTime(day, 'close'),
-                          ),
-                        ],
+                    trailing: Tooltip(
+                      message: closed ? (isAr ? 'متاح فقط عند الفتح' : 'Available only when open') : (isAr ? 'توصيل' : 'Delivery'),
+                      child: Switch(
+                        value: delivery,
+                        onChanged: closed ? null : (v) => _toggleDelivery(day, v),
                       ),
                     ),
+                  ),
                 ],
               ),
             ),

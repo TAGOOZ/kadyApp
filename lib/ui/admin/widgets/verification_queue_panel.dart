@@ -314,13 +314,6 @@ class _VerificationCardState extends ConsumerState<_VerificationCard> with Singl
     }
   }
 
-  Color _levelColor(RiskLevel? level) => switch (level) {
-        RiskLevel.low => AppColors.success,
-        RiskLevel.medium => AppColors.secondary,
-        RiskLevel.high => AppColors.error,
-        null => AppColors.outline,
-      };
-
   Color _levelBg(RiskLevel? level) => switch (level) {
         RiskLevel.low => AppColors.successContainer,
         RiskLevel.medium => AppColors.secondaryContainer,
@@ -348,7 +341,6 @@ class _VerificationCardState extends ConsumerState<_VerificationCard> with Singl
         color: AppColors.paperWhite,
         borderRadius: BorderRadius.circular(AppRadii.md8),
         boxShadow: AppShadows.coffeeShadows(),
-        border: Border.all(color: AppColors.outline.withValues(alpha: 0.12)),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadii.md8),
@@ -368,6 +360,7 @@ class _VerificationCardState extends ConsumerState<_VerificationCard> with Singl
                       style: AppTextStyles.titleSm.copyWith(color: AppColors.coffeeBean, fontWeight: FontWeight.w700),
                     ),
                   ),
+                  // Level badge — single source, top-right only (deduplicated)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
@@ -395,7 +388,10 @@ class _VerificationCardState extends ConsumerState<_VerificationCard> with Singl
                 style: AppTextStyles.bodySm.copyWith(color: AppColors.coffeeBean, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
-              Row(
+              Wrap(
+                spacing: AppSpacing.xs8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
                     '${strings.riskScoreLabel}: ',
@@ -405,31 +401,13 @@ class _VerificationCardState extends ConsumerState<_VerificationCard> with Singl
                     scoreText,
                     style: AppTextStyles.bodySm.copyWith(color: AppColors.coffeeBean, fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(width: AppSpacing.xs8),
                   Text(
-                    '${strings.riskLevelLabel}: ',
+                    '${strings.riskLevelLabel}: $levelLabel',
                     style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _levelBg(item.riskLevel).withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                    ),
-                    child: Text(
-                      levelLabel,
-                      style: AppTextStyles.labelMd.copyWith(
-                        color: item.riskLevel == RiskLevel.high ? Colors.white : _levelColor(item.riskLevel),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.xs8),
-                  Flexible(
-                    child: Text(
-                      '${strings.actionLabel}: $actionWire',
-                      style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  Text(
+                    '${strings.actionLabel}: $actionWire',
+                    style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
                   ),
                 ],
               ),

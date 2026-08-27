@@ -15,6 +15,7 @@ import '../../core/l10n/strings_risk.dart';
 import '../../core/l10n/strings_staff.dart';
 import '../../core/logout.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/role_badge.dart';
 import '../../data/repos/staff_orders_repository.dart';
 import '../../domain/order_status_flow.dart';
 import 'widgets/checkin_sheet.dart';
@@ -146,12 +147,12 @@ class _StaffBoardScreenState extends ConsumerState<StaffBoardScreen> {
             onPressed: () => confirmAndLogout(context, ref),
           ),
           const Padding(
-            padding: EdgeInsetsDirectional.only(end: AppSpacing.xs8),
-            child: CircleAvatar(
+            padding: EdgeInsetsDirectional.only(end: 4),
+            child: RoleBadge(
+              icon: Icons.support_agent_outlined,
               radius: 16,
               backgroundColor: AppColors.primaryContainer,
-              child:
-                  Icon(Icons.person_outline, size: 20, color: Colors.white),
+              foregroundColor: Colors.white,
             ),
           ),
         ],

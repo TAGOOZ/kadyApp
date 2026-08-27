@@ -2,6 +2,8 @@
 // Zones editor panel — zoned delivery fees (FEATURES §11.7).
 // Flat `delivery_fee` in app_config is edited in Rules; polygon fees in
 // `public.zones` (0009_zones.sql) are CRUD here. Map preview via flutter_map.
+// Single master map pattern (defect #9): one MapsPreview for all zones,
+// no per-card maps to avoid N× FlutterMap instances and scroll jank.
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -163,8 +165,9 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs8),
+                // Editor preview: single polygon when editing (modal, not counted as N per screen).
                 if (isEdit && _parsePolygon(zone['polygon']) != null)
-                  MapsPreview(height: 160, polygonPoints: _parsePolygon(zone['polygon']), markers: const []),
+                  MapsPreview(height: 160, polygonPoints: _parsePolygon(zone['polygon']), markers: const [], interactive: false),
                 const SizedBox(height: AppSpacing.sm16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -219,13 +222,25 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
-    final allPolygons = <LatLng>[];
+    // Defect #4 fix: per-zone List<Polygon> (no flattening into one polygon).
+    final zonePolygons = <Polygon>[];
     if (_zones != null) {
       for (final z in _zones!) {
         final pts = _parsePolygon(z['polygon']);
-        if (pts != null) allPolygons.addAll(pts);
+        if (pts != null && pts.length >= 3) {
+          zonePolygons.add(
+            Polygon(
+              points: pts,
+              color: AppColors.primaryContainer.withValues(alpha: 0.18),
+              borderColor: AppColors.primary,
+              borderStrokeWidth: 2,
+            ),
+          );
+        }
       }
     }
+    final hasPolygons = zonePolygons.isNotEmpty;
+    final masterCenter = hasPolygons ? zonePolygons.first.points.first : elkadyCafeLatLng;
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -246,11 +261,16 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
             ),
           ),
           const SizedBox(height: AppSpacing.sm16),
+          // Single master map (defect #9) — interactive false by default (defect #10),
+          // error handling & attribution handled inside MapsPreview.
           MapsPreview(
             height: 200,
-            center: allPolygons.isNotEmpty ? allPolygons.first : elkadyCafeLatLng,
-            polygonPoints: allPolygons.isEmpty ? null : allPolygons,
-            markers: allPolygons.isEmpty ? const [] : [Marker(point: elkadyCafeLatLng, width: 36, height: 36, child: Icon(Icons.local_cafe, color: AppColors.primary, size: 28))],
+            center: masterCenter,
+            polygons: hasPolygons ? zonePolygons : null,
+            markers: hasPolygons
+                ? [Marker(point: elkadyCafeLatLng, width: 36, height: 36, child: Icon(Icons.local_cafe, color: AppColors.primary, size: 28))]
+                : const [],
+            interactive: false,
           ),
           const SizedBox(height: AppSpacing.xs8),
           Align(
@@ -283,7 +303,7 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(color: AppColors.primaryContainer.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppRadii.pill)),
-                                child: Text('${z['fee']} ${widget.strings.currencySuffix} / zonas / منطقة', style: AppTextStyles.labelMd.copyWith(color: AppColors.primary)),
+                                child: Text('${z['fee']} ${widget.strings.currencySuffix}', style: AppTextStyles.labelMd.copyWith(color: AppColors.primary)),
                               ),
                               const Spacer(),
                               if (z['polygon'] != null) const Icon(Icons.map_outlined, size: 16, color: AppColors.outline),
@@ -299,11 +319,8 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
                         ],
                       ),
                     ),
-                    if (_parsePolygon(z['polygon']) != null)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                        child: MapsPreview(height: 140, polygonPoints: _parsePolygon(z['polygon']), center: _parsePolygon(z['polygon'])!.first),
-                      ),
+                    // Defect #9: per-card MapsPreview removed — master map shows all polygons.
+                    // Keep a subtle hint that polygon exists (already in trailing icon above).
                   ],
                 ),
               ),

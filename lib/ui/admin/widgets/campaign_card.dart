@@ -54,12 +54,13 @@ class CampaignCard extends StatelessWidget {
                             : strings.kindLabel(campaign.kind),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      Text(
-                        strings.kindLabel(campaign.kind),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.secondary,
-                            ),
-                      ),
+                      if (campaign.nameAr?.isNotEmpty == true)
+                        Text(
+                          strings.kindLabel(campaign.kind),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.secondary,
+                              ),
+                        ),
                     ],
                   ),
                 ),
@@ -284,7 +285,7 @@ class _CampaignDialogState extends State<_CampaignDialog> {
                   alignment: AlignmentDirectional.centerStart,
                   child: Text(
                     _dateError!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+                    style: AppTextStyles.labelMd.copyWith(color: AppColors.error),
                   ),
                 ),
               ),

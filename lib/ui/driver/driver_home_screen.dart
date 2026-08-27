@@ -20,12 +20,13 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_driver.dart';
 import '../../core/logout.dart';
 import '../../core/launcher/app_launcher.dart' show appLauncherProvider;
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
 
 import '../../core/maps/maps_config.dart';
 import '../../core/maps/maps_preview.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/role_badge.dart';
 import '../../data/repos/driver_orders_repository.dart';
 import '../../data/repos/driver_positions_repository.dart';
 import '../../data/repos/orders_repository.dart' show cairoUtcOffset;
@@ -88,11 +89,12 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           title: Text(strings.homeTitle),
           actions: [
             const Padding(
-              padding: EdgeInsetsDirectional.only(end: AppSpacing.xs8),
-              child: CircleAvatar(
+              padding: EdgeInsetsDirectional.only(end: 4),
+              child: RoleBadge(
+                icon: Icons.moped_outlined,
                 radius: 16,
                 backgroundColor: AppColors.primaryContainer,
-                child: Icon(Icons.moped_outlined, size: 20),
+                foregroundColor: Colors.white,
               ),
             ),
             Padding(
@@ -456,11 +458,29 @@ class _DriverOrderDetailScreenState
 
   /// Best-effort live tracking publish — driver GPS → driver_positions realtime.
   /// Staff/customer who can read the order also read the position (RLS).
+  /// Shows snackbar rationale when permission is deniedForever (defect #8).
   Future<void> _publishTracking() async {
     try {
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) return;
+      if (perm == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        final lang = ref.read(localeNotifierProvider);
+        final msg = lang == AppLang.ar
+            ? 'السماح بالموقع مرفوض نهائيًا — فعّله من إعدادات الجهاز'
+            : 'Location permission permanently denied — enable in device settings';
+        _showSnack(msg);
+        return;
+      }
+      if (perm == LocationPermission.denied) {
+        if (!mounted) return;
+        final lang = ref.read(localeNotifierProvider);
+        final msg = lang == AppLang.ar
+            ? 'السماح بالموقع مطلوب للتتبع المباشر'
+            : 'Location permission is required for live tracking';
+        _showSnack(msg);
+        return;
+      }
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
@@ -522,15 +542,40 @@ class _DriverOrderDetailScreenState
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.gutter16),
         children: [
-          // Live map — flutter_map OSM with cafe→destination markers.
-          // Destination approximated from cafe center (+0.02) until geocoded address.
-          MapsPreview(
-            height: 200,
-            center: elkadyCafeLatLng,
-            zoom: 13,
-            markers: MapsPreview.cafeToDestination(
-              const LatLng(29.086, 31.097),
-            ),
+          // Live map — OSM with cafe marker; destination only when geocoded.
+          // Defect #2: no fake destination — show café only when no address,
+          // otherwise addressText is shown below and geocoded dest would be
+          // used if available (don't fake dest).
+          Builder(
+            builder: (context) {
+              final hasAddress = _addressFull != strings.addressMissing;
+              // When we have a real geocoded LatLng we would use
+              // cafeToDestination(geocodedDest). Without it, show cafe only.
+              final mapMarkers = hasAddress
+                  ? <Marker>[
+                      Marker(
+                        point: elkadyCafeLatLng,
+                        width: 36,
+                        height: 36,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            boxShadow: AppShadows.coffeeShadows(blurRadius: 6),
+                          ),
+                          child: const Icon(Icons.storefront_outlined, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ]
+                  : const <Marker>[];
+              return MapsPreview(
+                height: 200,
+                center: elkadyCafeLatLng,
+                zoom: 13,
+                markers: mapMarkers,
+                interactive: false,
+              );
+            },
           ),
           const SizedBox(height: AppSpacing.xs8),
           Align(

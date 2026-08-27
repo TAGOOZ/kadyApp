@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:kady_app/core/l10n/app_strings.dart';
 import 'package:kady_app/core/launcher/app_launcher.dart';
+import 'package:kady_app/core/maps/maps_config.dart';
 import 'package:kady_app/core/riverpod_retry.dart';
 import 'package:kady_app/data/repos/driver_orders_repository.dart';
 import 'package:kady_app/data/repos/order_status_repository.dart';
@@ -128,6 +129,7 @@ Future<({ _FakeOrderStatusRepo repo, _FakeLauncher launcher })> _pump(
         driverOrdersRepoProvider.overrideWithValue(fakeDriverRepo),
         localeNotifierProvider.overrideWith(() => _FixedLocale(lang)),
         appLauncherProvider.overrideWithValue(fakeLauncher),
+        mapsTestModeProvider.overrideWithValue(true),
       ],
       child: MaterialApp(
         home: Directionality(

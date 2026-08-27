@@ -155,7 +155,9 @@ class _DriverAssignmentPanelState extends ConsumerState<DriverAssignmentPanel> {
                   ),
                   trailing: FilledButton(
                     onPressed: busy ? null : () => _assign(order),
-                    child: Text(widget.strings.assignDriver),
+                    child: busy
+                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Text(currentDriver == null ? widget.strings.assignDriver : (ref.watch(localeNotifierProvider) == AppLang.ar ? 'إعادة التعيين' : 'Reassign')),
                   ),
                 ),
               );

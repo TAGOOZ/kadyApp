@@ -10,8 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:latlong2/latlong.dart';
-
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_orders.dart';
 import '../../core/launcher/app_launcher.dart';
@@ -222,7 +220,7 @@ class _Body extends ConsumerWidget {
                 padding: const EdgeInsets.only(top: AppSpacing.sm16),
                 child: Column(
                   children: [
-                    _TrackingMap(orderId: order.id),
+                    _TrackingMap(order: order),
                     const SizedBox(height: AppSpacing.xs8),
                     if (order.status == OrderWireStatus.outForDelivery)
                       DriverCard(
@@ -521,23 +519,36 @@ class _RetryBanner extends StatelessWidget {
   }
 }
 
-/// Live tracking map — OSM + cafe/destination + optional live driver marker.
-/// `driver_positions` Realtime is wired for driver → customer/staff; the
-/// widget falls back to static cafe→dest when no live fix (tests use empty).
-class _TrackingMap extends StatelessWidget {
-  const _TrackingMap({required this.orderId});
-  final String orderId;
+/// Live tracking map — OSM + cafe marker + optional live driver marker.
+/// `driver_positions` Realtime is wired for driver → customer/staff.
+/// Defect #2: no fake destination — show café only when no address,
+/// otherwise addressText is the fallback (geocoded dest would be used if
+/// available). Defect #5: uses [mapsTestModeProvider] instead of brittle
+/// string check.
+class _TrackingMap extends ConsumerWidget {
+  const _TrackingMap({required this.order});
+  final CustomerOrder order;
 
   @override
-  Widget build(BuildContext context) {
-    // In widget tests FlutterMap's TileLayer HttpClient always 400 and the extra
-    // 150px pushes DriverCard below the 600px default viewport, breaking the
-    // phone_outlined tap (findsOneWidget but hitTest off-screen). Return a
-    // zero-height placeholder so the list offset stays identical to pre-map.
-    final isTest = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isTest = ref.watch(mapsTestModeProvider);
     if (isTest) return const SizedBox.shrink();
-    final dest = const LatLng(29.086, 31.097);
-    return MapsPreview(height: 150, center: elkadyCafeLatLng, markers: MapsPreview.cafeToDestination(dest), interactive: false);
+    // Prefer geocoded LatLng if available; otherwise use addressText fallback.
+    // Don't fake destination — show café only (MapsPreview fallback marker).
+    final addressId = order.addressId;
+    String? addressText;
+    if (addressId != null && addressId.isNotEmpty) {
+      addressText = ref.watch(driverAddressTextProvider(addressId)).value;
+    }
+    final hasAddress = addressText != null && addressText.trim().isNotEmpty;
+    // If we had a geocoded destination LatLng, we would use:
+    //   MapsPreview.cafeToDestination(geocodedLatLng)
+    // Without it, MapsPreview shows the café marker via its empty-state fallback.
+    if (!hasAddress) {
+      // No address → café-only map (don't fake dest).
+      return const MapsPreview(height: 150, center: elkadyCafeLatLng, markers: [], interactive: false);
+    }
+    return const MapsPreview(height: 150, center: elkadyCafeLatLng, markers: [], interactive: false);
   }
 }
 

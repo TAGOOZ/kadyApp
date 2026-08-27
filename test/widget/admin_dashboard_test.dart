@@ -169,7 +169,7 @@ void main() {
     await tester.pumpWidget(wrapDashboard(await seededDb()));
     await settleTabs(tester);
 
-    expect(find.text('إدارة الحملات'), findsOneWidget);
+    expect(find.text('لوحة الإدارة'), findsOneWidget);
     expect(find.text('لوحة الطلبات'), findsOneWidget);
     expect(find.text('طلبات اليوم'), findsOneWidget);
     expect(find.text('عملاء نشطون'), findsOneWidget);
@@ -188,9 +188,8 @@ void main() {
     await settleTabs(tester);
 
     expect(find.text('نقاط مضاعفة ليالي'), findsOneWidget);
-    // Kind mapping appears twice for the unnamed match_night campaign:
-    // card title falls back to the kind label, plus the subtitle.
-    expect(find.text('ليالي الماتشات'), findsNWidgets(2));
+    // Unnamed match_night campaign title falls back to kind label — subtitle deduped (fix).
+    expect(find.text('ليالي الماتشات'), findsOneWidget);
     // Active double_points campaign surfaces the immediate-application note.
     expect(find.text('يُطبّق على الطلبات الجديدة فورًا'), findsOneWidget);
     // FAB for new campaigns.
