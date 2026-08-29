@@ -462,9 +462,10 @@ void main() {
 
     test('extrinsic-only signals alone never push to high (capped at mediumMax)', () {
       // No non-extrinsic positives, only device signals with high scores would otherwise hit high.
+      // isExtrinsic flag drives the cap (data-driven) — legacy fallback also covers these codes.
       const extrinsicHighRules = [
-        RiskRule(code: RuleCode.newDevice, score: 40),
-        RiskRule(code: RuleCode.multipleAccountsDevice, score: 40),
+        RiskRule(code: RuleCode.newDevice, score: 40, isExtrinsic: true),
+        RiskRule(code: RuleCode.multipleAccountsDevice, score: 40, isExtrinsic: true),
       ];
       const ctx = RiskContext(
         isNewDevice: true,

@@ -1,3 +1,3 @@
-// Deprecated shim — SupabaseLoyaltyGateway now lives in domain/loyalty_gateway.dart
-// (ARCH-05). This file remains so existing imports keep resolving.
-export '../../domain/loyalty_gateway.dart';
+// Deprecated shim — canonical implementation now lives in lib/data/adapters/supabase_loyalty_gateway.dart.
+// This file now correctly re-exports the data adapter (not domain) for backwards compat.
+export '../adapters/supabase_loyalty_gateway.dart';

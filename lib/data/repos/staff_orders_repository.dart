@@ -208,8 +208,9 @@ final staffOrdersRepoProvider = Provider<StaffOrdersRepo>(
 );
 
 /// Board-wide realtime feed (ADR-0006) — every visible order, newest first.
+/// autoDispose so board remount re-subscribes and unmount closes channel.
 final staffOrdersStreamProvider =
-    StreamProvider<List<StaffOrder>>((ref) {
+    StreamProvider.autoDispose<List<StaffOrder>>((ref) {
   return ref.watch(staffOrdersRepoProvider).streamAll();
 });
 
@@ -226,7 +227,7 @@ final staffCustomerNamesProvider = FutureProvider<Map<String, String>>(
 
 /// Delivery address text per `address_id`, cached per id by Riverpod family.
 final staffAddressTextProvider =
-    FutureProvider.family<String?, String>((ref, addressId) {
+    FutureProvider.autoDispose.family<String?, String>((ref, addressId) {
   return ref.watch(staffOrdersRepoProvider).fetchAddressText(addressId);
 });
 
@@ -234,7 +235,7 @@ final staffAddressTextProvider =
 /// Supabase `in.(...)` query (audit #3). Key is comma-joined sorted ids to
 /// keep Riverpod family caching stable (Set equality is identity-based).
 final staffAddressMapProvider =
-    FutureProvider.family<Map<String, String>, String>((ref, idsKey) {
+    FutureProvider.autoDispose.family<Map<String, String>, String>((ref, idsKey) {
   if (idsKey.isEmpty) return const {};
   final ids = idsKey.split(',').where((s) => s.isNotEmpty).toSet();
   return ref.watch(staffOrdersRepoProvider).fetchAddressMap(ids);

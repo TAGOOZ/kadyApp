@@ -4,15 +4,15 @@
 // (ADR-0004 layer-first: data never imports l10n/ui).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/repos/driver_orders_repository.dart';
+import 'driver_gateway.dart';
 
 /// Real driver identity from `profiles.display_name`; `null` signals the UI
 /// to render [DriverStrings.driverNameStub]. Loading/error also fall back
 /// to stub so the AppBar never blanks (task spec: loading shows stub).
 final driverProfileProvider = FutureProvider<String?>((ref) async {
-  final repo = ref.watch(driverOrdersRepoProvider);
+  final gateway = ref.watch(driverProfileGatewayProvider);
   try {
-    final name = await repo.fetchDriverDisplayName();
+    final name = await gateway.fetchDriverDisplayName();
     if (name != null && name.trim().isNotEmpty) return name.trim();
     return null;
   } catch (_) {

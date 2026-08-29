@@ -28,6 +28,58 @@ abstract final class AppColors {
   static const instagram = Color(0xFFE4405F);
   static const tiktok = Color(0xFF000000);
   static const whatsapp = Color(0xFF25D366);
+
+  // ---------------------------------------------------------------------------
+  // Exhaustive tokens — every Color(0x…) in lib/ must resolve to AppColors.*
+  // (grep -rn "Color(0x" lib --include="*.dart" | grep -v app_theme.dart == empty).
+  // Heritage Hearth ledger: white on bannerEmber stops ≥4.91:1; staffReady 5.24,
+  // outForDelivery 5.47, done/textMuted 5.30, gold tier 5.24 (all ≥4.5:1 AA).
+  // ---------------------------------------------------------------------------
+
+  // Tier metals — gold / silver / bronze
+  static const tierGold = Color(0xFF8A6200);
+  static const tierGoldLight = Color(0xFFF6D365);
+  static const tierGoldDark = Color(0xFFB8860B);
+  static const tierSilverFill = Color(0xFFECEFF1);
+  static const tierSilver = Color(0xFF546E7A);
+  static const tierBronzeFill = Color(0xFFF3E0D1);
+  static const tierBronze = Color(0xFF8D5524);
+
+  // Banner deep-ember gradients (ledger: deep-ember ≥4.91:1 for white copy)
+  static const bannerEmber = Color(0xFFC24A00);
+  static const bannerEmberDark = Color(0xFF8F3300);
+  static const bannerEmberMid = Color(0xFFB84500);
+  static const bannerEmberMidDark = Color(0xFF803000);
+  static const bannerEmberAltDark = Color(0xFF8A3000);
+
+  // Ember aliases required by report After
+  static const emberStart = bannerEmber;
+  static const emberEnd = bannerEmberDark;
+
+  // Staff status chips — ledger-verified AA
+  static const staffReady = Color(0xFF156B41);
+  static const staffOutForDelivery = Color(0xFF9E3900);
+
+  // Scratch & match — silver coating + gold sparkle
+  static const scratchSilverLight = Color(0xFFE7EBE7);
+  static const scratchSilverDark = Color(0xFFD6DBD6);
+  static const scratchSilver = scratchSilverDark;
+  static const cardGold = Color(0xFFE7C77B);
+  static const sparkleGold = cardGold;
+
+  // Voucher tint
+  static const voucherTopping = Color(0xFFFFE3D6);
+
+  // Quest badges — earned gold + locked gray
+  static const badgeGoldLight = Color(0xFFE8B93E);
+  static const badgeGoldDark = Color(0xFFB98A1F);
+  static const badgeLockedLight = Color(0xFFE5E2DC);
+  static const badgeLockedDark = Color(0xFFD7D4CE);
+
+  // Instagram brand gradient stops
+  static const instagramOrange = Color(0xFFF58529);
+  static const instagramPink = Color(0xFFDD2A7B);
+  static const instagramPurple = Color(0xFF515BD4);
 }
 
 abstract final class AppRadii {

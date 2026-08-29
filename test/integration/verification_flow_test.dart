@@ -224,6 +224,8 @@ class _FakeOrdersRepo2 implements OrdersRepo {
   @override Future<List<SavedAddress>> fetchAddresses(String gid) async => const [];
   @override Future<SavedAddress> saveAddress(SavedAddressInput i) async => throw UnimplementedError();
   @override Future<PlacedOrder> placeOrder(NewOrder order) => _store.place(order);
+  @override Future<RiskResult> previewRisk(NewOrder draft) async =>
+      const RiskResult(score: 0, level: RiskLevel.low, reasons: [], action: RiskAction.approved);
 }
 
 class _FakeOrderStatusRepo2 implements OrderStatusRepo {

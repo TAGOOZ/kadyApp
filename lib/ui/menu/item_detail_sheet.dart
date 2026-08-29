@@ -8,6 +8,7 @@ import '../../core/l10n/strings_menu.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/menu_models.dart';
 import '../../domain/cart_controller.dart';
+import '../../domain/pricing.dart';
 import 'widgets/menu_item_image.dart' show MenuItemImage;
 
 /// Branded photo placeholder — gradient + ☕ — shared by the menu cards and
@@ -82,13 +83,12 @@ class _ItemDetailSheetState extends ConsumerState<_ItemDetailSheet> {
   }
 
   int get _unitPriceEgp {
-    final addonTotal = _addons.fold<int>(
-      0,
-      (sum, id) => sum + (ItemConfig.addonPricesEgp[id] ?? 0),
+    // Delegates to Pricing deep module — single source for unit_total encoding.
+    final cfg = ItemConfig(
+      sizeIndex: _sizeIndex,
+      addons: Set.of(_addons),
     );
-    return widget.item.priceEgp +
-        ItemConfig.sizeDeltasEgp[_sizeIndex] +
-        addonTotal;
+    return pricingUnitTotalFor(widget.item, cfg);
   }
 
   ItemConfig buildConfig() {
@@ -202,11 +202,11 @@ class _ItemDetailSheetState extends ConsumerState<_ItemDetailSheet> {
                   const SizedBox(height: AppSpacing.sm16),
                   _SectionTitle(strings.addonsLabel),
                   const SizedBox(height: AppSpacing.xs8),
-                  ...ItemConfig.addonPricesEgp.keys.map(
+                  ...kPricingAddonPricesEgp.keys.map(
                     (id) => _AddonRow(
                       label: strings.addonName(id),
                       delta: strings.addonDelta(
-                        ItemConfig.addonPricesEgp[id] ?? 0,
+                        kPricingAddonPricesEgp[id] ?? 0,
                       ),
                       checked: _addons.contains(id),
                       onChanged: (_) => _toggleAddon(id),
@@ -247,7 +247,7 @@ class _ItemDetailSheetState extends ConsumerState<_ItemDetailSheet> {
   }
 
   String _sizeLabel(MenuStrings strings, int index) {
-    final delta = ItemConfig.sizeDeltasEgp[index];
+    final delta = kPricingSizeDeltasEgp[index.clamp(0, kPricingSizeDeltasEgp.length - 1)];
     return delta == 0 ? strings.sizeNames[index] : '${strings.sizeNames[index]} · +$delta';
   }
 }

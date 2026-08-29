@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kady_app/data/models/menu_models.dart';
 import 'package:kady_app/data/repos/orders_repository.dart';
 import 'package:kady_app/domain/auth_controller.dart';
+import 'package:kady_app/domain/risk_engine.dart';
 import 'package:kady_app/domain/cart_controller.dart';
 import 'package:kady_app/ui/cart/checkout_screen.dart';
 import 'package:kady_app/ui/cart/order_confirmation_screen.dart';
@@ -71,6 +72,10 @@ class _FakeOrdersRepo implements OrdersRepo {
     if (gate != null) await gate.future;
     return const PlacedOrder(id: 'order-1', displayNumber: 1023);
   }
+
+  @override
+  Future<RiskResult> previewRisk(NewOrder draft) async =>
+      const RiskResult(score: 0, level: RiskLevel.low, reasons: [], action: RiskAction.approved);
 }
 
 class _FixedAuth extends AuthController {

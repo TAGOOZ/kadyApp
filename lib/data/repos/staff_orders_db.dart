@@ -6,6 +6,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/order_status_flow.dart';
+import '../adapters/supabase_phone_stamp_service.dart';
 import 'staff_orders_models.dart' show staffBoardPageLimit;
 import 'staff_orders_pure.dart' show orderEventInsertRow, transitionOrderPatch;
 
@@ -96,9 +97,13 @@ abstract class StaffOrdersDb {
 }
 
 class SupabaseStaffOrdersDb implements StaffOrdersDb {
-  SupabaseStaffOrdersDb(this._client);
+  SupabaseStaffOrdersDb(this._client)
+      : _stamp = SupabasePhoneStampService(_client),
+        _phoneResolver = SupabaseCustomerPhoneResolver(_client);
 
   final SupabaseClient _client;
+  final SupabasePhoneStampService _stamp;
+  final SupabaseCustomerPhoneResolver _phoneResolver;
 
   @override
   Stream<List<Map<String, dynamic>>> watchOrders() {
@@ -133,11 +138,7 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
   ) async {
     if (phones.isEmpty) return const [];
     try {
-      final rows = await _client //
-          .from('customers')
-          .select('phone, name')
-          .inFilter('phone', phones.toList());
-      return List<Map<String, dynamic>>.from(rows as List);
+      return await _phoneResolver.fetchCustomersByPhones(phones);
     } on PostgrestException catch (error) {
       return rethrowAsTyped(error);
     }
@@ -217,19 +218,8 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
 
   @override
   Future<int?> fetchStampMinSpend() async {
-    try {
-      final row = await _client
-          .from('app_config')
-          .select('value')
-          .eq('key', 'stamp_min_spend')
-          .maybeSingle();
-      final value = row?['value'];
-      if (value is num) return value.toInt();
-      if (value is String) return int.tryParse(value);
-    } on PostgrestException {
-      return null; // config read hiccup → constant threshold
-    }
-    return null;
+    // Delegated to shared service — single source of truth.
+    return _stamp.fetchStampMinSpend();
   }
 
   @override
@@ -260,12 +250,7 @@ class SupabaseStaffOrdersDb implements StaffOrdersDb {
 
   @override
   Future<bool?> applyStampRpc(String phone, int spend) async {
-    try {
-      return await _client.rpc('staff_apply_stamp',
-          params: {'p_phone': phone, 'p_spend': spend});
-    } catch (_) {
-      return null; // network / missing fn → caller degrades to pending
-    }
+    return _stamp.applyStamp(phone, spend);
   }
 
   @override

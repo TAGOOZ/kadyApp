@@ -44,6 +44,7 @@ class HomeStrings {
     required this.orderAgainTitle,
     required this.lastOrderTemplate,
     required this.actionMyOrders,
+    required this.qrScannedTemplate,
   });
 
   final String greetingSignedInTemplate;
@@ -100,6 +101,9 @@ class HomeStrings {
   /// Quick-action tile → /orders.
   final String actionMyOrders;
 
+  /// `تم المسح: {phone}` — QR scan success banner.
+  final String qrScannedTemplate;
+
   /// `أهلاً {firstName} 👋`
   String greeting(String firstName) =>
       greetingSignedInTemplate.replaceAll('{name}', firstName);
@@ -126,6 +130,10 @@ class HomeStrings {
   /// `آخر طلبك #NNNN`
   String lastOrder(int displayNumber) =>
       lastOrderTemplate.replaceAll('{number}', '$displayNumber');
+
+  /// `تم المسح: {phone}`
+  String qrScanned(String phone) =>
+      qrScannedTemplate.replaceAll('{phone}', phone);
 
   /// DB check-constraint vocabulary → Arabic label; falls back to the raw wire.
   String statusLabel(String wire) => switch (wire) {
@@ -194,6 +202,7 @@ abstract final class HomeStringsCatalog {
       orderAgainTitle: 'اطلب تاني',
       lastOrderTemplate: 'آخر طلبك #{number}',
       actionMyOrders: 'طلباتي',
+      qrScannedTemplate: 'تم المسح: {phone}',
     ),
     AppLang.en: HomeStrings(
       greetingSignedInTemplate: 'Hi {name} 👋',
@@ -235,6 +244,7 @@ abstract final class HomeStringsCatalog {
       orderAgainTitle: 'Order again',
       lastOrderTemplate: 'Last order #{number}',
       actionMyOrders: 'My orders',
+      qrScannedTemplate: 'Scanned: {phone}',
     ),
   };
 

@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/l10n/app_strings.dart';
-import '../data/repos/profile_repository.dart';
+import 'profile_gateway.dart';
 
 const _sessionRoleKey = 'session.role';
 const _sessionOnboardedKey = 'session.onboarded';

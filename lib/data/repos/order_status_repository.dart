@@ -215,27 +215,30 @@ final orderStatusRepoProvider = Provider<OrderStatusRepo>(
 );
 
 /// List-screen realtime feed filtered by `google_user_id` (ADR-0006).
+/// autoDispose so navigating away closes the Realtime channel (prod leak fix).
 final ownOrdersStreamProvider =
-    StreamProvider.family<List<CustomerOrder>, String>(
+    StreamProvider.autoDispose.family<List<CustomerOrder>, String>(
   (ref, googleUserId) =>
       ref.watch(orderStatusRepoProvider).watchOwnOrders(googleUserId),
 );
 
 /// Detail-screen realtime feed for one order id.
-final watchOrderProvider = StreamProvider.family<CustomerOrder?, String>(
+/// autoDispose family: each distinct orderId gets its own channel that
+/// closes when the detail screen is popped (prevents 100-channel cap).
+final watchOrderProvider = StreamProvider.autoDispose.family<CustomerOrder?, String>(
   (ref, orderId) => ref.watch(orderStatusRepoProvider).watchOrder(orderId),
 );
 
 /// Step timestamps from `order_events`; refreshed when the order changes.
 final orderEventsProvider =
-    FutureProvider.family<List<OrderEventRow>, String>(
+    FutureProvider.autoDispose.family<List<OrderEventRow>, String>(
   (ref, orderId) => ref.watch(orderStatusRepoProvider).fetchEvents(orderId),
 );
 
 /// One-shot fetch used by the confirmation screen to resolve `/orders/:id`
 /// from the display number (ConfirmationArgs carries no uuid).
 final ownOrdersOnceProvider =
-    FutureProvider.family<List<CustomerOrder>, String>(
+    FutureProvider.autoDispose.family<List<CustomerOrder>, String>(
   (ref, googleUserId) =>
       ref.watch(orderStatusRepoProvider).fetchOwnOrders(googleUserId),
 );

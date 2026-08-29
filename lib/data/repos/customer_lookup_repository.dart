@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
+import '../adapters/supabase_phone_stamp_service.dart';
 import '../repos/orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
 import 'staff_orders_repository.dart';
 
@@ -302,9 +303,10 @@ abstract class CustomerLookupDb {
 }
 
 class SupabaseCustomerLookupDb implements CustomerLookupDb {
-  SupabaseCustomerLookupDb(this._client);
+  SupabaseCustomerLookupDb(this._client) : _stamp = SupabasePhoneStampService(_client);
 
   final SupabaseClient _client;
+  final SupabasePhoneStampService _stamp;
 
   @override
   Future<List<Map<String, dynamic>>> searchCustomers(
@@ -431,21 +433,7 @@ class SupabaseCustomerLookupDb implements CustomerLookupDb {
   }
 
   @override
-  Future<int?> fetchStampMinSpend() async {
-    try {
-      final row = await _client
-          .from('app_config')
-          .select('value')
-          .eq('key', 'stamp_min_spend')
-          .maybeSingle();
-      final value = row?['value'];
-      if (value is num) return value.toInt();
-      if (value is String) return int.tryParse(value);
-    } on PostgrestException {
-      return null; // config read hiccup → constant threshold
-    }
-    return null;
-  }
+  Future<int?> fetchStampMinSpend() async => _stamp.fetchStampMinSpend();
 
   @override
   Future<int?> fetchStamps(String phone) async {
@@ -474,14 +462,7 @@ class SupabaseCustomerLookupDb implements CustomerLookupDb {
   }
 
   @override
-  Future<bool?> applyStampRpc(String phone, int spend) async {
-    try {
-      return await _client.rpc('staff_apply_stamp',
-          params: {'p_phone': phone, 'p_spend': spend});
-    } catch (_) {
-      return null;
-    }
-  }
+  Future<bool?> applyStampRpc(String phone, int spend) async => _stamp.applyStamp(phone, spend);
 }
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/l10n/strings_common.dart';
 import '../../core/l10n/strings_menu.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/menu_models.dart';
@@ -402,14 +403,15 @@ class _PaginatedCatalogListState
   }
 }
 
-class _InlineError extends StatelessWidget {
+class _InlineError extends ConsumerWidget {
   const _InlineError({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final retry = CommonStrings.of(ref.watch(localeNotifierProvider)).retry;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.xs8),
       decoration: BoxDecoration(
@@ -423,7 +425,7 @@ class _InlineError extends StatelessWidget {
           const Icon(Icons.error_outline, color: AppColors.error, size: 20),
           const SizedBox(width: AppSpacing.xs8),
           Expanded(child: Text(message, style: AppTextStyles.bodySm)),
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
+          TextButton(onPressed: onRetry, child: Text(retry)),
         ],
       ),
     );

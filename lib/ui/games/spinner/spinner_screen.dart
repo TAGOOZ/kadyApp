@@ -134,8 +134,8 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
                     const SizedBox(height: AppSpacing.xs8),
                     // Locked hint comes from the shared games catalog.
                     Text(games.spinnerLockedHint,
-                        style:
-                            AppTextStyles.bodySm.copyWith(color: AppColors.outline)),
+                        style: AppTextStyles.bodySm
+                            .copyWith(color: AppColors.textMuted)),
                     Text(s.lockedFootnote,
                         style:
                             AppTextStyles.bodySm.copyWith(color: AppColors.secondary)),
@@ -147,7 +147,7 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
             Text(
               games.spinnerLockedHint,
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.outline),
+              style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
             ),
         ],
       ),

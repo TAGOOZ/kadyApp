@@ -161,7 +161,7 @@ class _CheckInSheetState extends State<CheckInSheet> {
                 const SizedBox(width: AppSpacing.xs8),
                 IconButton(
                   icon: const Icon(Icons.qr_code_scanner),
-                  tooltip: 'مسح QR',
+                  tooltip: strings.checkInTooltip,
                   onPressed: _scanQr,
                 ),
               ],

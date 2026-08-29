@@ -2,7 +2,8 @@
 // counters. No cart UI page yet — the menu tab badge consumes it.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/models/menu_models.dart';
+import 'menu_models.dart';
+import 'pricing.dart';
 
 class CartLine {
   const CartLine({
@@ -16,10 +17,11 @@ class CartLine {
   final int qty;
 
   /// `(basePrice + sizeDelta + sum(addons))` — before quantity.
-  int get unitPriceEgp =>
-      item.priceEgp + config.sizeDeltaEgp + config.addonsTotalEgp;
+  /// Delegates to Pricing deep module (candidate 3) — single source for
+  /// `items[].unit_total` encoding so preview == server validation.
+  int get unitPriceEgp => pricingUnitTotalFor(item, config);
 
-  int get lineTotalEgp => unitPriceEgp * qty;
+  int get lineTotalEgp => pricingLineTotalFor(item, config, qty);
 
   CartLine copyWithQty(int qty) {
     return CartLine(item: item, config: config, qty: qty);
@@ -79,7 +81,18 @@ final cartProvider =
     NotifierProvider<CartController, List<CartLine>>(CartController.new);
 
 final subtotalProvider = Provider<int>((ref) {
-  return ref.watch(cartProvider).fold(0, (sum, line) => sum + line.lineTotalEgp);
+  // Delegate to Pricing seam so subtotal encoding is single-sourced.
+  final lines = ref.watch(cartProvider);
+  final pricingLines = [
+    for (final l in lines)
+      PricingCartLine(item: l.item, config: l.config, qty: l.qty),
+  ];
+  if (pricingLines.isEmpty) return 0;
+  var sum = 0;
+  for (final l in pricingLines) {
+    sum += pricingLineTotalFor(l.item, l.config, l.qty);
+  }
+  return sum;
 });
 
 /// Drives the menu tab cart badge.

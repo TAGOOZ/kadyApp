@@ -3,74 +3,18 @@
 // Phone is the canonical Customer key (ADR-0007); google_user_id links 1:1.
 // Slice #011 extends this file with profile updates + address CRUD
 // (CustomerProfileRepo); RLS own-row guards apply via google_user_id.
+// Domain owns CustomersRepo interface + record types (DAG); this file provides
+// Supabase adapter and re-exports domain types for backwards compat.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
+import '../../domain/customer_gateway.dart';
 import 'address.dart';
 import 'customer_phone_resolver.dart';
 
-class CustomerRecord {
-  const CustomerRecord({
-    required this.phone,
-    required this.name,
-    this.email,
-    this.birthdate,
-    this.isStudent = false,
-    this.city,
-  });
-
-  final String phone;
-  final String name;
-  final String? email;
-  final DateTime? birthdate;
-  final bool isStudent;
-  final String? city;
-}
-
-class CustomerUpsert {
-  const CustomerUpsert({
-    required this.phone,
-    required this.googleUserId,
-    required this.name,
-    this.email,
-    this.isStudent = false,
-    this.birthdate,
-    this.city,
-  });
-
-  final String phone;
-  final String googleUserId;
-  final String name;
-  final String? email;
-  final bool isStudent;
-  final DateTime? birthdate;
-  final String? city;
-
-  Map<String, dynamic> toRow() {
-    return {
-      'phone': phone,
-      'google_user_id': googleUserId,
-      'name': name,
-      if (email != null && email!.isNotEmpty) 'email': email,
-      'is_student': isStudent,
-      if (birthdate != null)
-        'birthdate': birthdate!.toIso8601String().substring(0, 10),
-      if (city != null && city!.isNotEmpty) 'city': city,
-    };
-  }
-}
-
-/// Postgres unique_violation (23505) on customers_pkey or
-/// customers_google_user_id_key — the phone/identity pair is taken.
-class PhoneAlreadyLinkedException implements Exception {
-  const PhoneAlreadyLinkedException();
-}
-
-abstract class CustomersRepo {
-  Future<CustomerRecord?> findByGoogleUserId(String googleUserId);
-  Future<CustomerRecord> upsert(CustomerUpsert customer);
-}
+export '../../domain/customer_gateway.dart'
+    show CustomerRecord, CustomerUpsert, PhoneAlreadyLinkedException, CustomersRepo, customersRepoProvider;
 
 class SupabaseCustomersRepo implements CustomersRepo {
   SupabaseCustomersRepo(this._client);
@@ -261,10 +205,6 @@ class SupabaseCustomerProfileRepo implements CustomerProfileRepo {
     await _client.from('addresses').delete().eq('id', addressId);
   }
 }
-
-final customersRepoProvider = Provider<CustomersRepo>(
-  (ref) => SupabaseCustomersRepo(supabase),
-);
 
 final customerProfileRepoProvider = Provider<CustomerProfileRepo>(
   (ref) => SupabaseCustomerProfileRepo(supabase),

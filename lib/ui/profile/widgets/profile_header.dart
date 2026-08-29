@@ -137,19 +137,20 @@ class _TierChip extends StatelessWidget {
     final (Gradient? border, Color fill, Color foreground) = switch (tier) {
       // Gold: warm gradient border per design ref.
       Tier.gold => (
-          const LinearGradient(colors: [Color(0xFFF6D365), Color(0xFFB8860B)]),
+          const LinearGradient(
+              colors: [AppColors.tierGoldLight, AppColors.tierGoldDark]),
           AppColors.paperWhite,
-          const Color(0xFF8A6200),
+          AppColors.tierGold,
         ),
       Tier.silver => (
           null,
-          const Color(0xFFECEFF1),
-          const Color(0xFF546E7A),
+          AppColors.tierSilverFill,
+          AppColors.tierSilver,
         ),
       Tier.bronze => (
           null,
-          const Color(0xFFF3E0D1),
-          const Color(0xFF8D5524),
+          AppColors.tierBronzeFill,
+          AppColors.tierBronze,
         ),
     };
 

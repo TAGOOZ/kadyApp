@@ -151,8 +151,7 @@ class _SpinnerWheelPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: prize.labelAr,
-          style: TextStyle(
-            fontSize: 12.5,
+          style: AppTextStyles.labelMd.copyWith(
             fontWeight: FontWeight.w700,
             height: 1.15,
             color: i.isEven ? AppColors.paperWhite : AppColors.coffeeBean,

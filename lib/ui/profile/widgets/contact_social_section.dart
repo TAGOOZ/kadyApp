@@ -101,7 +101,11 @@ class ContactSocialSection extends StatelessWidget {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF515BD4)],
+                  colors: [
+                    AppColors.instagramOrange,
+                    AppColors.instagramPink,
+                    AppColors.instagramPurple
+                  ],
                 ),
                 svgAsset: 'assets/images/brand_instagram.svg',
                 iconSize: 24,

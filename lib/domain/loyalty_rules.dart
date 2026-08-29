@@ -6,8 +6,15 @@
 // `supabase/migrations/0001_init.sql` and fall back to those constants offline.
 import 'dart:math' as math;
 
-import '../data/repos/orders_repository.dart';
 import 'loyalty_state.dart';
+
+/// Round half-up applied to the FINAL earned value, after multipliers (§4):
+/// 95 EGP → 9.5 pts → 10 pts; dine-in 90 EGP → 9 × 1.1 = 9.9 → 10 pts.
+int roundHalfUp(double value) {
+  final floored = value.floor();
+  final fraction = value - floored;
+  return floored + (fraction >= 0.5 ? 1 : 0);
+}
 
 // ---------------------------------------------------------------------------
 // Config — seed constants (offline fallbacks) + parse from app_config rows
@@ -221,9 +228,18 @@ class Redemption {
   final int costPts;
 }
 
-/// Drink category slugs seeded in migration 0001 (`hot_drinks`, `cold_drinks`).
-bool isDrinkCategorySlug(String slug) =>
-    slug == 'hot_drinks' || slug == 'cold_drinks';
+/// Drink category slugs — keep in sync with SQL intake pipeline
+/// (`hot_drinks`, `cold_drinks`, `iced-espresso` from 0005) and
+/// `quests_engine.dart:drinkCategorySlugs`.
+const _drinkCategorySlugs = {
+  'hot_drinks',
+  'cold_drinks',
+  'iced-espresso',
+  'hot-drinks',
+  'cold-drinks',
+};
+
+bool isDrinkCategorySlug(String slug) => _drinkCategorySlugs.contains(slug);
 
 /// The single redemption surfaced at checkout, or null when nothing applies:
 ///

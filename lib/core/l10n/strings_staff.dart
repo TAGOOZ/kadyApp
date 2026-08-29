@@ -63,6 +63,16 @@ class StaffStrings {
     required this.confirmAssignment,
     required this.driverAssigned,
     required this.assignmentFailed,
+    required this.etaSaved,
+    required this.notesSaved,
+    required this.etaSectionTitle,
+    required this.etaSaveButton,
+    required this.notesSectionTitle,
+    required this.notesSaveButton,
+    required this.notesHint,
+    required this.qrScannerTitle,
+    required this.cameraUnavailable,
+    required this.qrHint,
   });
 
   final String boardTitle;
@@ -150,6 +160,16 @@ class StaffStrings {
   final String confirmAssignment;
   final String driverAssigned;
   final String assignmentFailed;
+  final String etaSaved;
+  final String notesSaved;
+  final String etaSectionTitle;
+  final String etaSaveButton;
+  final String notesSectionTitle;
+  final String notesSaveButton;
+  final String notesHint;
+  final String qrScannerTitle;
+  final String cameraUnavailable;
+  final String qrHint;
 
   static const StaffStrings _ar = StaffStrings(
     boardTitle: 'لوحة الطلبات',
@@ -208,6 +228,16 @@ class StaffStrings {
     confirmAssignment: 'تأكيد التسليم',
     driverAssigned: 'تم التسليم للسائق ✅',
     assignmentFailed: 'مقدرناش نسلم للسائق',
+    etaSaved: 'تم تحديث الوقت المتوقع ✅',
+    notesSaved: 'تم حفظ الملاحظات ✅',
+    etaSectionTitle: 'الوقت المتوقع',
+    etaSaveButton: 'حفظ الوقت',
+    notesSectionTitle: 'ملاحظات التوصيل',
+    notesSaveButton: 'حفظ الملاحظات',
+    notesHint: 'مثال: برج 5، الدور الثالث...',
+    qrScannerTitle: 'مسح QR',
+    cameraUnavailable: 'الكاميرا غير متاحة',
+    qrHint: 'وجّه الكاميرا نحو رمز QR الخاص بالعميل',
   );
 
   static const StaffStrings _en = StaffStrings(
@@ -267,6 +297,16 @@ class StaffStrings {
     confirmAssignment: 'Confirm handover',
     driverAssigned: 'Handed to driver ✅',
     assignmentFailed: "Couldn't hand to driver",
+    etaSaved: 'ETA updated ✅',
+    notesSaved: 'Notes saved ✅',
+    etaSectionTitle: 'Estimated time',
+    etaSaveButton: 'Save time',
+    notesSectionTitle: 'Delivery notes',
+    notesSaveButton: 'Save notes',
+    notesHint: 'e.g. Building 5, 3rd floor...',
+    qrScannerTitle: 'Scan QR',
+    cameraUnavailable: 'Camera unavailable',
+    qrHint: 'Point the camera at the customer QR code',
   );
 
   static StaffStrings of(AppLang lang) => lang == AppLang.ar ? _ar : _en;

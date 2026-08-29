@@ -255,7 +255,10 @@ class _ZonesEditorPanelState extends ConsumerState<ZonesEditorPanel> {
                 children: [
                   const Icon(Icons.info_outline, color: AppColors.primary),
                   const SizedBox(width: AppSpacing.xs8),
-                  Expanded(child: Text('Zones — flat fee in Rules is live. Polygon preview via map. Zones / منطقة / سعر', style: AppTextStyles.bodySm)),
+                  Expanded(
+                      child: Text(
+                          'Zones — flat fee in Rules is live. Polygon preview via map.',
+                          style: AppTextStyles.bodySm)),
                 ],
               ),
             ),

@@ -137,17 +137,17 @@ class _BannerCarouselState extends State<BannerCarousel> {
         0 => const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFC24A00), Color(0xFF8F3300)],
+            colors: [AppColors.bannerEmber, AppColors.bannerEmberDark],
           ),
         1 => const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFB84500), Color(0xFF803000)],
+            colors: [AppColors.bannerEmberMid, AppColors.bannerEmberMidDark],
           ),
         _ => const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFC24A00), Color(0xFF8A3000)],
+            colors: [AppColors.bannerEmber, AppColors.bannerEmberAltDark],
           ),
       };
 }

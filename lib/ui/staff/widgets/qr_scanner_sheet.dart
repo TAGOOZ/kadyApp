@@ -5,18 +5,21 @@
 // The widget handles loading / error (camera unavailable) and a manual
 // close affordance. A parchment placeholder is shown while the camera warms.
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../core/l10n/app_strings.dart';
+import '../../../core/l10n/strings_staff.dart';
 import '../../../core/theme/app_theme.dart';
 
-class QrScannerSheet extends StatefulWidget {
+class QrScannerSheet extends ConsumerStatefulWidget {
   const QrScannerSheet({super.key});
 
   @override
-  State<QrScannerSheet> createState() => _QrScannerSheetState();
+  ConsumerState<QrScannerSheet> createState() => _QrScannerSheetState();
 }
 
-class _QrScannerSheetState extends State<QrScannerSheet> {
+class _QrScannerSheetState extends ConsumerState<QrScannerSheet> {
   final MobileScannerController _controller = MobileScannerController();
   bool _handled = false;
 
@@ -39,12 +42,13 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = StaffStrings.of(ref.watch(localeNotifierProvider));
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           AppBar(
-            title: const Text('مسح QR'),
+            title: Text(strings.qrScannerTitle),
             leading: IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.of(context).pop(),
@@ -65,7 +69,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
                           size: 48, color: AppColors.outline),
                       const SizedBox(height: AppSpacing.xs8),
                       Text(
-                        'الكاميرا غير متاحة',
+                        strings.cameraUnavailable,
                         style: AppTextStyles.bodySm
                             .copyWith(color: AppColors.textMuted),
                         textAlign: TextAlign.center,
@@ -85,7 +89,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
           Padding(
             padding: const EdgeInsets.all(AppSpacing.sm16),
             child: Text(
-              'وجّه الكاميرا نحو رمز QR الخاص بالعميل',
+              strings.qrHint,
               style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),

@@ -10,6 +10,7 @@
 //    never inside them.
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -60,8 +61,12 @@ class QuestStateStore {
 
   final SharedPreferences _prefs;
 
-  /// No crypto dep per slice budget: stable-enough local obfuscation key.
-  static String phoneHash(String phone) => phone.hashCode.toRadixString(16);
+  /// Stable hex digest for persistence keys — `hashCode` is not stable
+  /// across SDK/Web (dart:core contract). `md5(phone.trim())` is
+  /// deterministic; phone is already the business key. Dev-clean: no
+  /// legacy migration — wipe SharedPreferences on dev devices.
+  static String phoneHash(String phone) =>
+      md5.convert(utf8.encode(phone.trim())).toString();
 
   String _claimedKey(String phoneHash, QuestId id) =>
       'quest.$phoneHash.claimed.${id.name}';

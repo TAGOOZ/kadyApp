@@ -283,6 +283,10 @@ class _FakeOrdersRepo implements OrdersRepo {
 
   @override
   Future<PlacedOrder> placeOrder(NewOrder order) => _store.placeOrder(order);
+
+  @override
+  Future<RiskResult> previewRisk(NewOrder draft) async =>
+      const RiskResult(score: 0, level: RiskLevel.low, reasons: [], action: RiskAction.approved);
 }
 
 class _FakeOrderStatusRepo implements OrderStatusRepo {

@@ -11,7 +11,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kady_app/core/riverpod_retry.dart';
 import 'package:kady_app/data/repos/driver_orders_repository.dart';
+import 'package:kady_app/domain/driver_gateway.dart';
 import 'package:kady_app/ui/driver/driver_home_screen.dart';
+
+class _FakeDriverGateway implements DriverProfileGateway {
+  _FakeDriverGateway({this.displayName, this.displayNameFuture, this.shouldThrow = false});
+
+  String? displayName;
+  Future<String?>? displayNameFuture;
+  bool shouldThrow;
+
+  @override
+  Future<String?> fetchDriverDisplayName() async {
+    if (shouldThrow) throw Exception('profile fetch failed');
+    if (displayNameFuture != null) return displayNameFuture;
+    return displayName;
+  }
+}
 
 /// Fake repo that can script display_name and optionally delay/error.
 class FakeDriverIdentityRepo implements DriverOrdersRepo {
@@ -75,10 +91,19 @@ Future<void> _pumpDriverHome(
   FakeDriverIdentityRepo repo,
 ) async {
   SharedPreferences.setMockInitialValues({});
+  // Bridge old repo fake to new gateway provider so driverProfileProvider sees real name.
+  final gateway = _FakeDriverGateway(
+    displayName: repo.displayName,
+    displayNameFuture: repo.displayNameFuture,
+    shouldThrow: repo.shouldThrow,
+  );
   await tester.pumpWidget(
     ProviderScope(
       retry: noAutoRetry,
-      overrides: [driverOrdersRepoProvider.overrideWithValue(repo)],
+      overrides: [
+        driverOrdersRepoProvider.overrideWithValue(repo),
+        driverProfileGatewayProvider.overrideWithValue(gateway),
+      ],
       child: const MaterialApp(
         home: Directionality(
           textDirection: TextDirection.rtl,
@@ -134,12 +159,14 @@ void main() {
     final repo = FakeDriverIdentityRepo(
       displayNameFuture: completer.future,
     );
+    final gateway = _FakeDriverGateway(displayNameFuture: completer.future);
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
       ProviderScope(
         retry: noAutoRetry,
         overrides: [
           driverOrdersRepoProvider.overrideWithValue(repo),
+          driverProfileGatewayProvider.overrideWithValue(gateway),
         ],
         child: const MaterialApp(
           home: Directionality(

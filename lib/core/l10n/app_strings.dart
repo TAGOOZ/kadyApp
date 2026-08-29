@@ -64,6 +64,7 @@ class Strings {
   final String languageLabel;
   final String langAr;
   final String langEn;
+  @Deprecated('DESIGN bans حسناً — use close (إغلاق) for dismiss per docs/DESIGN.md Copy')
   final String ok;
   final String close;
   final String homeLine;

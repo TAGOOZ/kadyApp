@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/l10n/strings_admin.dart';
+import '../../../core/l10n/strings_common.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/repos/staff_orders_repository.dart';
 import '../../../domain/order_status_flow.dart';
@@ -157,7 +158,9 @@ class _DriverAssignmentPanelState extends ConsumerState<DriverAssignmentPanel> {
                     onPressed: busy ? null : () => _assign(order),
                     child: busy
                         ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text(currentDriver == null ? widget.strings.assignDriver : (ref.watch(localeNotifierProvider) == AppLang.ar ? 'إعادة التعيين' : 'Reassign')),
+                        : Text(currentDriver == null
+                            ? widget.strings.assignDriver
+                            : CommonStrings.of(ref.watch(localeNotifierProvider)).reassign),
                   ),
                 ),
               );

@@ -18,6 +18,16 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+  # Exhaustiveness guards — Candidate 5 (Heritage Hearth tokens & string catalogs).
+  # No Color(0xFF…) outside lib/core/theme/app_theme.dart; no Text('…Arabic…')
+  # outside lib/core/l10n/strings_*.dart. Enforced via grep guard:
+  #   grep -rn "Color(0x" lib --include="*.dart" | grep -v app_theme.dart → empty
+  #   grep -rn "Text('.*[ء-ي].*')" lib/ui --include="*.dart" → empty (strings only)
+  #   grep -rn 'fontSize:\s*[0-9]' lib --include="*.dart" | grep -v app_theme.dart
+  #     → only emoji ☕ illustration sizing allowed (DESIGN.md exempt)
+  # CI runs tool/verify_catalog.sh; shallow alternatives fail the guard.
+  errors:
+    invalid_annotation_target: ignore
 
 linter:
   # The lint rules applied to this project can be customized in the

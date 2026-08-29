@@ -18,6 +18,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
 import '../../domain/order_status_flow.dart';
+import '../adapters/supabase_phone_stamp_service.dart';
 import 'order_items_parser.dart';
 import 'orders_repository.dart'; // cairoUtcOffset (ADR-0009 display)
 
@@ -237,9 +238,10 @@ Never rethrowAsTyped(PostgrestException error) {
 }
 
 class SupabaseDriverOrdersDb implements DriverOrdersDb {
-  SupabaseDriverOrdersDb(this._client);
+  SupabaseDriverOrdersDb(this._client) : _phoneResolver = SupabaseCustomerPhoneResolver(_client);
 
   final SupabaseClient _client;
+  final SupabaseCustomerPhoneResolver _phoneResolver;
 
   @override
   Stream<List<Map<String, dynamic>>> watchAssigned() {
@@ -369,20 +371,15 @@ class SupabaseDriverOrdersDb implements DriverOrdersDb {
   }
 
   /// Targeted phone→name lookup for exactly the phones on screen (audit #1
-  /// follow-up). Mirrors staff's fetchCustomersByPhones — avoids the
-  /// bounded-full-table fallback above when the caller already knows the
-  /// distinct phones.
+  /// follow-up). Delegates to shared SupabaseCustomerPhoneResolver — single
+  /// implementation replaces triplicated staff/lookup/driver code.
   @override
   Future<List<Map<String, dynamic>>> fetchCustomersByPhones(
     Set<String> phones,
   ) async {
     if (phones.isEmpty) return const [];
     try {
-      final rows = await _client
-          .from('customers')
-          .select('phone, name')
-          .inFilter('phone', phones.toList());
-      return List<Map<String, dynamic>>.from(rows as List);
+      return await _phoneResolver.fetchCustomersByPhones(phones);
     } on PostgrestException catch (error) {
       return rethrowAsTyped(error);
     }
@@ -588,7 +585,8 @@ final driverOrdersRepoProvider = Provider<DriverOrdersRepo>(
 );
 
 /// Board-wide realtime feed (ADR-0006) — deliveries out for delivery now.
-final driverAssignedStreamProvider = StreamProvider<List<DriverOrder>>((ref) {
+/// autoDispose so driver screen pop closes the Realtime channel.
+final driverAssignedStreamProvider = StreamProvider.autoDispose<List<DriverOrder>>((ref) {
   return ref.watch(driverOrdersRepoProvider).streamAssigned();
 });
 
@@ -604,7 +602,7 @@ final driverHistoryProvider = FutureProvider<List<DriverOrder>>((ref) {
 });
 
 /// Delivery address text per `address_id`, cached per id by Riverpod family.
-final driverAddressTextProvider = FutureProvider.family<String?, String>((
+final driverAddressTextProvider = FutureProvider.autoDispose.family<String?, String>((
   ref,
   addressId,
 ) {
@@ -613,7 +611,7 @@ final driverAddressTextProvider = FutureProvider.family<String?, String>((
 
 /// Batched address map — single in.(...) query for visible orders.
 final driverAddressMapProvider =
-    FutureProvider.family<Map<String, String>, String>((ref, idsKey) {
+    FutureProvider.autoDispose.family<Map<String, String>, String>((ref, idsKey) {
   if (idsKey.isEmpty) return const {};
   final ids = idsKey.split(',').where((s) => s.isNotEmpty).toSet();
   return ref.watch(driverOrdersRepoProvider).fetchAddressMap(ids);

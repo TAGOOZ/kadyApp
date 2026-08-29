@@ -520,14 +520,15 @@ class BadgeMedallion extends StatelessWidget {
             ? const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFFE8B93E), Color(0xFFB98A1F)],
+                colors: [AppColors.badgeGoldLight, AppColors.badgeGoldDark],
               )
             : const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [AppColors.primary, AppColors.primaryContainer],
               ))
-        : const LinearGradient(colors: [Color(0xFFE5E2DC), Color(0xFFD7D4CE)]);
+        : const LinearGradient(
+            colors: [AppColors.badgeLockedLight, AppColors.badgeLockedDark]);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,

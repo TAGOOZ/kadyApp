@@ -6,8 +6,11 @@ import 'loyalty_state.dart';
 
 export 'loyalty_state.dart';
 
-/// Reads/writes the signed-in Customer's `loyalty_state` row.
-/// Auth-less (guest) sessions resolve to an empty zero state.
+/// Reads the signed-in Customer's `loyalty_state` row.
+/// Server-authoritative: Postgres triggers (`credit_new_order` / `staff_apply_stamp`)
+/// own all Points/Stamps/Voucher crediting. Client only previews (pure `loyalty_rules.dart`)
+/// and resyncs via `refreshFor()` / `watchState`. No client-side point/stamp persistence
+/// (AGENTS #4). Game token grants remain local-only preview for MVP (no persist).
 class LoyaltyController extends Notifier<LoyaltyState> {
   @override
   LoyaltyState build() => const LoyaltyState();
@@ -26,14 +29,10 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       if (fetched != null) {
         state = fetched.state;
       } else {
-        // No customers row → zero state (genuine empty, not failure)
-        // Check if fetch returned null due to missing row vs error:
-        // fetchState returns null only on missing row; errors throw and are caught below.
         state = const LoyaltyState();
       }
       _lastRefreshFailed = false;
     } catch (_) {
-      // Keep last-known state; only a genuine empty row zeroes it above.
       _lastRefreshFailed = true;
     }
   }
@@ -74,138 +73,72 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     await loadConfig();
   }
 
-  // -- Real crediting (#007) -------------------------------------------------
+  // -- Preview helpers (pure, no persistence) --------------------------------
 
-  /// Credits one placed order exactly once. Idempotent via the
-  /// `processed_orders` guard list: the current server row is read first and a
-  /// repeat call for the same [orderId] is a no-op (local-only guest sessions
-  /// get the same guarantee through the in-memory list). Earn/stamp/token math
-  /// lives in the pure [creditOrder]/[earnedFor] rules; state updates
-  /// optimistically before the full-row persist (RLS own-row UPDATE — accepted
-  /// MVP cheat vector per ADR-0007 note in FEATURES §4).
-  Future<void> creditProcessedOrder({
-    required String orderId,
-    required int subtotalEgp,
-    required bool dineIn,
-    Redemption? redemption,
-  }) async {
-    try {
-      var base = state;
-      String? phone;
-      final uid = _gateway.currentUserId;
-      if (uid != null) {
-        try {
-          final fetched = await _gateway.fetchState(uid);
-          if (fetched != null) {
-            phone = fetched.phone;
-            base = fetched.state;
-          } else {
-            // No row yet — keep in-memory base, phone stays null → local only
-            phone = await _gateway.fetchPhone(uid);
-          }
-        } catch (_) {
-          // Fetch failed → keep in-memory base, treat as offline
-        }
-      }
-
-      if (alreadyProcessed(base, orderId)) {
-        if (phone != null) state = base; // resync with the credited row
-        return;
-      }
-
-      final config = LoyaltyRulesConfig.fromMap(await loadConfig());
-      final doubleWindow = base.doubleNextOrder ||
-          (await loadConfig())['double_window_active'] == true;
-      final earned = earnedFor(
-        subtotalEgp: subtotalEgp,
-        dineIn: dineIn,
-        pointsPer10: config.pointsPer10Egp,
-        dineInMultiplier: config.dineInMultiplier,
-        doubleWindow: doubleWindow,
-      );
-      var next = creditRedeemedOrder(
-        base,
-        redemption: redemption,
-        earned: earned,
-        subtotalEgp: subtotalEgp,
-        stampMinSpendEgp: config.stampMinSpendEgp,
-      );
-      next = markProcessed(next, orderId);
-      if (doubleWindow) next = next.copyWith(doubleNextOrder: false);
-
-      // Optimistic update first; persistence via gateway (SECURITY-01)
-      state = next;
-      if (phone == null) return; // guest / customer row missing → local only
-      try {
-        await _gateway.persist(phone, next);
-      } catch (_) {}
-    } catch (_) {
-      // Offline policy: optimistic local state stands.
-    }
-  }
-  // -- Game tokens & grants (shared seam for slices #008/#009/#010) ----------
-
-  /// Best-effort persist of the current [state] to the signed-in Customer's
-  /// `loyalty_state` row via gateway (SECURITY-01). No-op when unauthenticated.
-  Future<void> _persist() async {
-    try {
-      final uid = _gateway.currentUserId;
-      if (uid == null) return;
-      final phone = await _gateway.fetchPhone(uid);
-      if (phone == null) return;
-      await _gateway.persist(phone, state);
-    } catch (_) {
-      // Offline policy: optimistic local state stands.
-    }
+  /// Preview earned Points for a subtotal (pure, delegates to `earnedFor`).
+  int previewEarned({required int subtotalEgp, required bool dineIn, bool doubleWindow = false}) {
+    final cfg = LoyaltyRulesConfig.fromMap(_configCache ?? const {});
+    // Use cached config if available, otherwise fallback
+    return earnedFor(
+      subtotalEgp: subtotalEgp,
+      dineIn: dineIn,
+      pointsPer10: cfg.pointsPer10Egp,
+      dineInMultiplier: cfg.dineInMultiplier,
+      doubleWindow: doubleWindow || state.doubleNextOrder,
+    );
   }
 
-  /// Consumes one game token; returns false when none available.
+  /// Preview redeemable reward for current state (pure).
+  Redemption? previewRedeemable({required bool hasDrinkLine}) {
+    final cfg = LoyaltyRulesConfig.fromMap(_configCache ?? const {});
+    return redeemable(state, hasDrinkLine: hasDrinkLine, config: cfg);
+  }
+
+  // -- Game tokens & grants (local-only preview, no server persist) ----------
+  // Server-authoritative for orders, but games remain local for MVP.
+  // These update in-memory state only; server trigger remains source of truth
+  // for order-derived Points/Stamps. No gateway.persist call.
+
+  /// Consumes one game token; returns false when none available (local only).
   Future<bool> consumeSpinnerToken() async {
     if (state.spinnerTokens <= 0) return false;
     state = state.copyWith(spinnerTokens: state.spinnerTokens - 1);
-    await _persist();
     return true;
   }
 
   Future<bool> consumeMatchToken() async {
     if (state.matchTokens <= 0) return false;
     state = state.copyWith(matchTokens: state.matchTokens - 1);
-    await _persist();
     return true;
   }
 
   Future<bool> consumeScratchToken() async {
     if (state.scratchTokens <= 0) return false;
     state = state.copyWith(scratchTokens: state.scratchTokens - 1);
-    await _persist();
     return true;
   }
 
-  /// Adds earned points to both balances and persists.
+  /// Adds earned points to both balances (local preview, no persist).
   Future<void> grantPoints(int n) async {
     if (n <= 0) return;
     state = state.copyWith(
       points: state.points + n,
       lifetimePoints: state.lifetimePoints + n,
     );
-    await _persist();
   }
 
   Future<void> grantVoucher(VoucherType type) async {
     state = state.copyWith(
       vouchers: [...state.vouchers, Voucher(type: type, grantedAt: DateTime.now().toUtc())],
     );
-    await _persist();
   }
 
-  /// Arms the double-points-next-order prize (consumed on next credit).
+  /// Arms the double-points-next-order prize (local preview).
   Future<void> setDoubleNextOrder() async {
     state = state.copyWith(doubleNextOrder: true);
-    await _persist();
   }
 
-  /// Grants game tokens directly (quest rewards). Mirrors #007 stamp-wrap
-  /// semantics where a 3rd-stamp token also applies.
+  /// Grants game tokens directly (quest rewards, local preview).
   Future<void> grantTokens({int spinner = 0, int match = 0, int scratch = 0}) async {
     if (spinner <= 0 && match <= 0 && scratch <= 0) return;
     state = state.copyWith(
@@ -213,17 +146,15 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       matchTokens: state.matchTokens + match,
       scratchTokens: state.scratchTokens + scratch,
     );
-    await _persist();
   }
 
   /// Adds [n] stamps (no points): reaching 10 completes the card (snack
   /// voucher) and resets; every 3rd stamp also grants a spinner token.
-  /// Delegates to the canonical pure rule (plan 002) shared with order
-  /// credit and staff check-ins.
+  /// Pure — delegates to canonical `grantStampsPure` (plan 002) shared with order
+  /// credit and staff check-ins. Local preview only.
   Future<void> grantStamps(int n) async {
     if (n <= 0) return;
     state = grantStampsPure(state, n);
-    await _persist();
   }
 }
 

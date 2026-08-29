@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../domain/auth_controller.dart';
 import '../domain/session_controller.dart';
 import 'l10n/app_strings.dart';
+import 'l10n/strings_common.dart';
 import '../ui/menu/menu_screen.dart';
 import '../ui/auth/phone_collection_screen.dart';
 import '../ui/cart/cart_screen.dart';
@@ -347,7 +348,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// Memoized deferred loader — keeps a single Future per navigation so
 /// rebuilds (e.g. locale change) don't re-trigger loadLibrary flicker.
 /// Shows a branded loading scaffold and a retryable error state.
-class _DeferredScreen extends StatefulWidget {
+class _DeferredScreen extends ConsumerStatefulWidget {
   const _DeferredScreen({
     required this.loadLibrary,
     required this.builder,
@@ -357,10 +358,10 @@ class _DeferredScreen extends StatefulWidget {
   final Widget Function(BuildContext) builder;
 
   @override
-  State<_DeferredScreen> createState() => _DeferredScreenState();
+  ConsumerState<_DeferredScreen> createState() => _DeferredScreenState();
 }
 
-class _DeferredScreenState extends State<_DeferredScreen> {
+class _DeferredScreenState extends ConsumerState<_DeferredScreen> {
   late Future<void> _future;
 
   @override
@@ -377,6 +378,7 @@ class _DeferredScreenState extends State<_DeferredScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = CommonStrings.of(ref.watch(localeNotifierProvider));
     return FutureBuilder<void>(
       future: _future,
       builder: (context, snapshot) {
@@ -396,11 +398,11 @@ class _DeferredScreenState extends State<_DeferredScreen> {
                   children: [
                     const Icon(Icons.wifi_off_outlined, size: 40, color: Colors.grey),
                     const SizedBox(height: 12),
-                    const Text('فشل التحميل — حاول مرة أخرى', textAlign: TextAlign.center),
+                    Text(strings.loadFailed, textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: _retry,
-                      child: const Text('إعادة المحاولة'),
+                      child: Text(strings.retry),
                     ),
                   ],
                 ),
@@ -422,8 +424,9 @@ class _NotFoundScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionControllerProvider).role;
+    final strings = CommonStrings.of(ref.watch(localeNotifierProvider));
     return Scaffold(
-      appBar: AppBar(title: const Text('غير موجود')),
+      appBar: AppBar(title: Text(strings.notFoundTitle)),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -432,13 +435,13 @@ class _NotFoundScreen extends ConsumerWidget {
             children: [
               const Icon(Icons.search_off, size: 48, color: Colors.grey),
               const SizedBox(height: 12),
-              Text('الصفحة غير موجودة', style: Theme.of(context).textTheme.titleMedium),
+              Text(strings.notFoundBody, style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               Text(location, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () => context.go(_homeFor(role)),
-                child: const Text('العودة للرئيسية'),
+                child: Text(strings.backToHome),
               ),
             ],
           ),

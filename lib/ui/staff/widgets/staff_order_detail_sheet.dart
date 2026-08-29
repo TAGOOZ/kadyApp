@@ -92,8 +92,9 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
     try {
       await ref.read(staffOrdersRepoProvider).setExpectedReadyAt(order.id, expected);
       if (!mounted) return;
+      final strings = StaffStrings.of(ref.read(localeNotifierProvider));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تم تحديث الوقت المتوقع ✅')),
+        SnackBar(content: Text(strings.etaSaved)),
       );
     } catch (_) {
       if (!mounted) return;
@@ -112,8 +113,9 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
     try {
       await ref.read(staffOrdersRepoProvider).updateNotes(order.id, _notesController.text.trim());
       if (!mounted) return;
+      final strings = StaffStrings.of(ref.read(localeNotifierProvider));
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ الملاحظات ✅')),
+        SnackBar(content: Text(strings.notesSaved)),
       );
     } catch (_) {
       if (!mounted) return;
@@ -466,7 +468,8 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
                         children: [
                           const Icon(Icons.timer_outlined, size: 18, color: AppColors.primary),
                           const SizedBox(width: AppSpacing.xs8),
-                          Text('الوقت المتوقع', style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w600)),
+                          Text(strings.etaSectionTitle,
+                              style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w600)),
                           const Spacer(),
                           Text(
                             '${_etaMinutes.round()} د • ${formatExpectedReadyCairo(DateTime.now().toUtc().add(Duration(minutes: _etaMinutes.round())))}',
@@ -488,7 +491,7 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
                           onPressed: _etaSaving ? null : _saveEta,
                           child: _etaSaving
                               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('حفظ الوقت'),
+                              : Text(strings.etaSaveButton),
                         ),
                       ),
                     ],
@@ -513,7 +516,8 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
                         children: [
                           const Icon(Icons.note_outlined, size: 18, color: AppColors.primary),
                           const SizedBox(width: AppSpacing.xs8),
-                          Text('ملاحظات التوصيل', style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w600)),
+                          Text(strings.notesSectionTitle,
+                              style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.w600)),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.xs8),
@@ -521,9 +525,9 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
                         controller: _notesController,
                         minLines: 1,
                         maxLines: 3,
-                        decoration: const InputDecoration(
-                          hintText: 'مثال: برج 5، الدور الثالث...',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          hintText: strings.notesHint,
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xs8),
@@ -533,7 +537,7 @@ class _StaffOrderDetailSheetState extends ConsumerState<StaffOrderDetailSheet> {
                           onPressed: _notesSaving ? null : _saveNotes,
                           child: _notesSaving
                               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('حفظ الملاحظات'),
+                              : Text(strings.notesSaveButton),
                         ),
                       ),
                     ],

@@ -56,7 +56,7 @@ class _VoucherCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (icon, tint) = switch (voucher.type) {
       VoucherType.freeDrink => (Icons.local_cafe_rounded, AppColors.primaryFixedTint),
-      VoucherType.freeTopping => (Icons.icecream_rounded, const Color(0xFFFFE3D6)),
+      VoucherType.freeTopping => (Icons.icecream_rounded, AppColors.voucherTopping),
       VoucherType.freeSnack => (Icons.cookie_rounded, AppColors.parchment),
     };
 

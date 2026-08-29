@@ -117,7 +117,7 @@ class _FaceBack extends StatelessWidget {
 class _CardBackPainter extends CustomPainter {
   const _CardBackPainter();
 
-  static const _gold = Color(0xFFE7C77B);
+  static const _gold = AppColors.cardGold;
   static const _cell = 22.0;
 
   @override

@@ -11,7 +11,6 @@ class FakeLoyaltyGateway implements LoyaltyGateway {
     Map<String, dynamic>? config,
     this.throwOnFetchState = false,
     this.throwOnFetchConfig = false,
-    this.throwOnPersist = false,
   })  : byGoogleUserId = byGoogleUserId ?? {},
         config = config ?? const {},
         stateByPhone = {
@@ -25,10 +24,6 @@ class FakeLoyaltyGateway implements LoyaltyGateway {
   Map<String, dynamic> config;
   bool throwOnFetchState;
   bool throwOnFetchConfig;
-  bool throwOnPersist;
-  int persistCalls = 0;
-  String? lastPersistPhone;
-  LoyaltyState? lastPersisted;
 
   @override
   Future<({String phone, LoyaltyState state})?> fetchState(String googleUserId) async {
@@ -49,18 +44,9 @@ class FakeLoyaltyGateway implements LoyaltyGateway {
   }
 
   @override
-  Future<void> persist(String phone, LoyaltyState state) async {
-    persistCalls++;
-    lastPersistPhone = phone;
-    lastPersisted = state;
-    if (throwOnPersist) throw Exception('persist fail');
-    stateByPhone[phone] = state;
-    // keep byGoogleUserId in sync if exists
-    for (final entry in byGoogleUserId.entries) {
-      if (entry.value.phone == phone) {
-        byGoogleUserId[entry.key] = (phone: phone, state: state);
-      }
-    }
+  Stream<LoyaltyState> watchState(String phone) {
+    final s = stateByPhone[phone];
+    return Stream.value(s ?? const LoyaltyState());
   }
 }
 
@@ -156,180 +142,60 @@ void main() {
     });
   });
 
-  group('LoyaltyController.creditProcessedOrder', () {
-    test('basic earn: pickup 95 → 10 pts (round half-up) and stamp when >=50', () async {
-      final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
-        'g1': (phone: '+201000000001', state: const LoyaltyState()),
-      });
+  group('LoyaltyController — server-authoritative preview (no client persist)', () {
+    test('previewEarned: pickup 95 → 10 pts (round half-up) via pure rules', () async {
+      final fake = FakeLoyaltyGateway();
       final container = _container(fake);
       addTearDown(container.dispose);
       final notifier = container.read(loyaltyProvider.notifier);
-      await notifier.creditProcessedOrder(orderId: 'o1', subtotalEgp: 95, dineIn: false);
-      final s = container.read(loyaltyProvider);
-      expect(s.points, 10);
-      expect(s.lifetimePoints, 10);
-      expect(s.stamps, 1);
-      expect(s.processedOrders, contains('o1'));
-      expect(fake.persistCalls, 1);
-      expect(fake.lastPersistPhone, '+201000000001');
+      expect(notifier.previewEarned(subtotalEgp: 95, dineIn: false), 10);
     });
 
-    test('idempotency: same orderId twice does not double credit', () async {
-      final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
-        'g1': (phone: '+201000000001', state: const LoyaltyState()),
-      });
+    test('previewEarned respects dine-in multiplier and double window', () async {
+      final fake = FakeLoyaltyGateway();
       final container = _container(fake);
       addTearDown(container.dispose);
       final notifier = container.read(loyaltyProvider.notifier);
-      await notifier.creditProcessedOrder(orderId: 'o1', subtotalEgp: 100, dineIn: false);
-      expect(container.read(loyaltyProvider).points, 10);
-      expect(fake.persistCalls, 1);
-      // second call — should resync but not add points
-      await notifier.creditProcessedOrder(orderId: 'o1', subtotalEgp: 100, dineIn: false);
-      expect(container.read(loyaltyProvider).points, 10);
-      expect(fake.persistCalls, 1);
-      // processedOrders still single
-      expect(container.read(loyaltyProvider).processedOrders.where((e) => e == 'o1').length, 1);
+      expect(notifier.previewEarned(subtotalEgp: 90, dineIn: true), 10);
+      notifier.state = const LoyaltyState(doubleNextOrder: true);
+      expect(notifier.previewEarned(subtotalEgp: 100, dineIn: false), 20);
     });
 
-    test('dine-in multiplier 1.1: 90 → 9.9 → 10 pts', () async {
-      final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
-        'g1': (phone: '+201000000001', state: const LoyaltyState()),
-      });
-      final container = _container(fake);
-      addTearDown(container.dispose);
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o1', subtotalEgp: 90, dineIn: true);
-      expect(container.read(loyaltyProvider).points, 10);
+    test('no client persist — LoyaltyGateway has watchState not persist', () async {
+      final notifier = _container(FakeLoyaltyGateway()).read(loyaltyProvider.notifier);
+      expect(notifier, isA<LoyaltyController>());
+      final fake = FakeLoyaltyGateway();
+      expect(fake.watchState('+201000000001'), isA<Stream<LoyaltyState>>());
+      // Server trigger owns crediting; client only refreshes via watch/refreshFor
     });
 
-    test('double window doubles earn and consumes flag', () async {
-      final fake = FakeLoyaltyGateway(
-        currentUserId: 'g1',
-        byGoogleUserId: {
-          'g1': (phone: '+201000000001', state: const LoyaltyState(doubleNextOrder: true)),
-        },
-        config: const {},
-      );
+    test('previewRedeemable uses pure redeemable rules', () async {
+      final fake = FakeLoyaltyGateway();
       final container = _container(fake);
       addTearDown(container.dispose);
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o1', subtotalEgp: 100, dineIn: false);
-      final s = container.read(loyaltyProvider);
-      expect(s.points, 20);
-      expect(s.doubleNextOrder, isFalse);
-      // next order without flag → not doubled (config not active)
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o2', subtotalEgp: 100, dineIn: false);
-      expect(container.read(loyaltyProvider).points, 30);
-    });
-
-    test('server double_window_active via app_config also doubles', () async {
-      final fake = FakeLoyaltyGateway(
-        currentUserId: 'g1',
-        byGoogleUserId: {
-          'g1': (phone: '+201000000001', state: const LoyaltyState()),
-        },
-        config: {'double_window_active': true},
-      );
-      final container = _container(fake);
-      addTearDown(container.dispose);
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o1', subtotalEgp: 100, dineIn: false);
-      expect(container.read(loyaltyProvider).points, 20);
-    });
-
-    test('stamp wrap at 10 → completedCards+1, voucher, reset, spinner at 3', () async {
-      final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
-        'g1': (phone: '+201000000001', state: LoyaltyState(stamps: 9, spinnerTokens: 0, completedCards: 0)),
-      });
-      final container = _container(fake);
-      addTearDown(container.dispose);
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o1', subtotalEgp: 100, dineIn: false);
-      final s = container.read(loyaltyProvider);
-      expect(s.stamps, 0);
-      expect(s.completedCards, 1);
-      expect(s.vouchers.length, 1);
-      expect(s.vouchers.single.type, VoucherType.freeSnack);
-      // every 3rd stamp grants spinner: 2→3 should grant
-      final fake2 = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
-        'g1': (phone: '+201000000001', state: const LoyaltyState(stamps: 2)),
-      });
-      final c2 = _container(fake2);
-      addTearDown(c2.dispose);
-      await c2.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o1', subtotalEgp: 100, dineIn: false);
-      expect(c2.read(loyaltyProvider).stamps, 3);
-      expect(c2.read(loyaltyProvider).spinnerTokens, 1);
-    });
-
-    test('redemption deducts points before earn, lifetime only grows by earned', () async {
-      final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
-        'g1': (phone: '+201000000001', state: const LoyaltyState(points: 250, lifetimePoints: 1000)),
-      }, config: {'stamp_min_spend': 50});
-      final container = _container(fake);
-      addTearDown(container.dispose);
-      final redemption = Redemption(type: RedemptionType.freeDrink, costPts: 200);
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(
-            orderId: 'o1',
-            subtotalEgp: 100,
-            dineIn: false,
-            redemption: redemption,
-          );
-      final s = container.read(loyaltyProvider);
-      // 250-200=50 +10 earned =60
-      expect(s.points, 60);
-      expect(s.lifetimePoints, 1010);
-    });
-
-    test('subtotal below stampMinSpend does not grant stamp', () async {
-      final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
-        'g1': (phone: '+201000000001', state: const LoyaltyState(stamps: 0)),
-      }, config: {'stamp_min_spend': 50});
-      final container = _container(fake);
-      addTearDown(container.dispose);
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o1', subtotalEgp: 30, dineIn: false);
-      expect(container.read(loyaltyProvider).stamps, 0);
-      expect(container.read(loyaltyProvider).points, 3);
-    });
-
-    test('offline: persist failure still keeps optimistic state', () async {
-      final fake = FakeLoyaltyGateway(
-        currentUserId: 'g1',
-        byGoogleUserId: {
-          'g1': (phone: '+201000000001', state: const LoyaltyState(points: 0)),
-        },
-        throwOnPersist: true,
-      );
-      final container = _container(fake);
-      addTearDown(container.dispose);
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o1', subtotalEgp: 100, dineIn: false);
-      expect(container.read(loyaltyProvider).points, 10);
-      expect(fake.persistCalls, 1);
-    });
-
-    test('guest (no uid) stays local-only, no persist', () async {
-      final fake = FakeLoyaltyGateway(currentUserId: null);
-      final container = _container(fake);
-      addTearDown(container.dispose);
-      await container.read(loyaltyProvider.notifier).creditProcessedOrder(orderId: 'o1', subtotalEgp: 100, dineIn: false);
-      expect(container.read(loyaltyProvider).points, 10);
-      expect(fake.persistCalls, 0);
+      final notifier = container.read(loyaltyProvider.notifier);
+      notifier.state = const LoyaltyState(points: 200);
+      final redemption = notifier.previewRedeemable(hasDrinkLine: true);
+      expect(redemption, isNotNull);
+      expect(redemption!.type, RedemptionType.freeDrink);
     });
   });
 
-  group('LoyaltyController token grants', () {
-    test('grantStamps pure wrap and persist', () async {
+  group('LoyaltyController token grants (local preview, no persist)', () {
+    test('grantStamps pure wrap (local, no server persist)', () async {
       final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
         'g1': (phone: '+201000000001', state: const LoyaltyState()),
       });
       final container = _container(fake);
       addTearDown(container.dispose);
-      // seed in-memory state directly (grantStamps uses optimistic local state, not server fetch)
       container.read(loyaltyProvider.notifier).state = const LoyaltyState(stamps: 9);
       await container.read(loyaltyProvider.notifier).grantStamps(1);
       final s = container.read(loyaltyProvider);
       expect(s.stamps, 0);
       expect(s.completedCards, 1);
-      expect(fake.persistCalls, 1);
     });
 
-    test('grantPoints adds both balances', () async {
+    test('grantPoints adds both balances (local)', () async {
       final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
         'g1': (phone: '+201000000001', state: const LoyaltyState()),
       });
@@ -341,7 +207,7 @@ void main() {
       expect(container.read(loyaltyProvider).lifetimePoints, 60);
     });
 
-    test('consume token returns false when none', () async {
+    test('consume token returns false when none (no persist)', () async {
       final fake = FakeLoyaltyGateway(currentUserId: 'g1', byGoogleUserId: {
         'g1': (phone: '+201000000001', state: const LoyaltyState(spinnerTokens: 0)),
       });
@@ -349,7 +215,6 @@ void main() {
       addTearDown(container.dispose);
       final ok = await container.read(loyaltyProvider.notifier).consumeSpinnerToken();
       expect(ok, isFalse);
-      expect(fake.persistCalls, 0);
     });
   });
 }

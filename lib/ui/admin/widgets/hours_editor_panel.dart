@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/l10n/strings_admin.dart';
+import '../../../core/l10n/strings_common.dart';
 import '../../../data/repos/hours_repository.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -179,7 +180,9 @@ class _HoursEditorPanelState extends ConsumerState<HoursEditorPanel> {
                             const Spacer(),
                             TextButton(
                               onPressed: () => _toggleClosed(day, !closed),
-                              child: Text(closed ? (isAr ? 'افتح' : 'Open') : (isAr ? 'إغلاق' : 'Close')),
+                              child: Text(closed
+                                  ? CommonStrings.of(lang).open
+                                  : CommonStrings.of(lang).close),
                             ),
                           ],
                         ),

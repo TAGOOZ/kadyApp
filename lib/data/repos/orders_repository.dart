@@ -5,22 +5,22 @@
 // pickup slots emitted as UTC instants (ADR-0009). All supabase calls sit
 // behind the OrdersRepo seam so tests never hit the network.
 //
-// RISK-07 hardening: SupabaseOrdersRepo.placeOrder strips forgery keys
-// (risk_*, phone_verified, successful_orders, etc.) before insert — server
-// derives those from customer_risk_profiles + addresses + customer_devices.
-// Duplicate suppression via server hash(items, address_id) 60s window is
-// handled via P0001 recovery (returns existing order id).
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
+// Order Intake deep module (Candidate 6): single content-addressed key =
+// hash(phone + items + address) stable across retries (no nonce), explicit
+// DAG via order_intake_pipeline() (validate → risk → rate-limit → dedup).
+// Duplicate suppression is content-addressed (60s window, server hash via
+// compute_order_intake_hash) — no Uuid.v4 nonce, no triple fallback.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../core/supabase/supabase_config.dart';
+import '../../domain/order_intake.dart' as intake;
+import '../../domain/pricing.dart';
 import '../../domain/risk_engine.dart';
+import '../../domain/risk_profile.dart';
 import '../models/menu_models.dart';
 import 'customer_phone_resolver.dart';
+import 'risk_engine_provider.dart';
 
 // ---------------------------------------------------------------------------
 // Service mode + loyalty math (FEATURES §3.5, §4, §11)
@@ -40,25 +40,29 @@ extension OrderModeWire on OrderMode {
   int get etaMinutes => this == OrderMode.delivery ? 30 : 10;
 }
 
-const defaultDeliveryFeeEgp = 15; // §11.7 — flat citywide, admin-editable.
-const dineInMultiplier = 1.1; // §4 — dine-in bonus multiplier.
-const egpPerPoint = 10; // §4 — 1 pt / 10 EGP.
+const defaultDeliveryFeeEgp = kPricingDefaultDeliveryFeeEgp; // §11.7 — canonical in pricing.dart (deep module).
+const dineInMultiplier = 1.1; // §4 — canonical in pricing.dart/loyalty_rules.dart.
+const egpPerPoint = kPricingEgpPerPoint; // §4 — canonical in pricing.dart.
 
 /// Round half-up applied to the FINAL earned value, after multipliers (§4):
 /// 95 EGP → 9.5 pts → 10 pts; dine-in 90 EGP → 9 × 1.1 = 9.9 → 10 pts.
-int roundHalfUp(double value) {
-  final floored = value.floor();
-  final fraction = value - floored;
-  return floored + (fraction >= 0.5 ? 1 : 0);
-}
+/// Delegates to Pricing deep module so preview == server validation.
+int roundHalfUp(double value) => pricingRoundHalfUp(value);
 
 /// Delivery pays the flat fee; صالة/استلام pay nothing (fee row hidden).
+/// Delegates to Pricing deep module (FeeTable).
 int deliveryFeeFor(OrderMode mode, {int configuredFeeEgp = defaultDeliveryFeeEgp}) {
-  return mode == OrderMode.delivery ? configuredFeeEgp : 0;
+  return pricingDeliveryFeeFor(
+    isDelivery: mode == OrderMode.delivery,
+    configuredFeeEgp: configuredFeeEgp,
+  );
 }
 
 int totalOf({required int subtotalEgp, required int deliveryFeeEgp}) {
-  return subtotalEgp + deliveryFeeEgp;
+  return pricingTotalOf(
+    subtotalEgp: subtotalEgp,
+    deliveryFeeEgp: deliveryFeeEgp,
+  );
 }
 
 /// Deprecated: preview diverged from canonical rule when doubleWindow or
@@ -442,6 +446,10 @@ abstract class OrdersRepo {
   /// Inserts with `status='new'`; RLS requires the caller's own
   /// `google_user_id`. Returns the DB-assigned display number (#1000+).
   Future<PlacedOrder> placeOrder(NewOrder order);
+
+  /// Preview seam — deep RiskEngine behind one call, no persistence.
+  /// Hides RiskContext assembly; server remains authoritative for writes.
+  Future<RiskResult> previewRisk(NewOrder draft);
 }
 
 List<String>? _parseRiskReasons(Object? v) {
@@ -449,16 +457,61 @@ List<String>? _parseRiskReasons(Object? v) {
   return null;
 }
 
-String _dedupHashFor(List<OrderItemPayload> items, String? addressId) {
-  final itemsJson = jsonEncode([for (final i in items) i.toJson()]);
-  final raw = '$itemsJson|${addressId ?? ''}';
-  return md5.convert(utf8.encode(raw)).toString();
+/// Canonical intake key for the deep Order Intake module — single
+/// content-addressed idempotency key (phone + items + address). Replaces the
+/// old `Uuid.v4` nonce + brittle `md5(items::text)` dual track.
+String _intakeKeyFor(NewOrder order, String? phone) {
+  return intake.orderIntakeKeyFromJson(
+    phone: phone,
+    googleUserId: order.googleUserId,
+    itemsJson: [for (final i in order.items) i.toJson()],
+    addressId: order.addressId,
+  );
+}
+
+/// Adapter that owns RiskContext assembly — Locality concentrated here, checkout never builds RiskContext.
+/// Pure for tests (zeros), plus async honest path that mirrors server pipeline 0030.
+class RiskPreviewAdapter {
+  const RiskPreviewAdapter(this.engine);
+  final RiskEngine engine;
+
+  RiskResult previewFor(
+    NewOrder draft, {
+    RiskProfile? profile,
+    int deviceCustomerCount = 0,
+    int addressCustomerCount = 0,
+    int addressFailedCount = 0,
+    bool isNewDeviceOverride = false,
+    bool useNewDeviceOverride = false,
+    bool isRapidOrders = false,
+  }) {
+    final isNewDevice = useNewDeviceOverride
+        ? isNewDeviceOverride
+        : (draft.deviceId != null && draft.deviceId!.trim().isNotEmpty);
+    final ctx = RiskContext(
+      subtotalEgp: draft.subtotalEgp,
+      isNewCustomer: profile == null ? true : profile.totalOrders == 0,
+      previousFailedDeliveries: profile?.failedDeliveries ?? 0,
+      previousRejectedOrders: profile?.rejectedOrders ?? 0,
+      cancellationsCount: profile?.cancelledOrders ?? 0,
+      successfulOrders: profile?.successfulOrders ?? 0,
+      isVerifiedPhone: profile?.phoneVerified ?? false,
+      isLargeOrder: draft.subtotalEgp >= engine.config.largeOrderThreshold,
+      isNewDevice: isNewDevice,
+      deviceCustomerCount: deviceCustomerCount,
+      addressCustomerCount: addressCustomerCount,
+      addressFailedCount: addressFailedCount,
+      isRapidOrders: isRapidOrders,
+    );
+    return engine.evaluate(ctx);
+  }
 }
 
 class SupabaseOrdersRepo implements OrdersRepo {
-  SupabaseOrdersRepo(this._client);
+  SupabaseOrdersRepo(this._client, {RiskEngine? engine}) : _engine = engine ?? const RiskEngine();
 
   final SupabaseClient _client;
+  final RiskEngine _engine;
 
   @override
   Future<int> fetchDeliveryFee() async {
@@ -565,55 +618,101 @@ class SupabaseOrdersRepo implements OrdersRepo {
   }
 
   @override
-  Future<PlacedOrder> placeOrder(NewOrder order) async {
-    final phone = order.phone ?? await _phoneOf(order.googleUserId);
-    final idempotencyKey = order.idempotencyKey?.trim().isNotEmpty == true
-        ? order.idempotencyKey!.trim()
-        : const Uuid().v4();
-
-    // Duplicate suppression: if an order with same (phone, idempotency_key) already
-    // exists, return it instead of inserting a new row (30s debounce is client-side,
-    // server unique index is forever — uuid per submit ensures no cross-submit collision).
-    // Handles phone-null case via google_user_id fallback index (idx_orders_idempotency_gid).
-    // Note: pre-check swallow is intentional to avoid extra latency on transient network errors;
-    // true dedup is still enforced by unique index + 23505 recovery below.
+  Future<RiskResult> previewRisk(NewOrder draft) async {
+    RiskProfile? profile;
+    String? phone;
     try {
-      Map<String, dynamic>? existing;
+      phone = draft.phone ?? await _phoneOf(draft.googleUserId);
       if (phone != null) {
-        existing = await _client
-            .from('orders')
-            .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
-            .eq('phone', phone)
-            .eq('idempotency_key', idempotencyKey)
-            .maybeSingle();
-      } else {
-        existing = await _client
-            .from('orders')
-            .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
-            .eq('google_user_id', order.googleUserId)
-            .eq('idempotency_key', idempotencyKey)
-            .maybeSingle();
-      }
-      if (existing != null) {
-        return PlacedOrder(
-          id: existing['id'] as String,
-          displayNumber: (existing['display_number'] as num).toInt(),
-          riskAction: existing['risk_action'] as String?,
-          riskScore: (existing['risk_score'] as num?)?.toInt(),
-          riskLevel: existing['risk_level'] as String?,
-          riskReasons: _parseRiskReasons(existing['risk_reasons']),
-        );
+        final row = await _client.from('customer_risk_profiles').select().eq('phone', phone).maybeSingle();
+        if (row != null) {
+          profile = RiskProfile.fromRow(Map<String, dynamic>.from(row as Map));
+        }
       }
     } catch (_) {
-      // Fall through to insert on lookup failure.
+      // Fallback — preview as new Customer
     }
 
-    // RISK-07: client never sends risk_* forgery keys; strip them defensively.
-    // NewOrder is typed, so these keys cannot be set via the model, but we
-    // defensively ensure no extra keys leak if the map is ever extended.
-    // Server derives risk_* via evaluate_order_risk_trigger (overwrites any
-    // forged values). Also strip phone_verified etc. — server derives from
-    // customer_risk_profiles.
+    // Honest preview: mirror server pipeline 0030 counts (best-effort, fallback 0/false).
+    var deviceCustomerCount = 0;
+    var addressCustomerCount = 0;
+    var addressFailedCount = 0;
+    var isRapidOrders = false;
+    var isNewDevice = false;
+    var useNewDeviceOverride = false;
+
+    final deviceId = draft.deviceId?.trim();
+    if (deviceId != null && deviceId.isNotEmpty) {
+      try {
+        // distinct phones using this device_id
+        final rows = await _client.from('customer_devices').select('phone').eq('device_id', deviceId);
+        final distinct = {for (final r in (rows as List)) (r as Map)['phone'] as String?}.whereType<String>().length;
+        if (phone != null && phone.isNotEmpty) {
+          final exists = await _client.from('customer_devices').select('phone').eq('phone', phone).eq('device_id', deviceId).maybeSingle();
+          isNewDevice = exists == null;
+          deviceCustomerCount = isNewDevice ? distinct + 1 : distinct;
+        } else {
+          isNewDevice = true;
+          deviceCustomerCount = distinct + 1;
+        }
+        useNewDeviceOverride = true;
+      } catch (_) {
+        // keep defaults
+      }
+    }
+
+    final addressId = draft.addressId?.trim();
+    if (addressId != null && addressId.isNotEmpty) {
+      try {
+        final rows = await _client.from('orders').select('phone').eq('address_id', addressId);
+        final distinct = {for (final r in (rows as List)) (r as Map)['phone'] as String?}.whereType<String>().length;
+        if (phone != null && phone.isNotEmpty) {
+          final hasPhone = await _client.from('orders').select('phone').eq('address_id', addressId).eq('phone', phone).maybeSingle();
+          addressCustomerCount = hasPhone != null ? distinct : distinct + 1;
+        } else {
+          addressCustomerCount = distinct;
+        }
+        final failedRows = await _client.from('orders').select('id').eq('address_id', addressId).eq('status', 'cancelled');
+        addressFailedCount = (failedRows as List).length;
+      } catch (_) {}
+    }
+
+    if (phone != null && phone.isNotEmpty) {
+      try {
+        final window = _engine.config.rapidOrdersWindowMinutes;
+        final threshold = _engine.config.rapidOrdersCount;
+        if (window > 0 && threshold > 0) {
+          final since = DateTime.now().toUtc().subtract(Duration(minutes: window)).toIso8601String();
+          final recent = await _client.from('orders').select('id').eq('phone', phone).gte('created_at', since);
+          final count = (recent as List).length;
+          isRapidOrders = (count + 1) >= threshold;
+        }
+      } catch (_) {}
+    }
+
+    return RiskPreviewAdapter(_engine).previewFor(
+      draft,
+      profile: profile,
+      deviceCustomerCount: deviceCustomerCount,
+      addressCustomerCount: addressCustomerCount,
+      addressFailedCount: addressFailedCount,
+      isNewDeviceOverride: isNewDevice,
+      useNewDeviceOverride: useNewDeviceOverride,
+      isRapidOrders: isRapidOrders,
+    );
+  }
+
+  @override
+  Future<PlacedOrder> placeOrder(NewOrder order) async {
+    final phone = order.phone ?? await _phoneOf(order.googleUserId);
+    // Deep Order Intake: single content-addressed key (phone + items + address)
+    // stable across retries — no Uuid.v4 nonce. Mirrors SQL
+    // compute_order_intake_hash(phone, items, address_id). Recovery is single
+    // lookup by that key (no triple fallback, no jsonb::text divergence).
+    // When caller supplies an explicit key (tests), respect it.
+    final contentKey = order.idempotencyKey?.trim().isNotEmpty == true
+        ? order.idempotencyKey!.trim()
+        : _intakeKeyFor(order, phone);
 
     try {
       final row = await _client //
@@ -638,9 +737,7 @@ class SupabaseOrdersRepo implements OrdersRepo {
             'points_preview': order.pointsPreview,
             if (order.deviceId != null && order.deviceId!.trim().isNotEmpty)
               'device_id': order.deviceId!.trim(),
-            'idempotency_key': idempotencyKey,
-            // RISK-07: dedup_hash is server-computed via enforce_order_dedup()
-            // (hash(items, address_id) 60s window). Client does not send it.
+            'idempotency_key': contentKey,
           })
           .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
           .single();
@@ -653,45 +750,19 @@ class SupabaseOrdersRepo implements OrdersRepo {
         riskReasons: _parseRiskReasons(row['risk_reasons']),
       );
     } on PostgrestException catch (e) {
-      final isUniqueViolation = e.code == '23505';
-      if (isUniqueViolation) {
-        try {
-          Map<String, dynamic> existing;
-          if (phone != null) {
-            existing = await _client
-                .from('orders')
-                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
-                .eq('phone', phone)
-                .eq('idempotency_key', idempotencyKey)
-                .single();
-          } else {
-            existing = await _client
-                .from('orders')
-                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
-                .eq('google_user_id', order.googleUserId)
-                .eq('idempotency_key', idempotencyKey)
-                .single();
-          }
-          return PlacedOrder(
-            id: existing['id'] as String,
-            displayNumber: (existing['display_number'] as num).toInt(),
-            riskAction: existing['risk_action'] as String?,
-            riskScore: (existing['risk_score'] as num?)?.toInt(),
-            riskLevel: existing['risk_level'] as String?,
-            riskReasons: _parseRiskReasons(existing['risk_reasons']),
-          );
-        } on PostgrestException catch (_) {
-          rethrow;
-        } catch (_) {
-          rethrow;
-        }
-      }
-      // RISK-07 dedup: server-side hash(items, address_id) window 60s raises P0001 duplicate.
-      // Primary recovery is via hint containing existing id; fallback scans recent window without relying on hash parity.
       final combinedLower = '${e.message} ${e.hint ?? ''}'.toLowerCase();
-      final isDuplicate = e.code == 'P0001' && combinedLower.contains('duplicate order');
-      if (isDuplicate) {
-        // Try to parse existing id from hint or message (hint may be empty string, so check both)
+      // Rate-limit P0001 (too_many_orders / rapid_orders) must not be
+      // swallowed — rethrow so UI can show throttling banner.
+      final isRateLimited = e.code == 'P0001' &&
+          (combinedLower.contains('rate limited') ||
+              (e.hint ?? '').toLowerCase().contains('too_many_orders') ||
+              (e.hint ?? '').toLowerCase().contains('rapid_orders'));
+      if (isRateLimited) rethrow;
+
+      // Single recovery: 23505 unique violation or P0001 duplicate window
+      // both resolve by fetching the existing order with the same content key.
+      if (e.code == '23505' || (e.code == 'P0001' && combinedLower.contains('duplicate'))) {
+        // Prefer hint-parsed id if pipeline raised duplicate with hint.
         final searchText = '${e.hint ?? ''} ${e.message}';
         final idMatch = RegExp(
           r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
@@ -714,85 +785,18 @@ class SupabaseOrdersRepo implements OrdersRepo {
               riskReasons: _parseRiskReasons(existing['risk_reasons']),
             );
           } catch (_) {
-            // fall through to recent-scan fallback
+            // fall through to content-key lookup
           }
         }
-        // Fallback: scan recent orders within 60s window and compare items/address_id in Dart
-        // Avoids hash parity issues (jsonb::text vs dart jsonEncode)
         try {
-          final recentCutoff = DateTime.now().toUtc().subtract(const Duration(seconds: 60)).toIso8601String();
-          List<Map<String, dynamic>> rows;
-          if (phone != null) {
-            rows = List<Map<String, dynamic>>.from(
-              await _client
-                  .from('orders')
-                  .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons, items, address_id, created_at')
-                  .eq('phone', phone)
-                  .gte('created_at', recentCutoff)
-                  .order('created_at', ascending: false)
-                  .limit(5) as List,
-            );
-          } else {
-            rows = List<Map<String, dynamic>>.from(
-              await _client
-                  .from('orders')
-                  .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons, items, address_id, created_at')
-                  .eq('google_user_id', order.googleUserId)
-                  .gte('created_at', recentCutoff)
-                  .order('created_at', ascending: false)
-                  .limit(5) as List,
-            );
-          }
-          for (final r in rows) {
-            final rItems = r['items'];
-            final rAddress = r['address_id'] as String?;
-            // Compare address_id first (cheap)
-            if ((rAddress ?? '') != (order.addressId ?? '')) continue;
-            // Compare items via JSON string equality after normalizing via jsonEncode
-            // Server stores jsonb; we compare by re-encoding both as canonical JSON
-            String canonical(Object? v) {
-              try {
-                return jsonEncode(v);
-              } catch (_) {
-                return v.toString();
-              }
-            }
-
-            final existingItemsJson = canonical(rItems);
-            final newItemsJson = jsonEncode([for (final i in order.items) i.toJson()]);
-            if (existingItemsJson == newItemsJson) {
-              return PlacedOrder(
-                id: r['id'] as String,
-                displayNumber: (r['display_number'] as num).toInt(),
-                riskAction: r['risk_action'] as String?,
-                riskScore: (r['risk_score'] as num?)?.toInt(),
-                riskLevel: r['risk_level'] as String?,
-                riskReasons: _parseRiskReasons(r['risk_reasons']),
-              );
-            }
-          }
-          // If no exact match, try dedup_hash fallback for older parity (kept for compat)
-          final dedupHash = _dedupHashFor(order.items, order.addressId);
-          Map<String, dynamic> existing;
-          if (phone != null) {
-            existing = await _client
-                .from('orders')
-                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
-                .eq('phone', phone)
-                .eq('dedup_hash', dedupHash)
-                .order('created_at', ascending: false)
-                .limit(1)
-                .single();
-          } else {
-            existing = await _client
-                .from('orders')
-                .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
-                .eq('google_user_id', order.googleUserId)
-                .eq('dedup_hash', dedupHash)
-                .order('created_at', ascending: false)
-                .limit(1)
-                .single();
-          }
+          final existing = await _client
+              .from('orders')
+              .select('id, display_number, risk_action, risk_score, risk_level, risk_reasons')
+              .eq(phone != null ? 'phone' : 'google_user_id', phone ?? order.googleUserId)
+              .eq('idempotency_key', contentKey)
+              .order('created_at', ascending: false)
+              .limit(1)
+              .single();
           return PlacedOrder(
             id: existing['id'] as String,
             displayNumber: (existing['display_number'] as num).toInt(),
@@ -802,7 +806,7 @@ class SupabaseOrdersRepo implements OrdersRepo {
             riskReasons: _parseRiskReasons(existing['risk_reasons']),
           );
         } catch (_) {
-          // If scan also fails, rethrow original dedup error
+          rethrow;
         }
       }
       rethrow;
@@ -811,7 +815,10 @@ class SupabaseOrdersRepo implements OrdersRepo {
 }
 
 final ordersRepoProvider = Provider<OrdersRepo>(
-  (ref) => SupabaseOrdersRepo(supabase),
+  (ref) {
+    final engine = ref.watch(riskEngineProvider).asData?.value ?? const RiskEngine();
+    return SupabaseOrdersRepo(supabase, engine: engine);
+  },
 );
 
 /// Admin-configured delivery fee; `valueOrNull` keeps the constant as the

@@ -1,15 +1,11 @@
-// Profile role gateway — authoritative role from `public.profiles`.
-// Server is source of truth; local `SharedPreferences` is only a cache
-// synced after auth. Prevents fake `admin` via local switcher alone.
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Profile role gateway — Supabase adapter for domain ProfileRoleGateway.
+// Domain owns the interface (lib/domain/profile_gateway.dart); this file owns Supabase.
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_config.dart';
+import '../../domain/profile_gateway.dart';
 
-abstract class ProfileRoleGateway {
-  /// Returns raw role string (`customer|staff|driver|admin`) or null.
-  Future<String?> fetchRole(String userId);
-}
+export '../../domain/profile_gateway.dart' show ProfileRoleGateway, profileRoleGatewayProvider;
 
 class SupabaseProfileRoleGateway implements ProfileRoleGateway {
   SupabaseProfileRoleGateway(this._client);
@@ -36,12 +32,11 @@ class _NoopProfileRoleGateway implements ProfileRoleGateway {
   Future<String?> fetchRole(String userId) async => null;
 }
 
-final profileRoleGatewayProvider = Provider<ProfileRoleGateway>(
-  (ref) {
-    try {
-      return SupabaseProfileRoleGateway(supabase);
-    } catch (_) {
-      return _NoopProfileRoleGateway();
-    }
-  },
-);
+/// Helper to create prod gateway safely (used in main.dart overrides).
+ProfileRoleGateway createSupabaseProfileGateway() {
+  try {
+    return SupabaseProfileRoleGateway(supabase);
+  } catch (_) {
+    return _NoopProfileRoleGateway();
+  }
+}

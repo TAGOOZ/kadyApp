@@ -151,7 +151,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               );
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('تم المسح: $phone')),
+                SnackBar(content: Text(strings.qrScanned(phone))),
               );
             }
           }

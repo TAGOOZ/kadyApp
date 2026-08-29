@@ -5,9 +5,11 @@
 // identical when changing either.
 //
 // Thresholds are injectable via RiskConfig (offline fallbacks match
-// app_config seeds in 0017_risk_foundation.sql). Rule scores and
-// enabled-flags are injectable via List<RiskRule> (fallback defaults
-// match risk_rules seeds §7); disabled rules are ignored.
+// app_config seeds in 0017_risk_foundation.sql). Rule scores, enabled-flags
+// and isExtrinsic are injectable via List<RiskRule> (fallback defaults
+// match risk_rules seeds §7); disabled rules are ignored. isExtrinsic marks
+// signal-not-proof signals (Mahmoudia shared device) and drives the
+// extrinsic-only cap — keep SQL `risk_rules.is_extrinsic` in sync (0027).
 
 /// Risk level wire vocabulary — stored in orders.risk_level.
 enum RiskLevel { low, medium, high }
@@ -269,12 +271,14 @@ class RiskRule {
     required this.code,
     required this.score,
     this.enabled = true,
+    this.isExtrinsic = false,
     this.description,
   });
 
   final RuleCode code;
   final int score;
   final bool enabled;
+  final bool isExtrinsic;
   final String? description;
 }
 
@@ -283,9 +287,11 @@ class RiskRule {
 /// currently ignored by the Dart engine; keep SQL and Dart in sync (see file header).
 /// RISK-03 adds MULTIPLE_ACCOUNTS_DEVICE (+10, signal not proof) — families share
 /// devices/addresses, so this never auto-rejects alone (capped in calculateRisk).
+/// `isExtrinsic` marks signal-not-proof signals (Mahmoudia family-device sharing);
+/// extrinsic-only reasons are clamped to mediumMax (59) — never high/rejected alone.
 const List<RiskRule> kDefaultRiskRules = [
   RiskRule(code: RuleCode.newCustomer, score: 20, description: 'First order for this phone'),
-  RiskRule(code: RuleCode.newDevice, score: 10, description: 'First order from this device'),
+  RiskRule(code: RuleCode.newDevice, score: 10, isExtrinsic: true, description: 'First order from this device'),
   RiskRule(code: RuleCode.previousFailedDelivery, score: 25, description: 'Prior failed delivery'),
   RiskRule(code: RuleCode.previousRejectedOrder, score: 30, description: 'Prior rejected order'),
   RiskRule(code: RuleCode.threePlusCancellations, score: 25, description: 'Three or more cancellations'),
@@ -294,10 +300,19 @@ const List<RiskRule> kDefaultRiskRules = [
   RiskRule(code: RuleCode.threePlusSuccessful, score: -20, description: 'Three or more successful orders'),
   RiskRule(code: RuleCode.fivePlusSuccessful, score: -30, description: 'Five or more successful orders'),
   RiskRule(code: RuleCode.verifiedPhone, score: -15, description: 'Phone verified'),
-  RiskRule(code: RuleCode.multipleAccountsDevice, score: 10, description: 'Same device used by 2+ phones (signal, not proof)'),
-  RiskRule(code: RuleCode.multipleAccountsAddress, score: 10, enabled: false, description: 'Same address used by 2+ phones (signal, not proof)'),
-  RiskRule(code: RuleCode.addressHighFailure, score: 15, enabled: false, description: 'Address with 3+ failed/cancelled deliveries'),
+  RiskRule(code: RuleCode.multipleAccountsDevice, score: 10, isExtrinsic: true, description: 'Same device used by 2+ phones (signal, not proof)'),
+  RiskRule(code: RuleCode.multipleAccountsAddress, score: 10, enabled: false, isExtrinsic: true, description: 'Same address used by 2+ phones (signal, not proof)'),
+  RiskRule(code: RuleCode.addressHighFailure, score: 15, enabled: false, isExtrinsic: true, description: 'Address with 3+ failed/cancelled deliveries'),
 ];
+
+/// Legacy extrinsic set — fallback for catalogs without isExtrinsic (e.g., old DB rows).
+/// Keep in sync with kDefaultRiskRules isExtrinsic flags.
+const _legacyExtrinsicCodes = {
+  RuleCode.newDevice,
+  RuleCode.multipleAccountsDevice,
+  RuleCode.multipleAccountsAddress,
+  RuleCode.addressHighFailure,
+};
 
 // ---------------------------------------------------------------------------
 // Context → Result
@@ -370,8 +385,31 @@ class RiskResult {
   final RiskAction action;
 }
 
+/// Deep Risk module — single entry point behind a small interface.
+/// Leverage: one `evaluate` hides config/catalog loading + extrinsic cap data.
+/// Locality: rule changes (scores, enabled, isExtrinsic) concentrate here.
+/// Two adapters justify the seam: in-memory pure in tests, Supabase trigger in prod.
+class RiskEngine {
+  const RiskEngine({
+    this.config = RiskConfig.fallback,
+    this.rules = kDefaultRiskRules,
+  });
+
+  final RiskConfig config;
+  final List<RiskRule> rules;
+
+  /// Deterministic evaluate — delegates to pure [calculateRisk].
+  RiskResult evaluate(RiskContext context) =>
+      calculateRisk(context, config: config, rules: rules);
+
+  /// Returns a tuned copy without mutating call sites (admin tuning path).
+  RiskEngine copyWith({RiskConfig? config, List<RiskRule>? rules}) =>
+      RiskEngine(config: config ?? this.config, rules: rules ?? this.rules);
+}
+
 // ---------------------------------------------------------------------------
-// Pure engine
+// Pure engine — remains the canonical scoring implementation.
+// RiskEngine is the deep wrapper; calculateRisk stays pure for isolated tests.
 // ---------------------------------------------------------------------------
 
 ({int low, int medium}) _normalizedThresholds(RiskConfig c) {
@@ -485,16 +523,12 @@ RiskResult calculateRisk(
   // area checks (counts derived via SELECT count(*) FROM orders WHERE address_id = ...).
   // Kept as field for RISK-04 evaluate-time derivation, not scored here.
 
-  // Extrinsic-only cap: shared device/address signals alone must never push to
-  // HIGH (signal not proof). If every contributing reason is extrinsic, clamp to
-  // mediumMax (59) so decision stays at worst needs_verification.
-  const extrinsicCodes = {
-    RuleCode.newDevice,
-    RuleCode.multipleAccountsDevice,
-    RuleCode.multipleAccountsAddress,
-    RuleCode.addressHighFailure,
-  };
-  final extrinsicOnly = reasons.isNotEmpty && reasons.every(extrinsicCodes.contains);
+  // Extrinsic-only cap: data-driven via RiskRule.isExtrinsic (signal not proof)
+  // plus legacy hard-coded set for backwards compat (custom test catalogs without flag).
+  // Shared device/address signals alone must never push to HIGH — clamp to mediumMax
+  // (59) so decision stays at worst needs_verification. Mahmoudia family-device reality.
+  final extrinsicOnly = reasons.isNotEmpty &&
+      reasons.every((c) => _legacyExtrinsicCodes.contains(c) || (byCode[c]?.isExtrinsic ?? false));
   if (extrinsicOnly && score > config.mediumMaxScore) {
     score = config.mediumMaxScore;
   }

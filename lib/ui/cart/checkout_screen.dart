@@ -13,7 +13,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_checkout.dart';
@@ -24,6 +23,7 @@ import '../../domain/auth_controller.dart';
 import '../../domain/cart_controller.dart';
 import '../../domain/loyalty_controller.dart';
 import '../../domain/loyalty_rules.dart';
+import '../../domain/pricing.dart';
 import '../auth/guest_save_prompt.dart';
 import 'widgets/loyalty_banner.dart';
 import 'widgets/mode_details_card.dart';
@@ -52,7 +52,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _redeemed = false; // loyalty redemption toggle (#007)
   Timer? _unlockTimer;
   String? _validationError;
-  String? _pendingIdempotencyKey; // RISK-04: hold for retry idempotency (#1)
 
   @override
   void dispose() {
@@ -159,8 +158,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         deviceId = null;
       }
     }
-    // Idempotency: generate once per submit and hold for retry (fixes #1). Reused if retry within debounce.
-    final idempotencyKey = _pendingIdempotencyKey ??= const Uuid().v4();
+    // Deep Intake: no Uuid.v4 nonce — content-addressed key
+    // (phone + items + address) is computed in OrdersRepo/domain
+    // order_intake and server pipeline. Debounce remains for UX only.
     try {
       final placed = await ref.read(ordersRepoProvider).placeOrder(NewOrder(
             mode: mode,
@@ -176,16 +176,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             addressId: candidate.addressId,
             notes: notes.isEmpty ? null : notes,
             deviceId: deviceId,
-            idempotencyKey: idempotencyKey,
           ));
       // RISK-04: loyalty gate — server trigger suppresses credit while held for verification
       // (WHEN risk_action = 'approved'). Client respects gate without trusting client.
       final needsVerification = placed.needsVerification;
       final isRejected = placed.isRejected;
       if (isRejected) {
-        // Rejected is terminal — keep debounce so user can't spam, but clear idempotency immediately
-        // so a retry with a smaller cart total gets a fresh key and fresh risk evaluation (#3).
-        _pendingIdempotencyKey = null;
         _unlockTimer?.cancel();
         _locked = true;
         _unlockTimer = Timer(_debounce, () {
@@ -194,21 +190,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         if (mounted) _showError(s, s.orderRejected);
         return;
       }
-      if (!needsVerification) {
-        // Real earn path (#007): server trigger is authoritative (migration 0004),
-        // client credit is now awaited to avoid lost-update/double-earn race
-        // (CORRECTNESS-05). Navigation waits for the idempotent credit.
-        await ref.read(loyaltyProvider.notifier).creditProcessedOrder(
-              orderId: placed.id,
-              subtotalEgp: subtotalEgp,
-              dineIn: mode == OrderMode.dineIn,
-              redemption: redemption,
-            );
-      }
-      // Success path: arm debounce and clear pending key on next order
+      // Server-authoritative loyalty: Postgres trigger credit_new_order owns all
+      // Points/Stamps crediting (AGENTS #4). Client only previews (earnedFor/redeemable)
+      // and resyncs via loyalty watch/refreshFor. No client creditProcessedOrder — deleted dual writer.
+      // Fire-and-forget refresh so confirmation/profile show updated balance even if Realtime lags/offline.
+      // ignore: unawaited_futures
+      ref.read(loyaltyProvider.notifier).refreshFor(googleUserId).catchError((_) {});
       _unlockTimer?.cancel();
       _locked = true;
-      _pendingIdempotencyKey = null; // success clears key; next order gets fresh UUID
       _unlockTimer = Timer(_debounce, () {
         if (mounted) setState(() => _locked = false);
       });
@@ -233,7 +222,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       }
       notifier.reset();
     } catch (_) {
-      // Standard error policy: snackbar + form preserved for retry; keep pending key for idempotent retry (#1).
+      // Standard error policy: snackbar + form preserved for retry.
       if (mounted) _showError(s, s.submitFailed);
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -253,24 +242,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final lang = ref.watch(localeNotifierProvider);
     final s = CheckoutStringsCatalog.of(lang);
 
-    // Clear pending idempotency when cart mutates so retry with new total gets fresh evaluation (#3).
-    ref.listen(cartProvider, (prev, next) {
-      if (prev != null && (prev.length != next.length || prev.toString() != next.toString())) {
-        _pendingIdempotencyKey = null;
-      }
-    });
-
     final draft = ref.watch(checkoutDraftProvider);
     final mode = draft.mode ?? OrderMode.pickup; // flow guarantees a pick
     final lines = ref.watch(cartProvider);
-    final subtotal = ref.watch(subtotalProvider);
 
     final configuredFee =
         ref.watch(deliveryFeeProvider).asData?.value ?? defaultDeliveryFeeEgp;
-    final fee = deliveryFeeFor(mode, configuredFeeEgp: configuredFee);
-
-    // Loyalty (#007): admin-tuned rules (seed constants offline) + live state
-    // drive the redemption toggle, the discounted subtotal and the earn preview.
+    // Pricing deep module owns fee/total/earn — single source for preview == server.
     final loyalty = ref.watch(loyaltyProvider);
     final rulesConfig =
         ref.watch(loyaltyConfigProvider).asData?.value ?? LoyaltyRulesConfig.fallback;
@@ -282,26 +260,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       config: rulesConfig,
     );
     final redeemed = _redeemed && redemption != null;
-    final discountEgp =
-        redeemed && redemption.type == RedemptionType.freeDrink
-            ? drinkLineDiscountEgp(lines
-                .map((line) => (
-                      categorySlug: line.item.categorySlug,
-                      lineTotalEgp: line.lineTotalEgp,
-                    ))
-                .toList())
-            : 0;
-    final subtotalAfterRedemption =
-        subtotal - discountEgp > 0 ? subtotal - discountEgp : 0;
-    final total = totalOf(
-        subtotalEgp: subtotalAfterRedemption, deliveryFeeEgp: fee);
-    final points = earnedFor(
-      subtotalEgp: subtotalAfterRedemption,
-      dineIn: mode == OrderMode.dineIn,
-      pointsPer10: rulesConfig.pointsPer10Egp,
-      dineInMultiplier: rulesConfig.dineInMultiplier,
+    // Build Pricing seam input (avoids cart_controller→pricing cycle via mapping).
+    final pricingLines = [
+      for (final l in lines)
+        PricingCartLine(item: l.item, config: l.config, qty: l.qty),
+    ];
+    final quote = pricingQuote(
+      lines: pricingLines,
+      isDelivery: mode == OrderMode.delivery,
+      isDineIn: mode == OrderMode.dineIn,
+      configuredDeliveryFeeEgp: configuredFee,
+      loyaltyConfig: rulesConfig,
+      redemption: redeemed ? redemption : null,
       doubleWindow: loyalty.doubleNextOrder,
     );
+    final subtotalAfterRedemption = quote.subtotalEgp;
+    final fee = quote.deliveryFeeEgp;
+    final total = quote.totalEgp;
+    final points = quote.earnedPreview;
 
     final items = [
       for (final line in lines)

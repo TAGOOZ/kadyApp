@@ -175,7 +175,15 @@ QuestDef questDefOf(QuestId id) =>
     questCatalog.firstWhere((def) => def.id == id);
 
 /// Menu category slugs that count as drinks for Q1.
-const drinkCategorySlugs = {'hot_drinks', 'cold_drinks'};
+/// Keep in sync with `loyalty_rules.dart:isDrinkCategorySlug` and SQL
+/// intake pipeline (`hot_drinks`, `cold_drinks`, `iced-espresso`).
+const drinkCategorySlugs = {
+  'hot_drinks',
+  'cold_drinks',
+  'iced-espresso',
+  'hot-drinks',
+  'cold-drinks',
+};
 
 // ---------------------------------------------------------------------------
 // Period math (local wall-clock; Egypt weeks start Saturday)

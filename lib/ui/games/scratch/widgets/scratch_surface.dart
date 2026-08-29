@@ -162,12 +162,14 @@ class _ScratchSurfaceState extends State<ScratchSurface> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.auto_awesome, color: Color(0xFFE7C77B), size: 30),
+                      Icon(Icons.auto_awesome,
+                          color: AppColors.sparkleGold, size: 30),
                       SizedBox(width: AppSpacing.xs8),
                       Icon(Icons.auto_awesome,
                           color: AppColors.secondary, size: 44),
                       SizedBox(width: AppSpacing.xs8),
-                      Icon(Icons.auto_awesome, color: Color(0xFFE7C77B), size: 30),
+                      Icon(Icons.auto_awesome,
+                          color: AppColors.sparkleGold, size: 30),
                     ],
                   ),
                 ),
@@ -192,8 +194,8 @@ class _CoatingPainter extends CustomPainter {
     final bounds = Offset.zero & size;
     canvas.saveLayer(bounds, Paint());
 
-    const silverLight = Color(0xFFE7EBE7);
-    const silverDark = Color(0xFFD6DBD6); // #E0E3E0-ish family
+    const silverLight = AppColors.scratchSilverLight;
+    const silverDark = AppColors.scratchSilverDark; // #E0E3E0-ish family
     canvas.drawRect(
       bounds,
       Paint()
