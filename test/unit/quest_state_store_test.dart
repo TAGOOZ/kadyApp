@@ -23,6 +23,16 @@ void main() {
     test('different phones differ', () {
       expect(QuestStateStore.phoneHash('+201000000001'), isNot(equals(QuestStateStore.phoneHash('+201000000002'))));
     });
+    test('trims whitespace — stable across btrim', () {
+      expect(QuestStateStore.phoneHash(' +201000000001 '),
+          QuestStateStore.phoneHash('+201000000001'));
+    });
+    test('pinned vector — md5 stable', () {
+      // md5('+201000000001'.trim()) — pin so algo change is caught
+      expect(QuestStateStore.phoneHash('+201000000001'),
+          'ec5f63bafcd4019dbd795b4312f4f7fa');
+      expect(QuestStateStore.phoneHash(phone).length, 32);
+    });
   });
 
   group('claimedQuests', () {

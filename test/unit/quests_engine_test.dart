@@ -75,6 +75,16 @@ void main() {
         const QuestProgress(progress: 0, target: 3),
       );
     });
+
+    test('iced-espresso counts as drink (0005)', () {
+      const icedCats = {'icedLatte': 'iced-espresso'};
+      final orders = [_order('o1', 'pickup', DateTime(2026, 8, 5), ['icedLatte'])];
+      expect(
+        evaluate(QuestId.drinksVariety,
+            orders: orders, itemCategories: icedCats, now: now),
+        const QuestProgress(progress: 1, target: 3),
+      );
+    });
   });
 
   group('Q2 اطلب خلال ليلة الماتش', () {

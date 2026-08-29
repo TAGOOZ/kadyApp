@@ -492,6 +492,20 @@ void main() {
       expect(isDrinkCategorySlug('snacks'), isFalse);
       expect(isDrinkCategorySlug('specials'), isFalse);
     });
+
+    test('isDrinkCategorySlug includes iced-espresso (0005)', () {
+      expect(isDrinkCategorySlug('iced-espresso'), isTrue);
+      expect(isDrinkCategorySlug('hot-drinks'), isTrue);
+      expect(isDrinkCategorySlug('cold-drinks'), isTrue);
+    });
+
+    test('drinkLineDiscountEgp counts iced-espresso as drink', () {
+      final discount = drinkLineDiscountEgp([
+        (categorySlug: 'iced-espresso', lineTotalEgp: 85),
+        (categorySlug: 'snacks', lineTotalEgp: 50),
+      ]);
+      expect(discount, 85);
+    });
   });
 
   group('applyRedemption', () {
