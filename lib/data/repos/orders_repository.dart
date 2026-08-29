@@ -573,16 +573,24 @@ class SupabaseOrdersRepo implements OrdersRepo {
       return AddressLabel.other;
     }
 
-    return [
-      for (final row in List<Map<String, dynamic>>.from(rows as List))
+    // Deduplicate by id — defensive against double-emit or join duplication
+    // (issue 3: delivery sheet showed two identical buttons for one DB row).
+    final seenIds = <String>{};
+    final result = <SavedAddress>[];
+    for (final row in List<Map<String, dynamic>>.from(rows as List)) {
+      final id = row['id'] as String;
+      if (!seenIds.add(id)) continue;
+      result.add(
         SavedAddress(
-          id: row['id'] as String,
+          id: id,
           label: parseLabel(row['label']),
           addressText: row['address_text'] as String,
           latitude: parseDouble(row['latitude']),
           longitude: parseDouble(row['longitude']),
         ),
-    ];
+      );
+    }
+    return result;
   }
 
   @override

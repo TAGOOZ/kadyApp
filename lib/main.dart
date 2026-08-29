@@ -16,6 +16,7 @@ import 'data/repos/profile_repository.dart' show createSupabaseProfileGateway;
 import 'domain/auth_controller.dart';
 import 'domain/customer_gateway.dart';
 import 'domain/driver_gateway.dart';
+import 'domain/loyalty_controller.dart';
 import 'domain/loyalty_gateway.dart';
 import 'domain/phone_stamp_service.dart';
 import 'domain/profile_gateway.dart';
@@ -48,6 +49,8 @@ class KadyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Keep loyalty auto-sync alive (fix #4: stale after re-login)
+    ref.watch(loyaltyAuthSyncProvider);
     final session = ref.watch(sessionControllerProvider);
 
     return MaterialApp.router(

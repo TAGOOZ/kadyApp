@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'auth_controller.dart';
 import 'loyalty_gateway.dart';
 import 'loyalty_rules.dart';
 import 'loyalty_state.dart';
@@ -166,3 +167,35 @@ final loyaltyConfigProvider = FutureProvider<LoyaltyRulesConfig>((ref) async {
 });
 
 final loyaltyProvider = NotifierProvider<LoyaltyController, LoyaltyState>(LoyaltyController.new);
+
+/// Auto-sync loyalty with auth (fix #4: stale after re-login).
+/// Watches AuthPhase.ready and triggers refreshFor so home/profile show correct
+/// server points without manual tap. Not used in pure unit tests (which override
+/// gateway and don't need SharedPreferences), so it doesn't break `flutter test`.
+/// App watches this in `KadyApp` to keep it alive.
+final loyaltyAuthSyncProvider = Provider<void>((ref) {
+  ref.listen(authControllerProvider, (previous, next) {
+    final nextId = next.googleUser?.id;
+    final prevId = previous?.googleUser?.id;
+    final nextPhase = next.phase;
+    final prevPhase = previous?.phase;
+    if (nextPhase == AuthPhase.ready && nextId != null && nextId.isNotEmpty) {
+      if (prevPhase != AuthPhase.ready || prevId != nextId) {
+        Future.microtask(
+          () => ref.read(loyaltyProvider.notifier).refreshFor(nextId),
+        );
+      }
+    } else if ((nextPhase == AuthPhase.idle || nextPhase == AuthPhase.guest) &&
+        prevPhase == AuthPhase.ready) {
+      Future.microtask(() => ref.read(loyaltyProvider.notifier).reset());
+    }
+  });
+  final auth = ref.read(authControllerProvider);
+  if (auth.phase == AuthPhase.ready &&
+      auth.googleUser?.id != null &&
+      auth.googleUser!.id.isNotEmpty) {
+    Future.microtask(
+      () => ref.read(loyaltyProvider.notifier).refreshFor(auth.googleUser!.id),
+    );
+  }
+});

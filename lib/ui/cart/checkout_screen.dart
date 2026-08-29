@@ -225,6 +225,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         );
       }
       notifier.reset();
+      // Must clear cart even when needs_verification (issue #7: delivery #1042 left cart at 1 after tracking push)
+      ref.read(cartProvider.notifier).clear();
     } catch (_) {
       // Standard error policy: snackbar + form preserved for retry.
       if (mounted) _showError(s, s.submitFailed);

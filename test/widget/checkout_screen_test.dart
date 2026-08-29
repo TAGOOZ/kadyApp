@@ -362,6 +362,35 @@ void main() {
     expect(repo.placeOrderCalls, 0);
   });
 
+  testWidgets('pickup without timing blocks submit (needs explicit Now/slot)', (tester) async {
+    final repo = _FakeOrdersRepo();
+    await _pumpWithDraft(tester, authState: _ready, repo: repo, draftBuilder: () => const CheckoutDraft(mode: OrderMode.pickup, pickupTiming: null));
+    await tester.tap(find.text('تأكيد الطلب · 95 ج.م'));
+    await tester.pumpAndSettle();
+    expect(find.text('اختر وقت الاستلام'), findsOneWidget);
+    expect(repo.placeOrderCalls, 0);
+  });
+
+  testWidgets('pickup Now chip toggles to deselected (all unchecked) then blocks', (tester) async {
+    final repo = _FakeOrdersRepo();
+    // Start with default Now selected (canSubmit true)
+    await _pumpWithDraft(tester, authState: _ready, repo: repo, draftBuilder: () => const CheckoutDraft(mode: OrderMode.pickup));
+    // Now is selected initially — tapping it again deselects to null via PickupDetails logic
+    await tester.tap(find.text('الآن'));
+    await tester.pumpAndSettle();
+    // After deselect, submit should be blocked
+    await tester.tap(find.text('تأكيد الطلب · 95 ج.م'));
+    await tester.pumpAndSettle();
+    expect(find.text('اختر وقت الاستلام'), findsOneWidget);
+    expect(repo.placeOrderCalls, 0);
+    // Tapping الآن again re-selects and allows submit
+    await tester.tap(find.text('الآن'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('تأكيد الطلب · 95 ج.م'));
+    await tester.pumpAndSettle();
+    expect(repo.placeOrderCalls, 1);
+  });
+
   testWidgets('pickup with future slot persists slotUtc', (tester) async {
     final repo = _FakeOrdersRepo();
     final slot = DateTime.utc(2026, 8, 30, 12, 0);

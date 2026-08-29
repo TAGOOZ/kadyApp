@@ -75,6 +75,9 @@ class CartController extends Notifier<List<CartLine>> {
       (line) => line.item.id == itemId && line.config == config,
     );
   }
+
+  /// Clears the cart (issue #7: must clear even when needs_verification).
+  void clear() => state = const [];
 }
 
 final cartProvider =
