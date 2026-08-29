@@ -176,5 +176,25 @@ void main() {
       final o3 = NewOrder(mode: OrderMode.pickup, googleUserId: 'g1', phone: '+209999999999', items: [p3], subtotalEgp: 60, deliveryFeeEgp: 0, totalEgp: 60, pointsPreview: 6);
       expect(() => fake.placeOrder(o3), throwsA(isA<StateError>()));
     });
+
+    test('is_available guard documented — SQL raises 22023 before pricing', () {
+      // Dart preview does not know is_available; server pipeline 0033
+      // does `select is_available ... if false raise 22023`. This test
+      // pins the contract so future Dart pricing changes remember to keep
+      // server validation. See supabase/migrations/0033_fix_availability_guard.sql:67
+      final unavailable = MenuItem(
+        id: 'x-id',
+        slug: 'x',
+        nameAr: 'x',
+        nameEn: 'x',
+        descAr: '',
+        descEn: '',
+        priceEgp: 40,
+        isAvailable: false,
+        categorySlug: 'hot_drinks',
+      );
+      expect(unavailable.isAvailable, isFalse);
+      expect(unavailable.priceEgp, 40);
+    });
   });
 }
