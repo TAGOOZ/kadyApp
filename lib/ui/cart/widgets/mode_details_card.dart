@@ -33,6 +33,8 @@ class ModeDetailsCard extends StatelessWidget {
     required this.onToggleAddrForm,
     required this.savingAddress,
     required this.onSaveAddress,
+    this.onAddressSelected,
+    this.onPickupTimingSelected,
   });
 
   final OrderMode mode;
@@ -48,6 +50,8 @@ class ModeDetailsCard extends StatelessWidget {
   final VoidCallback onToggleAddrForm;
   final bool savingAddress;
   final VoidCallback onSaveAddress;
+  final VoidCallback? onAddressSelected;
+  final VoidCallback? onPickupTimingSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +66,10 @@ class ModeDetailsCard extends StatelessWidget {
               onTableChanged: onTableChanged,
               onAreaSelected: onAreaSelected,
             ),
-          OrderMode.pickup => PickupDetails(strings: strings),
+          OrderMode.pickup => PickupDetails(
+              strings: strings,
+              onTimingSelected: onPickupTimingSelected,
+            ),
           OrderMode.delivery => DeliveryDetails(
               strings: strings,
               textController: addrTextController,
@@ -72,6 +79,7 @@ class ModeDetailsCard extends StatelessWidget {
               onToggleForm: onToggleAddrForm,
               saving: savingAddress,
               onSave: onSaveAddress,
+              onAddressSelected: onAddressSelected,
             ),
         },
       ),
@@ -134,9 +142,10 @@ class DineInDetails extends StatelessWidget {
 }
 
 class PickupDetails extends ConsumerWidget {
-  const PickupDetails({super.key, required this.strings});
+  const PickupDetails({super.key, required this.strings, this.onTimingSelected});
 
   final CheckoutStrings strings;
+  final VoidCallback? onTimingSelected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -149,19 +158,36 @@ class PickupDetails extends ConsumerWidget {
       children: [
         ChoiceChip(
           label: Text(strings.slotNow),
-          selected: timing?.isNow ?? true,
-          onSelected: (_) => ref
-              .read(checkoutDraftProvider.notifier)
-              .setPickupTiming(const PickupTiming.now()),
+          selected: timing?.isNow == true,
+          onSelected: (_) {
+            final isNowSelected = timing?.isNow == true;
+            if (isNowSelected) {
+              ref.read(checkoutDraftProvider.notifier).setPickupTiming(null);
+            } else {
+              ref
+                  .read(checkoutDraftProvider.notifier)
+                  .setPickupTiming(const PickupTiming.now());
+            }
+            onTimingSelected?.call();
+          },
         ),
         for (final slot in slots)
           ChoiceChip(
             label: Text(slot.label),
             selected:
-                !(timing?.isNow ?? true) && timing?.slotUtc == slot.startUtc,
-            onSelected: (_) => ref
-                .read(checkoutDraftProvider.notifier)
-                .setPickupTiming(PickupTiming.slot(slot.startUtc)),
+                timing?.isNow == false && timing?.slotUtc == slot.startUtc,
+            onSelected: (_) {
+              final isSlotSelected = timing?.isNow == false &&
+                  timing?.slotUtc == slot.startUtc;
+              if (isSlotSelected) {
+                ref.read(checkoutDraftProvider.notifier).setPickupTiming(null);
+              } else {
+                ref
+                    .read(checkoutDraftProvider.notifier)
+                    .setPickupTiming(PickupTiming.slot(slot.startUtc));
+              }
+              onTimingSelected?.call();
+            },
           ),
       ],
     );
@@ -179,6 +205,7 @@ class DeliveryDetails extends ConsumerWidget {
     required this.onToggleForm,
     required this.saving,
     required this.onSave,
+    this.onAddressSelected,
   });
 
   final CheckoutStrings strings;
@@ -189,6 +216,7 @@ class DeliveryDetails extends ConsumerWidget {
   final VoidCallback onToggleForm;
   final bool saving;
   final VoidCallback onSave;
+  final VoidCallback? onAddressSelected;
 
   String _labelName(AppLang lang, AddressLabel label) => switch (label) {
         AddressLabel.home => strings.labelHome,
@@ -242,9 +270,12 @@ class DeliveryDetails extends ConsumerWidget {
                       AddressOption(
                         selected: draftAddressId == address.id,
                         title: '${labels[address.label]} · ${address.addressText}',
-                        onTap: () => ref
-                            .read(checkoutDraftProvider.notifier)
-                            .setAddressId(address.id),
+                        onTap: () {
+                          ref
+                              .read(checkoutDraftProvider.notifier)
+                              .setAddressId(address.id);
+                          onAddressSelected?.call();
+                        },
                       ),
                   ],
                 ),
@@ -312,42 +343,52 @@ class AddressOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Flat selectable row (border only, no shadow): nested cards inside the
-    // mode-details card would double the chrome.
+    // mode-details card would double the chrome. Wrapped in Semantics button
+    // so Flutter Web's flt-semantics tree exposes each address as a tappable
+    // node (previously only the group label was visible to chrome-devtools).
+    // excludeSemantics avoids duplicate Text node (outer button label is enough).
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xs8),
-      child: Material(
-        color: selected ? AppColors.primaryFixedTint : AppColors.paperWhite,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.md8),
-          side: BorderSide(
-            color: selected
-                ? AppColors.primary
-                : AppColors.outline.withValues(alpha: 0.25),
+      child: Semantics(
+        button: true,
+        enabled: true,
+        label: title,
+        onTap: onTap,
+        excludeSemantics: true,
+        child: Material(
+          color: selected ? AppColors.primaryFixedTint : AppColors.paperWhite,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.md8),
+            side: BorderSide(
+              color: selected
+                  ? AppColors.primary
+                  : AppColors.outline.withValues(alpha: 0.25),
+            ),
           ),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadii.md8),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xs8),
-            child: Row(
-              children: [
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  size: 20,
-                ),
-                const SizedBox(width: AppSpacing.xs8),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.bodySm,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadii.md8),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs8),
+              child: Row(
+                children: [
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 20,
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppSpacing.xs8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodySm,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

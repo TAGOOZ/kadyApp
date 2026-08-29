@@ -230,19 +230,27 @@ class OrderItemPayload {
   final int unitTotalEgp;
   final ItemConfig config;
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name_ar': nameAr,
-        'qty': qty,
-        'unit_total': unitTotalEgp,
-        'config': {
-          'size': config.sizeIndex,
-          'sugar': config.sugarIndex,
-          'addons': config.addons.toList()..sort(),
-          if (config.note != null && config.note!.trim().isNotEmpty)
-            'note': config.note,
-        },
-      };
+  static String _sanitizeNote(String note) =>
+      note.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+
+  Map<String, dynamic> toJson() {
+    final sanitizedNote = config.note == null
+        ? null
+        : _sanitizeNote(config.note!);
+    return {
+      'id': id,
+      'name_ar': nameAr,
+      'qty': qty,
+      'unit_total': unitTotalEgp,
+      'config': {
+        'size': config.sizeIndex,
+        'sugar': config.sugarIndex,
+        'addons': config.addons.toList()..sort(),
+        if (sanitizedNote != null && sanitizedNote.isNotEmpty)
+          'note': sanitizedNote,
+      },
+    };
+  }
 }
 
 /// Row handed to [OrdersRepo.placeOrder]; phone resolves server-side from
@@ -381,19 +389,22 @@ class CheckoutDraft {
         OrderMode.delivery => addressId != null && addressId!.trim().isNotEmpty,
       };
 
+  static const _sentinel = Object();
+
   CheckoutDraft copyWith({
-    OrderMode? mode,
-    String? tableArea,
-    PickupTiming? pickupTiming,
-    String? addressId,
-    String? notes,
+    Object? mode = _sentinel,
+    Object? tableArea = _sentinel,
+    Object? pickupTiming = _sentinel,
+    Object? addressId = _sentinel,
+    Object? notes = _sentinel,
   }) {
     return CheckoutDraft(
-      mode: mode ?? this.mode,
-      tableArea: tableArea ?? this.tableArea,
-      pickupTiming: pickupTiming ?? this.pickupTiming,
-      addressId: addressId ?? this.addressId,
-      notes: notes ?? this.notes,
+      mode: mode == _sentinel ? this.mode : mode as OrderMode?,
+      tableArea: tableArea == _sentinel ? this.tableArea : tableArea as String?,
+      pickupTiming:
+          pickupTiming == _sentinel ? this.pickupTiming : pickupTiming as PickupTiming?,
+      addressId: addressId == _sentinel ? this.addressId : addressId as String?,
+      notes: notes == _sentinel ? this.notes : notes as String,
     );
   }
 }
@@ -414,7 +425,7 @@ class CheckoutDraftController extends Notifier<CheckoutDraft> {
   void setTableArea(String? value) =>
       state = state.copyWith(tableArea: (value ?? '').trim());
 
-  void setPickupTiming(PickupTiming timing) =>
+  void setPickupTiming(PickupTiming? timing) =>
       state = state.copyWith(pickupTiming: timing);
 
   void setAddressId(String? id) => state = state.copyWith(addressId: id);

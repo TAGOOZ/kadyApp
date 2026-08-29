@@ -112,7 +112,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
 
     final draftState = ref.read(checkoutDraftProvider);
-    final timing = draftState.pickupTiming ?? const PickupTiming.now();
+    final timing = draftState.pickupTiming;
     final candidate = CheckoutDraft(
       mode: mode,
       tableArea: mode == OrderMode.dineIn ? _dineInDetail(s) : null,
@@ -133,7 +133,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     // Redemption rides as a notes prefix — `[REDEEMED:{type}:{cost}]` — so no
     // schema change is needed (accepted trade-off, see slice report).
-    final draftNotes = draftState.notes.trim();
+    // Sanitize notes to strip HTML tags (XSS defense: <script> is not executed
+    // via Flutter Text but we fully strip tags so persisted jsonb is clean).
+    String sanitizeNote(String s) => s.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+    final draftNotes = sanitizeNote(draftState.notes);
     final notes = [
       if (redemption != null)
         '[REDEEMED:${redemption.type.key}:${redemption.costPts}]',
@@ -172,7 +175,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             totalEgp: totalOf(subtotalEgp: subtotalEgp, deliveryFeeEgp: feeEgp),
             pointsPreview: previewPoints,
             tableArea: candidate.tableArea,
-            pickupSlotUtc: timing.isNow ? null : timing.slotUtc,
+            pickupSlotUtc:
+                timing == null || timing.isNow ? null : timing.slotUtc,
             addressId: candidate.addressId,
             notes: notes.isEmpty ? null : notes,
             deviceId: deviceId,
@@ -327,6 +331,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   areaIndex: _areaIndex,
                   onTableChanged: (value) => setState(() {
                     _areaIndex = null;
+                    _validationError = null;
                     ref
                         .read(checkoutDraftProvider.notifier)
                         .setTableArea(value);
@@ -336,7 +341,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ref
                         .read(checkoutDraftProvider.notifier)
                         .setTableArea(index == 0 ? s.areaInside : s.areaTerrace);
-                    setState(() => _areaIndex = index);
+                    setState(() {
+                      _areaIndex = index;
+                      _validationError = null;
+                    });
                   },
                   addrTextController: _addrTextController,
                   newAddrLabel: _newAddrLabel,
@@ -351,6 +359,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     if (gid == null || gid.isEmpty) return;
                     _saveAddress(gid, s);
                   },
+                  onAddressSelected: () =>
+                      setState(() => _validationError = null),
+                  onPickupTimingSelected: () =>
+                      setState(() => _validationError = null),
                 ),
                 if (_validationError != null) ...[
                   const SizedBox(height: AppSpacing.xs8),

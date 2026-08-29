@@ -168,7 +168,7 @@ void main() {
     );
 
     expect(find.text('استلام'), findsOneWidget);
-    expect(find.textContaining('95'), findsOneWidget);
+    expect(find.text('95 ج.م'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'ابدأ التحضير'), findsOneWidget);
   });
 }
