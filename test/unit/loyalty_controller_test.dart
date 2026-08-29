@@ -48,6 +48,60 @@ class FakeLoyaltyGateway implements LoyaltyGateway {
     final s = stateByPhone[phone];
     return Stream.value(s ?? const LoyaltyState());
   }
+
+  @override
+  Future<Map<String, dynamic>?> playSpinner() async => null;
+  @override
+  Future<Map<String, dynamic>?> playMatch() async => null;
+  @override
+  Future<Map<String, dynamic>?> playScratch() async => null;
+  @override
+  Future<bool> consumeSpinnerToken() async {
+    String? phone;
+    if (currentUserId != null && byGoogleUserId.containsKey(currentUserId)) {
+      phone = byGoogleUserId[currentUserId]!.phone;
+    } else if (stateByPhone.isNotEmpty) {
+      phone = stateByPhone.keys.first;
+    }
+    if (phone == null) return false;
+    final s = stateByPhone[phone];
+    if (s == null || s.spinnerTokens <= 0) return false;
+    stateByPhone[phone] = s.copyWith(spinnerTokens: s.spinnerTokens - 1);
+    return true;
+  }
+
+  @override
+  Future<bool> consumeMatchToken() async {
+    String? phone;
+    if (currentUserId != null && byGoogleUserId.containsKey(currentUserId)) {
+      phone = byGoogleUserId[currentUserId]!.phone;
+    } else if (stateByPhone.isNotEmpty) {
+      phone = stateByPhone.keys.first;
+    }
+    if (phone == null) return false;
+    final s = stateByPhone[phone];
+    if (s == null || s.matchTokens <= 0) return false;
+    stateByPhone[phone] = s.copyWith(matchTokens: s.matchTokens - 1);
+    return true;
+  }
+
+  @override
+  Future<bool> consumeScratchToken() async {
+    String? phone;
+    if (currentUserId != null && byGoogleUserId.containsKey(currentUserId)) {
+      phone = byGoogleUserId[currentUserId]!.phone;
+    } else if (stateByPhone.isNotEmpty) {
+      phone = stateByPhone.keys.first;
+    }
+    if (phone == null) return false;
+    final s = stateByPhone[phone];
+    if (s == null || s.scratchTokens <= 0) return false;
+    stateByPhone[phone] = s.copyWith(scratchTokens: s.scratchTokens - 1);
+    return true;
+  }
+
+  @override
+  Future<bool> consumeVoucher(String voucherType) async => false;
 }
 
 ProviderContainer _container(FakeLoyaltyGateway fake) {

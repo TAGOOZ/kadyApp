@@ -25,6 +25,22 @@ abstract class LoyaltyGateway {
   /// Single writer: Postgres triggers (credit_new_order / staff_apply_stamp) own all writes.
   /// Client is read-only projection — two adapters justify seam (Supabase Realtime vs Fake).
   Stream<LoyaltyState> watchState(String phone);
+
+  /// Server-authoritative game plays — SECURITY DEFINER RPCs that CHECK tokens>0
+  /// and roll prize server side (mirror 0004 pattern). Returns prize payload.
+  /// Throws on no_tokens (P0001) or not owned (42501). Null when offline/unauth.
+  Future<Map<String, dynamic>?> playSpinner();
+  Future<Map<String, dynamic>?> playMatch();
+  Future<Map<String, dynamic>?> playScratch();
+
+  /// Low-level token consume (legacy) — now server-authoritative.
+  /// Returns true if token was consumed, false if none available or not owned.
+  Future<bool> consumeSpinnerToken();
+  Future<bool> consumeMatchToken();
+  Future<bool> consumeScratchToken();
+
+  /// Atomically consumes one voucher of [type] (FOR UPDATE). Returns true if consumed.
+  Future<bool> consumeVoucher(String voucherType);
 }
 
 class _NoopLoyaltyGateway implements LoyaltyGateway {
@@ -38,6 +54,20 @@ class _NoopLoyaltyGateway implements LoyaltyGateway {
   Future<Map<String, dynamic>> fetchConfig() async => const {};
   @override
   Stream<LoyaltyState> watchState(String phone) => Stream.value(const LoyaltyState());
+  @override
+  Future<Map<String, dynamic>?> playSpinner() async => null;
+  @override
+  Future<Map<String, dynamic>?> playMatch() async => null;
+  @override
+  Future<Map<String, dynamic>?> playScratch() async => null;
+  @override
+  Future<bool> consumeSpinnerToken() async => false;
+  @override
+  Future<bool> consumeMatchToken() async => false;
+  @override
+  Future<bool> consumeScratchToken() async => false;
+  @override
+  Future<bool> consumeVoucher(String voucherType) async => false;
 }
 
 final loyaltyGatewayProvider = Provider<LoyaltyGateway>(

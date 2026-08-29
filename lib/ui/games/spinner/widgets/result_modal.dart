@@ -48,6 +48,25 @@ class ResultModal extends StatelessWidget {
     ).then((_) => creditSpinPrize(controller, prize));
   }
 
+  /// Displays prize without extra grant (server already granted via play_* RPC).
+  static void show(
+    BuildContext context, {
+    required SpinPrize prize,
+    required SpinnerStrings strings,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: AppColors.paperWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadii.xl24)),
+      ),
+      builder: (_) => ResultModal(prize: prize, strings: strings),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isWin = prize != SpinPrize.nothing;

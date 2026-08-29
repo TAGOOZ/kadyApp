@@ -11,12 +11,16 @@ export 'loyalty_state.dart';
 /// Server-authoritative: Postgres triggers (`credit_new_order` / `staff_apply_stamp`)
 /// own all Points/Stamps/Voucher crediting. Client only previews (pure `loyalty_rules.dart`)
 /// and resyncs via `refreshFor()` / `watchState`. No client-side point/stamp persistence
-/// (AGENTS #4). Game token grants remain local-only preview for MVP (no persist).
+/// (AGENTS #4). Game token grants are now server-authoritative via `play_*` RPCs
+/// (SECURITY-02, mirror 0004 pattern) — token CHECK >0 and prize INSERT happen
+/// server side, RLS denies client PATCH.
 class LoyaltyController extends Notifier<LoyaltyState> {
   @override
   LoyaltyState build() => const LoyaltyState();
 
   LoyaltyGateway get _gateway => ref.read(loyaltyGatewayProvider);
+
+  String? _lastGoogleUserId;
 
   /// Loads state for the given authenticated google_user_id.
   ///
@@ -29,8 +33,10 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       final fetched = await _gateway.fetchState(googleUserId);
       if (fetched != null) {
         state = fetched.state;
+        _lastGoogleUserId = googleUserId;
       } else {
         state = const LoyaltyState();
+        _lastGoogleUserId = googleUserId;
       }
       _lastRefreshFailed = false;
     } catch (_) {
@@ -95,31 +101,162 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     return redeemable(state, hasDrinkLine: hasDrinkLine, config: cfg);
   }
 
-  // -- Game tokens & grants (local-only preview, no server persist) ----------
-  // Server-authoritative for orders, but games remain local for MVP.
-  // These update in-memory state only; server trigger remains source of truth
-  // for order-derived Points/Stamps. No gateway.persist call.
+  // -- Game tokens & grants (server-authoritative via play_* RPCs) ----------
+  // SECURITY-02: token consumption and prize grants are now SECURITY DEFINER
+  // RPCs (play_spinner/play_match/play_scratch) that CHECK tokens>0 and roll
+  // prize server side. Client is read-only projection; local mutations only
+  // optimistically mirror server after successful RPC and are re-synced via
+  // refreshFor. Direct local grant without RPC is deprecated.
 
-  /// Consumes one game token; returns false when none available (local only).
+  /// Server-authoritative consume — returns false when none available.
+  /// Tries RPC when authenticated, falls back to local check only for guest/Noop.
   Future<bool> consumeSpinnerToken() async {
+    final uid = _gateway.currentUserId;
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        final ok = await _gateway.consumeSpinnerToken();
+        if (ok) {
+          // Optimistic local decrement; will be corrected on next refresh
+          if (state.spinnerTokens > 0) {
+            state = state.copyWith(spinnerTokens: state.spinnerTokens - 1);
+          } else {
+            // Hacked state had fake tokens — re-sync from server
+            if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+          }
+        } else {
+          // Server denied — revert any hacked local inflation
+          if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+        }
+        return ok;
+      } catch (_) {
+        if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+        return false;
+      }
+    }
+    // Offline/quest preview fallback (no server)
     if (state.spinnerTokens <= 0) return false;
     state = state.copyWith(spinnerTokens: state.spinnerTokens - 1);
     return true;
   }
 
   Future<bool> consumeMatchToken() async {
+    final uid = _gateway.currentUserId;
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        final ok = await _gateway.consumeMatchToken();
+        if (ok) {
+          if (state.matchTokens > 0) {
+            state = state.copyWith(matchTokens: state.matchTokens - 1);
+          } else {
+            if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+          }
+        } else {
+          if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+        }
+        return ok;
+      } catch (_) {
+        if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+        return false;
+      }
+    }
     if (state.matchTokens <= 0) return false;
     state = state.copyWith(matchTokens: state.matchTokens - 1);
     return true;
   }
 
   Future<bool> consumeScratchToken() async {
+    final uid = _gateway.currentUserId;
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        final ok = await _gateway.consumeScratchToken();
+        if (ok) {
+          if (state.scratchTokens > 0) {
+            state = state.copyWith(scratchTokens: state.scratchTokens - 1);
+          } else {
+            if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+          }
+        } else {
+          if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+        }
+        return ok;
+      } catch (_) {
+        if (_lastGoogleUserId != null) await refreshFor(_lastGoogleUserId!);
+        return false;
+      }
+    }
     if (state.scratchTokens <= 0) return false;
     state = state.copyWith(scratchTokens: state.scratchTokens - 1);
     return true;
   }
 
+  /// Server-authoritative play — consumes token and grants prize atomically.
+  /// Returns server-rolled prize or null on failure (no_tokens/offline).
+  Future<Map<String, dynamic>?> playSpinnerGame() async {
+    try {
+      final res = await _gateway.playSpinner();
+      if (res != null) {
+        if (_lastGoogleUserId != null) {
+          await refreshFor(_lastGoogleUserId!);
+        } else {
+          // Optimistic fallback: map prize to local state
+          final prize = res['prize'] as String?;
+          _applySpinnerPrizeLocally(prize);
+        }
+      }
+      return res;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> playMatchGame() async {
+    try {
+      final res = await _gateway.playMatch();
+      if (res != null && _lastGoogleUserId != null) {
+        await refreshFor(_lastGoogleUserId!);
+      }
+      return res;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> playScratchGame() async {
+    try {
+      final res = await _gateway.playScratch();
+      if (res != null && _lastGoogleUserId != null) {
+        await refreshFor(_lastGoogleUserId!);
+      }
+      return res;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _applySpinnerPrizeLocally(String? prize) {
+    switch (prize) {
+      case 'points5':
+        state = state.copyWith(points: state.points + 5, lifetimePoints: state.lifetimePoints + 5, spinnerTokens: state.spinnerTokens > 0 ? state.spinnerTokens - 1 : 0);
+        break;
+      case 'points10':
+        state = state.copyWith(points: state.points + 10, lifetimePoints: state.lifetimePoints + 10, spinnerTokens: state.spinnerTokens > 0 ? state.spinnerTokens - 1 : 0);
+        break;
+      case 'toppingVoucher':
+        state = state.copyWith(vouchers: [...state.vouchers, Voucher(type: VoucherType.freeTopping, grantedAt: DateTime.now().toUtc())], spinnerTokens: state.spinnerTokens > 0 ? state.spinnerTokens - 1 : 0);
+        break;
+      case 'doubleNext':
+        state = state.copyWith(doubleNextOrder: true, spinnerTokens: state.spinnerTokens > 0 ? state.spinnerTokens - 1 : 0);
+        break;
+      case 'nothing':
+        if (state.spinnerTokens > 0) state = state.copyWith(spinnerTokens: state.spinnerTokens - 1);
+        break;
+      default:
+        break;
+    }
+  }
+
   /// Adds earned points to both balances (local preview, no persist).
+  /// For game prizes use play*Game() instead; this remains for quest rewards.
   Future<void> grantPoints(int n) async {
     if (n <= 0) return;
     state = state.copyWith(
@@ -135,6 +272,7 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   }
 
   /// Arms the double-points-next-order prize (local preview).
+  /// For spinner use playSpinnerGame() instead.
   Future<void> setDoubleNextOrder() async {
     state = state.copyWith(doubleNextOrder: true);
   }
@@ -156,6 +294,26 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   Future<void> grantStamps(int n) async {
     if (n <= 0) return;
     state = grantStampsPure(state, n);
+  }
+
+  /// Atomically consumes one voucher (FOR UPDATE). Returns true if consumed.
+  Future<bool> tryConsumeVoucher(VoucherType type) async {
+    try {
+      final ok = await _gateway.consumeVoucher(type.key);
+      if (ok) {
+        // Remove one locally
+        final idx = state.vouchers.indexWhere((v) => v.type == type);
+        if (idx != -1) {
+          final next = [...state.vouchers]..removeAt(idx);
+          state = state.copyWith(vouchers: next);
+        } else if (_lastGoogleUserId != null) {
+          await refreshFor(_lastGoogleUserId!);
+        }
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
   }
 }
 
