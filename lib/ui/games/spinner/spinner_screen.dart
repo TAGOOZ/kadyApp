@@ -13,6 +13,7 @@ import '../../../core/l10n/strings_games.dart';
 import '../../../core/l10n/strings_spinner.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/loyalty_controller.dart';
+import '../../../domain/loyalty_gateway.dart';
 import '../../../domain/spinner_engine.dart';
 import 'widgets/result_modal.dart';
 import 'widgets/spinner_wheel.dart';
@@ -47,25 +48,51 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
     super.dispose();
   }
 
+  SpinPrize _prizeFromServer(String? raw) => switch (raw) {
+        'points5' => SpinPrize.points5,
+        'points10' => SpinPrize.points10,
+        'toppingVoucher' => SpinPrize.toppingVoucher,
+        'doubleNext' => SpinPrize.doubleNext,
+        _ => SpinPrize.nothing,
+      };
+
   Future<void> _spin() async {
     if (_spinning) return;
     final s = SpinnerStrings.of(ref.read(localeNotifierProvider));
     final loyalty = ref.read(loyaltyProvider.notifier);
 
     setState(() => _spinning = true);
-    final ok = await loyalty.consumeSpinnerToken();
-    if (!ok) {
-      if (!mounted) return;
-      setState(() => _spinning = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(s.noTokenSnackbar)));
-      return;
+
+    // Server-authoritative path when authenticated; fallback to local for offline/tests
+    final isAuthed = ref.read(loyaltyGatewayProvider).currentUserId != null;
+    late SpinPrize prize;
+
+    if (isAuthed) {
+      final res = await loyalty.playSpinnerGame();
+      if (res == null) {
+        if (!mounted) return;
+        setState(() => _spinning = false);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(s.noTokenSnackbar)));
+        return;
+      }
+      prize = _prizeFromServer(res['prize'] as String?);
+    } else {
+      final ok = await loyalty.consumeSpinnerToken();
+      if (!ok) {
+        if (!mounted) return;
+        setState(() => _spinning = false);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(s.noTokenSnackbar)));
+        return;
+      }
+      prize = roll(_rng);
     }
 
-    // Pre-compute the outcome, then animate exactly onto its slice.
-    final prize = roll(_rng);
-    final slice = sliceIndexFor(prize, _rng);
+    final resolvedPrize = prize;
+    final slice = sliceIndexFor(resolvedPrize, _rng);
     final target = spinTargetRotation(
       currentRotation: _rotation,
       sliceIndex: slice,
@@ -87,12 +114,21 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
 
     if (!mounted) return;
     setState(() => _spinning = false);
-    ResultModal.showAndClaim(
-      context,
-      prize: prize,
-      strings: s,
-      controller: ref.read(loyaltyProvider.notifier),
-    );
+    if (isAuthed) {
+      // Server already granted prize atomically; just display
+      ResultModal.show(
+        context,
+        prize: resolvedPrize,
+        strings: s,
+      );
+    } else {
+      ResultModal.showAndClaim(
+        context,
+        prize: resolvedPrize,
+        strings: s,
+        controller: ref.read(loyaltyProvider.notifier),
+      );
+    }
   }
 
   @override

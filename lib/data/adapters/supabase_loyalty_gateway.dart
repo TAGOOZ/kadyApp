@@ -66,6 +66,86 @@ class SupabaseLoyaltyGateway implements LoyaltyGateway {
           return LoyaltyState.fromJson(Map<String, dynamic>.from(row));
         });
   }
+
+  @override
+  Future<Map<String, dynamic>?> playSpinner() async {
+    try {
+      final res = await _client.rpc('play_spinner');
+      if (res == null) return null;
+      if (res is Map) return Map<String, dynamic>.from(res);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> playMatch() async {
+    try {
+      final res = await _client.rpc('play_match');
+      if (res == null) return null;
+      if (res is Map) return Map<String, dynamic>.from(res);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> playScratch() async {
+    try {
+      final res = await _client.rpc('play_scratch');
+      if (res == null) return null;
+      if (res is Map) return Map<String, dynamic>.from(res);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> consumeSpinnerToken() async {
+    try {
+      final res = await _client.rpc('consume_spinner_token');
+      if (res is bool) return res;
+      return res != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> consumeMatchToken() async {
+    try {
+      final res = await _client.rpc('consume_match_token');
+      if (res is bool) return res;
+      return res != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> consumeScratchToken() async {
+    try {
+      final res = await _client.rpc('consume_scratch_token');
+      if (res is bool) return res;
+      return res != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> consumeVoucher(String voucherType) async {
+    try {
+      final res = await _client.rpc('consume_voucher', params: {'p_type': voucherType});
+      if (res is bool) return res;
+      return res == true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 /// Default prod provider — wired in main.dart ProviderScope overrides.

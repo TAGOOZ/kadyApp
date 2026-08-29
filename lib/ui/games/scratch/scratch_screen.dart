@@ -16,6 +16,7 @@ import '../../../core/supabase/supabase_config.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/games_prizes.dart';
 import '../../../domain/loyalty_controller.dart';
+import '../../../domain/loyalty_gateway.dart';
 import 'widgets/result_sheet.dart';
 import 'widgets/scratch_surface.dart';
 
@@ -59,23 +60,47 @@ class _ScratchScreenState extends ConsumerState<ScratchScreen> {
     }
   }
 
+  GamePrize _prizeFromServer(String? raw) => switch (raw) {
+        'pts5' => GamePrize.pts5,
+        'pts10' => GamePrize.pts10,
+        'toppingVoucher' => GamePrize.toppingVoucher,
+        'drinkVoucher' => GamePrize.drinkVoucher,
+        _ => GamePrize.nothing,
+      };
+
   Future<void> _ensureRound() async {
     if (_roundActive || _starting) return;
     final s = ScratchStrings.of(ref.read(localeNotifierProvider));
     final loyalty = ref.read(loyaltyProvider.notifier);
 
     setState(() => _starting = true);
-    final ok = await loyalty.consumeScratchToken();
-    if (!mounted) return;
-    if (!ok) {
-      setState(() => _starting = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(s.noTokenSnackbar)));
-      return;
+    final isAuthed = ref.read(loyaltyGatewayProvider).currentUserId != null;
+    GamePrize prize;
+    if (isAuthed) {
+      final res = await loyalty.playScratchGame();
+      if (!mounted) return;
+      if (res == null) {
+        setState(() => _starting = false);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(s.noTokenSnackbar)));
+        return;
+      }
+      prize = _prizeFromServer(res['prize'] as String?);
+    } else {
+      final ok = await loyalty.consumeScratchToken();
+      if (!mounted) return;
+      if (!ok) {
+        setState(() => _starting = false);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(s.noTokenSnackbar)));
+        return;
+      }
+      prize = roll(widget.rng ?? Random());
     }
     setState(() {
-      _prize = roll(widget.rng ?? Random());
+      _prize = prize;
       _roundActive = true;
       _starting = false;
     });
@@ -85,6 +110,7 @@ class _ScratchScreenState extends ConsumerState<ScratchScreen> {
     final lang = ref.read(localeNotifierProvider);
     final s = ScratchStrings.of(lang);
     final prize = _prize ?? GamePrize.nothing;
+    final isAuthed = ref.read(loyaltyGatewayProvider).currentUserId != null;
 
     ResultSheet.showAndClaim(
       context,
@@ -96,7 +122,10 @@ class _ScratchScreenState extends ConsumerState<ScratchScreen> {
       claimButton: s.claimButton,
       validChip: prize.isVoucher ? s.validChip : null,
       voucherHint: prize.isVoucher ? s.voucherHint : null,
-      claim: () => creditGamePrize(ref.read(loyaltyProvider.notifier), prize),
+      claim: () async {
+        if (isAuthed) return;
+        return creditGamePrize(ref.read(loyaltyProvider.notifier), prize);
+      },
     ).then((_) {
       if (!mounted) return;
       setState(() {

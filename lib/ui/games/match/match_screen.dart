@@ -16,6 +16,7 @@ import '../../../core/l10n/strings_scratch.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/games_prizes.dart';
 import '../../../domain/loyalty_controller.dart';
+import '../../../domain/loyalty_gateway.dart';
 import '../scratch/widgets/result_sheet.dart';
 import 'widgets/match_card.dart';
 
@@ -132,6 +133,12 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
   bool get _roundActive => _faces != null;
 
+  MatchOutcome _outcomeFromServer(String? raw) => switch (raw) {
+        'twoMatch' => MatchOutcome.twoMatch,
+        'threeMatch' => MatchOutcome.threeMatch,
+        _ => MatchOutcome.none,
+      };
+
   Future<void> _onCardTap(int index) async {
     if (_starting || _revealed[index]) return;
     final loyalty = ref.read(loyaltyProvider.notifier);
@@ -139,16 +146,31 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     if (!_roundActive) {
       // Round start: one matchToken buys the whole three-card session.
       setState(() => _starting = true);
-      final ok = await loyalty.consumeMatchToken();
-      if (!mounted) return;
-      if (!ok) {
-        setState(() => _starting = false);
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(MatchStrings.of(ref.read(localeNotifierProvider)).noTokenSnackbar)));
-        return;
+      final isAuthed = ref.read(loyaltyGatewayProvider).currentUserId != null;
+      MatchOutcome outcome;
+      if (isAuthed) {
+        final res = await loyalty.playMatchGame();
+        if (!mounted) return;
+        if (res == null) {
+          setState(() => _starting = false);
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(MatchStrings.of(ref.read(localeNotifierProvider)).noTokenSnackbar)));
+          return;
+        }
+        outcome = _outcomeFromServer(res['outcome'] as String?);
+      } else {
+        final ok = await loyalty.consumeMatchToken();
+        if (!mounted) return;
+        if (!ok) {
+          setState(() => _starting = false);
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(MatchStrings.of(ref.read(localeNotifierProvider)).noTokenSnackbar)));
+          return;
+        }
+        outcome = MatchRound.pick(_rng);
       }
-      final outcome = MatchRound.pick(_rng);
       setState(() {
         _outcome = outcome;
         _faces = MatchRound.arrangeFaces(outcome, _rng);
@@ -175,6 +197,13 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final s = MatchStrings.of(lang);
     final outcome = _outcome ?? MatchOutcome.none;
     final prize = outcome.prize;
+    final isAuthed = ref.read(loyaltyGatewayProvider).currentUserId != null;
+
+    // Server already granted prize via playMatch; offline fallback still needs claim
+    Future<void> claimFn() async {
+      if (isAuthed) return;
+      return creditGamePrize(ref.read(loyaltyProvider.notifier), prize);
+    }
 
     ResultSheet.showAndClaim(
       context,
@@ -191,8 +220,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
       validChip: prize.isVoucher ? ScratchStrings.of(lang).validChip : null,
       voucherHint:
           prize.isVoucher ? ScratchStrings.of(lang).voucherHint : null,
-      claim: () =>
-          creditGamePrize(ref.read(loyaltyProvider.notifier), prize),
+      claim: claimFn,
     ).then((_) {
       if (!mounted) return;
       setState(() {
