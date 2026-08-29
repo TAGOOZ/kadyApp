@@ -25,7 +25,7 @@ extension SpinPrizeX on SpinPrize {
         SpinPrize.points10 => '١٠ نقاط',
         SpinPrize.toppingVoucher => 'توبينج مجاني',
         SpinPrize.doubleNext => 'ضعف الطلب الجاي',
-        SpinPrize.nothing => 'ولا حاجة 😅',
+        SpinPrize.nothing => 'حظ أوفر',
       };
 
   String get labelEn => switch (this) {
@@ -33,15 +33,15 @@ extension SpinPrizeX on SpinPrize {
         SpinPrize.points10 => '10 pts',
         SpinPrize.toppingVoucher => 'Free topping',
         SpinPrize.doubleNext => 'Double next order',
-        SpinPrize.nothing => 'Nothing 😅',
+        SpinPrize.nothing => 'Try again',
       };
 
   IconData get icon => switch (this) {
         SpinPrize.points5 => Icons.stars,
         SpinPrize.points10 => Icons.star,
-        SpinPrize.toppingVoucher => Icons.card_giftcard,
-        SpinPrize.doubleNext => Icons.double_arrow,
-        SpinPrize.nothing => Icons.sentiment_neutral,
+        SpinPrize.toppingVoucher => Icons.icecream,
+        SpinPrize.doubleNext => Icons.bolt,
+        SpinPrize.nothing => Icons.refresh,
       };
 }
 

@@ -141,50 +141,267 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
 
     return Scaffold(
       appBar: AppBar(title: Text(s.screenTitle)),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.margin20),
-        children: [
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Chip(label: Text(s.tokenChip(tokens))),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppColors.parchment.withValues(alpha: 0.55),
+              AppColors.paperWhite,
+              AppColors.background,
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm16),
-          SpinnerWheel(
-            rotationDeg: _rotation,
-            onSpin: _spin,
-            enabled: tokens > 0 && !_spinning,
-            buttonLabel: s.spinButton,
-          ),
-          const SizedBox(height: AppSpacing.sm16),
-          if (locked)
-            Card(
-              key: const Key('spinner-locked-panel'),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md24),
-                child: Column(
-                  children: [
-                    const Icon(Icons.lock_outline,
-                        size: 40, color: AppColors.outline),
-                    const SizedBox(height: AppSpacing.xs8),
-                    Text(s.lockedTitle, style: AppTextStyles.titleMd),
-                    const SizedBox(height: AppSpacing.xs8),
-                    // Locked hint comes from the shared games catalog.
-                    Text(games.spinnerLockedHint,
-                        style: AppTextStyles.bodySm
-                            .copyWith(color: AppColors.textMuted)),
-                    Text(s.lockedFootnote,
-                        style:
-                            AppTextStyles.bodySm.copyWith(color: AppColors.secondary)),
-                  ],
+        ),
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.margin20),
+          children: [
+            Row(
+              children: [
+                Chip(label: Text(s.tokenChip(tokens))),
+                const Spacer(),
+                if (!_spinning && tokens > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.successContainer,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                      border: Border.all(
+                          color: AppColors.success.withValues(alpha: 0.18)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bolt,
+                            size: 14, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Text(
+                          lang == AppLang.ar ? 'جاهز للف' : 'Ready',
+                          style: AppTextStyles.labelMd.copyWith(
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md24),
+            // Wheel wrapped in elevated paper card — removes empty-background feel.
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm16),
+              decoration: BoxDecoration(
+                color: AppColors.paperWhite,
+                borderRadius: BorderRadius.circular(AppRadii.xl24),
+                border: Border.all(
+                    color: AppColors.outline.withValues(alpha: 0.10)),
+                boxShadow: AppShadows.coffeeShadows(
+                    blurRadius: 18, offset: const Offset(0, 8)),
+              ),
+              child: SpinnerWheel(
+                rotationDeg: _rotation,
+                onSpin: _spin,
+                enabled: tokens > 0 && !_spinning,
+                buttonLabel: s.spinButton,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md24),
+            // Prize legend — visual cues for each slice (fixes "lacks icons").
+            _PrizeLegend(lang: lang),
+            const SizedBox(height: AppSpacing.md24),
+            if (locked)
+              Card(
+                key: const Key('spinner-locked-panel'),
+                color: AppColors.paperWhite,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.lg16),
+                  side: BorderSide(
+                      color: AppColors.outline.withValues(alpha: 0.12)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md24),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.lock_outline,
+                            size: 28, color: AppColors.primary),
+                      ),
+                      const SizedBox(height: AppSpacing.sm16),
+                      Text(s.lockedTitle,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.titleSm
+                              .copyWith(color: AppColors.coffeeBean)),
+                      const SizedBox(height: AppSpacing.xs8),
+                      Text(games.spinnerLockedHint,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.bodySm
+                              .copyWith(color: AppColors.textMuted)),
+                      const SizedBox(height: AppSpacing.xs8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.parchment,
+                          borderRadius:
+                              BorderRadius.circular(AppRadii.pill),
+                        ),
+                        child: Text(s.lockedFootnote,
+                            style: AppTextStyles.bodySm.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Card(
+                color: AppColors.parchment,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.lg16),
+                  side: BorderSide(
+                      color: AppColors.outline.withValues(alpha: 0.10)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                            color:
+                                AppColors.primary.withValues(alpha: 0.08),
+                            shape: BoxShape.circle),
+                        child: const Icon(Icons.card_giftcard,
+                            color: AppColors.primary, size: 20),
+                      ),
+                      const SizedBox(width: AppSpacing.sm16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(games.spinnerLockedHint,
+                                style: AppTextStyles.titleSm.copyWith(
+                                    color: AppColors.coffeeBean)),
+                            const SizedBox(height: 4),
+                            Text(s.lockedFootnote,
+                                style: AppTextStyles.bodySm.copyWith(
+                                    color: AppColors.textMuted)),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.info_outline,
+                          size: 18, color: AppColors.outline),
+                    ],
+                  ),
                 ),
               ),
-            )
-          else
+            const SizedBox(height: AppSpacing.sm16),
+            // Footnote — higher hierarchy than previous tiny centered Text.
             Text(
-              games.spinnerLockedHint,
+              lang == AppLang.ar
+                  ? 'كل ٣ أختام = توكن جديد. الأختام من طلبات ≥ ٥٠ ج.'
+                  : 'Every 3 stamps = 1 token. Stamps from orders ≥ 50 EGP.',
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
+              style: AppTextStyles.labelMd
+                  .copyWith(color: AppColors.textMuted),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PrizeLegend extends StatelessWidget {
+  const _PrizeLegend({required this.lang});
+  final AppLang lang;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.emoji_events_outlined,
+                size: 18, color: AppColors.primary),
+            const SizedBox(width: 6),
+            Text(
+              lang == AppLang.ar ? 'الجوائز المحتملة' : 'Possible prizes',
+              style: AppTextStyles.titleSm
+                  .copyWith(color: AppColors.coffeeBean),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs8),
+        Wrap(
+          spacing: AppSpacing.xs8,
+          runSpacing: AppSpacing.xs8,
+          children: [
+            for (final p in SpinPrize.values)
+              _LegendChip(
+                icon: p.icon,
+                label: lang == AppLang.ar ? p.labelAr : p.labelEn,
+                isMuted: p == SpinPrize.nothing,
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs8),
+        Text(
+          lang == AppLang.ar
+              ? 'كل لفة لها جائزة — وحتى "حظ أوفر" بتقربك للتوكن الجاي.'
+              : 'Every spin wins — even “Try again” keeps you close to the next token.',
+          textAlign: TextAlign.center,
+          style:
+              AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
+        ),
+      ],
+    );
+  }
+}
+
+class _LegendChip extends StatelessWidget {
+  const _LegendChip(
+      {required this.icon, required this.label, required this.isMuted});
+  final IconData icon;
+  final String label;
+  final bool isMuted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isMuted ? AppColors.parchment : AppColors.paperWhite,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        border: Border.all(
+            color: AppColors.outline.withValues(alpha: 0.18)),
+        boxShadow:
+            AppShadows.coffeeShadows(blurRadius: 8, offset: const Offset(0, 3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon,
+              size: 16,
+              color: isMuted ? AppColors.textMuted : AppColors.primary),
+          const SizedBox(width: 6),
+          Text(label,
+              style: AppTextStyles.labelMd.copyWith(
+                  color: isMuted
+                      ? AppColors.textMuted
+                      : AppColors.coffeeBean,
+                  fontWeight: FontWeight.w700)),
         ],
       ),
     );

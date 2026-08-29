@@ -24,10 +24,10 @@ extension GamePrizeX on GamePrize {
 
   String get labelAr => switch (this) {
         GamePrize.pts5 => '٥ نقاط',
-        GamePrize.pts10 => '١٠ نقاط هدية ⭐',
+        GamePrize.pts10 => '١٠ نقاط',
         GamePrize.toppingVoucher => 'توبينج مجاني',
         GamePrize.drinkVoucher => 'مشروب مجاني',
-        GamePrize.nothing => 'ولا حاجة 😅',
+        GamePrize.nothing => 'حظ أوفر',
       };
 
   IconData get icon => switch (this) {
@@ -35,7 +35,7 @@ extension GamePrizeX on GamePrize {
         GamePrize.pts10 => Icons.star,
         GamePrize.toppingVoucher => Icons.icecream,
         GamePrize.drinkVoucher => Icons.local_cafe,
-        GamePrize.nothing => Icons.sentiment_neutral,
+        GamePrize.nothing => Icons.refresh,
       };
 
   bool get isVoucher =>
