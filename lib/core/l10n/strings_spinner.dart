@@ -19,6 +19,10 @@ class SpinnerStrings {
     required this.termsTitle,
     required this.termsBody,
     required this.expiryNote,
+    required this.freeTokenButton,
+    required this.freeTokenSuccess,
+    required this.freeTokenRateLimited,
+    required this.freeTokenCapReached,
   });
 
   final String screenTitle;
@@ -35,6 +39,10 @@ class SpinnerStrings {
   final String termsTitle;
   final String termsBody;
   final String expiryNote;
+  final String freeTokenButton;
+  final String freeTokenSuccess;
+  final String freeTokenRateLimited;
+  final String freeTokenCapReached;
 
   /// `توكنات: n` — Western digits per spec.
   String tokenChip(int count) => '$tokenChipPrefix: $count';
@@ -53,13 +61,17 @@ class SpinnerStrings {
     termsButton: 'الشروط والاحتمالات',
     termsTitle: 'الشروط والاحتمالات',
     termsBody:
-        '• كل لفة تستهلك توكن واحد (كل ٣ أختام = توكن).\n'
-        '• الاحتمالات الحالية: ٣٠٪ ٥ نقاط، ٢٥٪ ١٠ نقاط، ٢٠٪ توبينج مجاني، ١٠٪ ضعف الطلب الجاي، ١٥٪ حظ أوفر.\n'
+        '• كل لفة تستهلك توكن واحد (كل ٣ أختام = توكن، سقف ٥ توكن).\n'
+        '• الاحتمالات الحالية: ٣٠٪ ٥ نقاط، ٢٥٪ ١٠ نقاط، ٢٠٪ توبينج مجاني، ١٠٪ ضعف الطلب الجاي (سقف +١٠ نقاط إضافية)، ١٥٪ حظ أوفر.\n'
         '• الجوائز العينية (توبينج/مشروب) لها مخزون محدود؛ عند النفاد يُعاد توزيع الاحتمالات على الجوائز المتاحة.\n'
         '• التوبينج/المشروب صالح ١٤ يوم، السناك من البطاقة ٣٠ يوم. منتهي لا يُسترد.\n'
-        '• لا يمكن ربح أكثر من ٥ لفات/دقيقة (حد حماية).\n'
-        '• طريقة مجانية للمشاركة: تواصل مع الإدارة للحصول على توكن مجاني (بدون شراء) — حسب القانون المصري.',
+        '• حماية: ٥ لفات/دقيقة، ٣ لفات/يوم، سقف ٥ توكن.\n'
+        '• طريقة مجانية للمشاركة: اضغط "توكن مجاني" للحصول على توكن بدون شراء (مرة كل ٧ أيام) — حسب القانون المصري.',
     expiryNote: 'الجوائز صالحة ١٤ يوم (السناك ٣٠ يوم)',
+    freeTokenButton: 'توكن مجاني',
+    freeTokenSuccess: 'تم إضافة توكن مجاني! 🎉',
+    freeTokenRateLimited: 'حصلت على توكن مجاني هذا الأسبوع — حاول بعد ٧ أيام',
+    freeTokenCapReached: 'وصلت للحد الأقصى ٥ توكن',
   );
 
   static const SpinnerStrings _en = SpinnerStrings(
@@ -76,13 +88,17 @@ class SpinnerStrings {
     termsButton: 'Terms & odds',
     termsTitle: 'Terms & odds',
     termsBody:
-        '• Each spin consumes 1 token (3 stamps = 1 token).\n'
-        '• Current odds: 30% 5 pts, 25% 10 pts, 20% free topping, 10% double next, 15% try again.\n'
+        '• Each spin consumes 1 token (3 stamps = 1 token, cap 5).\n'
+        '• Current odds: 30% 5 pts, 25% 10 pts, 20% free topping, 10% double next (capped +10 pts), 15% try again.\n'
         '• Physical prizes (topping/drink) have limited inventory; when exhausted odds renormalize.\n'
         '• Topping/drink valid 14 days, snack 30 days. Expired not redeemable.\n'
-        '• Max 5 spins/min.\n'
-        '• No-purchase entry: ask staff for a free token (per Egyptian law).',
+        '• Limits: 5 spins/min, 3/day, 5 tokens max.\n'
+        '• No-purchase entry: tap "Free token" for 1 free token every 7 days (per Egyptian law).',
     expiryNote: 'Prizes valid 14 days (snack 30 days)',
+    freeTokenButton: 'Free token',
+    freeTokenSuccess: 'Free token added! 🎉',
+    freeTokenRateLimited: 'You claimed a free token this week — try after 7 days',
+    freeTokenCapReached: 'Token cap reached (5 max)',
   );
 
   static SpinnerStrings of(AppLang lang) => lang == AppLang.ar ? _ar : _en;

@@ -37,6 +37,16 @@ const int kRewardToppingPts = 100;
 const int kRewardSnackPts = 150;
 const int kRewardDrinkPts = 200;
 
+/// Max extra points from doubleNext / double campaign window (`app_config.double_max_extra`).
+/// Prevents large-order exploit (e.g. 500 EGP → 50 pts → doubled extra 50). Default 10.
+const int kDoubleMaxExtra = 10;
+
+/// Token hoarding cap (`app_config.spinner_token_cap`).
+const int kSpinnerTokenCap = 5;
+
+/// Daily game limit (`app_config.game_daily_limit`).
+const int kGameDailyLimit = 3;
+
 /// Immutable snapshot of the admin-editable loyalty parameters.
 class LoyaltyRulesConfig {
   const LoyaltyRulesConfig({
@@ -47,6 +57,9 @@ class LoyaltyRulesConfig {
     this.rewardToppingPts = kRewardToppingPts,
     this.rewardSnackPts = kRewardSnackPts,
     this.rewardDrinkPts = kRewardDrinkPts,
+    this.doubleMaxExtra = kDoubleMaxExtra,
+    this.spinnerTokenCap = kSpinnerTokenCap,
+    this.gameDailyLimit = kGameDailyLimit,
   });
 
   /// Seed values from migration 0001 — used whenever `app_config` is
@@ -60,6 +73,9 @@ class LoyaltyRulesConfig {
   final int rewardToppingPts;
   final int rewardSnackPts;
   final int rewardDrinkPts;
+  final int doubleMaxExtra;
+  final int spinnerTokenCap;
+  final int gameDailyLimit;
 
   /// Parses the flat `{key: scalar}` map produced by [loadConfig] in the
   /// controller. Unknown/missing keys keep their seed defaults.
@@ -91,6 +107,12 @@ class LoyaltyRulesConfig {
           numAsInt('reward_topping', LoyaltyRulesConfig.fallback.rewardToppingPts),
       rewardSnackPts: numAsInt('reward_snack', LoyaltyRulesConfig.fallback.rewardSnackPts),
       rewardDrinkPts: numAsInt('reward_drink', LoyaltyRulesConfig.fallback.rewardDrinkPts),
+      doubleMaxExtra:
+          numAsInt('double_max_extra', LoyaltyRulesConfig.fallback.doubleMaxExtra),
+      spinnerTokenCap:
+          numAsInt('spinner_token_cap', LoyaltyRulesConfig.fallback.spinnerTokenCap),
+      gameDailyLimit:
+          numAsInt('game_daily_limit', LoyaltyRulesConfig.fallback.gameDailyLimit),
     );
   }
 }
@@ -103,17 +125,24 @@ class LoyaltyRulesConfig {
 /// dine-in multiplier, campaign ×2 window — rounding half-up applied ONCE to
 /// the final value: 90 pickup → 9 · 90 dine-in → 9×1.1=9.9 → 10 · 95 → 9.5 →
 /// 10 · 90 pickup during a double window → 18.
+/// FIX #2: double extra capped at [doubleMaxExtra] (default 10) to prevent
+/// large-order exploit (500 EGP → 50 pts → doubled extra 50 would be 50, now capped).
 int earnedFor({
   required int subtotalEgp,
   required bool dineIn,
   required double pointsPer10,
   required double dineInMultiplier,
   required bool doubleWindow,
+  int doubleMaxExtra = kDoubleMaxExtra,
 }) {
   final base = subtotalEgp * pointsPer10 / 10;
-  final scaled =
-      base * (dineIn ? dineInMultiplier : 1) * (doubleWindow ? 2 : 1);
-  return roundHalfUp(scaled);
+  final mult = dineIn ? dineInMultiplier : 1;
+  final baseEarned = roundHalfUp(base * mult);
+  if (!doubleWindow) return baseEarned;
+  final doubled = roundHalfUp(base * mult * 2);
+  final extra = doubled - baseEarned;
+  if (extra > doubleMaxExtra) return baseEarned + doubleMaxExtra;
+  return doubled;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +169,9 @@ LoyaltyState _applyQualifyingStamp(LoyaltyState s, DateTime grantedAt) {
     stamps = newStamps - 10;
   }
   var spinnerTokens = s.spinnerTokens;
-  if (stamps % 3 == 0 && stamps > 0) spinnerTokens += 1;
+  if (stamps % 3 == 0 && stamps > 0 && spinnerTokens < kSpinnerTokenCap) {
+    spinnerTokens += 1;
+  }
   return s.copyWith(
     stamps: stamps,
     completedCards: completedCards,

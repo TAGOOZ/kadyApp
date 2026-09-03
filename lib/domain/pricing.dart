@@ -197,6 +197,7 @@ PricingQuote pricingQuote({
     pointsPer10: loyaltyConfig.pointsPer10Egp,
     dineInMultiplier: loyaltyConfig.dineInMultiplier,
     doubleWindow: doubleWindow,
+    doubleMaxExtra: loyaltyConfig.doubleMaxExtra,
   );
   return PricingQuote(
     subtotalEgp: subtotal,
@@ -231,6 +232,7 @@ PricingQuote pricingQuoteFromSubtotal({
     pointsPer10: loyaltyConfig.pointsPer10Egp,
     dineInMultiplier: loyaltyConfig.dineInMultiplier,
     doubleWindow: doubleWindow,
+    doubleMaxExtra: loyaltyConfig.doubleMaxExtra,
   );
   return PricingQuote(
     subtotalEgp: subtotal,

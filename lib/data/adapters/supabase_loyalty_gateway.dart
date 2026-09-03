@@ -149,6 +149,27 @@ class SupabaseLoyaltyGateway implements LoyaltyGateway {
       return false;
     }
   }
+
+  @override
+  Future<Map<String, dynamic>?> requestFreeToken() async {
+    try {
+      final res = await _client.rpc('request_free_token');
+      if (res == null) return null;
+      if (res is Map) return Map<String, dynamic>.from(res);
+      return null;
+    } on PostgrestException catch (e) {
+      final combined = '${e.hint} ${e.message}';
+      if (combined.contains('free_token_rate_limited')) {
+        throw const FreeTokenRateLimitedException();
+      }
+      if (combined.contains('token_cap')) {
+        throw const TokenCapException();
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 /// Default prod provider — wired in main.dart ProviderScope overrides.

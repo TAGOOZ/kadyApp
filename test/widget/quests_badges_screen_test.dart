@@ -78,12 +78,14 @@ void main() {
 
   testWidgets('renders both tabs and reflects fake feed progress (٢/٣)',
       (tester) async {
-    final now = DateTime(2026, 8, 15, 12);
+    final now = DateTime.now();
+    // Use dates within current month to stay inside quest window regardless of when test runs.
+    // Use pickup + delivery so bothModes = 2/2 (not 1/2) to keep the ١/٢ check stable.
     final feed = _FakeQuestFeed(
       orders: [
-        _order('o1', 'pickup', now.subtract(const Duration(days: 2)),
+        _order('o1', 'pickup', now.subtract(const Duration(hours: 36)),
             ['latte']),
-        _order('o2', 'dine_in', now.subtract(const Duration(days: 1)),
+        _order('o2', 'delivery', now.subtract(const Duration(hours: 12)),
             ['iced']),
       ],
       categories: {'latte': 'hot_drinks', 'iced': 'cold_drinks'},
@@ -94,7 +96,7 @@ void main() {
     expect(find.text('الشارات'), findsOneWidget);
     // Two of three distinct drinks → ٢/٣ (AR numerals).
     expect(find.text('٢/٣'), findsOneWidget);
-    expect(find.text('١/٢'), findsNothing);
+    expect(find.text('٠/٢'), findsNothing);
 
     // Incomplete quests cannot be claimed.
     final button = tester.widget<FilledButton>(
@@ -108,9 +110,9 @@ void main() {
     final now = DateTime.now();
     final feed = _FakeQuestFeed(
       orders: [
-        _order('o1', 'pickup', now.subtract(const Duration(days: 3)),
+        _order('o1', 'pickup', now.subtract(const Duration(hours: 30)),
             ['latte']),
-        _order('o2', 'pickup', now.subtract(const Duration(days: 2)),
+        _order('o2', 'pickup', now.subtract(const Duration(hours: 20)),
             ['iced']),
         _order('o3', 'dine_in', now.subtract(const Duration(hours: 5)),
             ['tea']),

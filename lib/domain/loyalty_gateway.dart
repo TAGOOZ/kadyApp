@@ -43,6 +43,19 @@ abstract class LoyaltyGateway {
 
   /// Atomically consumes one voucher of [type] (FOR UPDATE). Returns true if consumed.
   Future<bool> consumeVoucher(String voucherType);
+
+  /// No-purchase free token (FIX #1) — 1 per 7 days, respects token cap.
+  /// Returns payload with new token count or null if rate-limited/capped.
+  /// Throws [FreeTokenRateLimitedException] or [TokenCapException] for specific hints.
+  Future<Map<String, dynamic>?> requestFreeToken();
+}
+
+class FreeTokenRateLimitedException implements Exception {
+  const FreeTokenRateLimitedException();
+}
+
+class TokenCapException implements Exception {
+  const TokenCapException();
 }
 
 class _NoopLoyaltyGateway implements LoyaltyGateway {
@@ -70,6 +83,8 @@ class _NoopLoyaltyGateway implements LoyaltyGateway {
   Future<bool> consumeScratchToken() async => false;
   @override
   Future<bool> consumeVoucher(String voucherType) async => false;
+  @override
+  Future<Map<String, dynamic>?> requestFreeToken() async => null;
 }
 
 final loyaltyGatewayProvider = Provider<LoyaltyGateway>(

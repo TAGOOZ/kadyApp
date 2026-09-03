@@ -93,6 +93,7 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       pointsPer10: cfg.pointsPer10Egp,
       dineInMultiplier: cfg.dineInMultiplier,
       doubleWindow: doubleWindow || state.doubleNextOrder,
+      doubleMaxExtra: cfg.doubleMaxExtra,
     );
   }
 
@@ -283,12 +284,13 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   }
 
   /// Grants game tokens directly (quest rewards, local preview).
+  /// FIX #8: caps at 5 (matches DB trigger enforce_token_cap).
   Future<void> grantTokens({int spinner = 0, int match = 0, int scratch = 0}) async {
     if (spinner <= 0 && match <= 0 && scratch <= 0) return;
     state = state.copyWith(
-      spinnerTokens: state.spinnerTokens + spinner,
-      matchTokens: state.matchTokens + match,
-      scratchTokens: state.scratchTokens + scratch,
+      spinnerTokens: (state.spinnerTokens + spinner).clamp(0, 5),
+      matchTokens: (state.matchTokens + match).clamp(0, 5),
+      scratchTokens: (state.scratchTokens + scratch).clamp(0, 5),
     );
   }
 
@@ -319,6 +321,16 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     } catch (_) {
       return false;
     }
+  }
+
+  /// No-purchase free token (FIX #1) — 1 per 7 days, respects cap.
+  /// Throws [FreeTokenRateLimitedException]/[TokenCapException] for UI.
+  Future<Map<String, dynamic>?> requestFreeToken() async {
+    final res = await _gateway.requestFreeToken();
+    if (res != null && _lastGoogleUserId != null) {
+      await refreshFor(_lastGoogleUserId!);
+    }
+    return res;
   }
 }
 

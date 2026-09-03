@@ -40,6 +40,7 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
   late final Random _rng = widget.rng ?? Random();
   double _rotation = 0;
   bool _spinning = false;
+  bool _claimingFree = false;
 
   @override
   void dispose() {
@@ -55,6 +56,37 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
         'doubleNext' => SpinPrize.doubleNext,
         _ => SpinPrize.nothing,
       };
+
+  Future<void> _requestFreeToken() async {
+    if (_claimingFree) return;
+    setState(() => _claimingFree = true);
+    final s = SpinnerStrings.of(ref.read(localeNotifierProvider));
+    try {
+      final res = await ref.read(loyaltyProvider.notifier).requestFreeToken();
+      if (!mounted) return;
+      final msg = res != null ? s.freeTokenSuccess : s.freeTokenRateLimited;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(msg)));
+    } on FreeTokenRateLimitedException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(s.freeTokenRateLimited)));
+    } on TokenCapException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(s.freeTokenCapReached)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(s.freeTokenRateLimited)));
+    } finally {
+      if (mounted) setState(() => _claimingFree = false);
+    }
+  }
 
   Future<void> _spin() async {
     if (_spinning) return;
@@ -256,6 +288,20 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
                             style: AppTextStyles.bodySm.copyWith(
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.w600)),
+                      ),
+                      const SizedBox(height: AppSpacing.sm16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _claimingFree ? null : _requestFreeToken,
+                          icon: _claimingFree
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.card_giftcard, size: 18),
+                          label: Text(s.freeTokenButton),
+                        ),
                       ),
                     ],
                   ),
