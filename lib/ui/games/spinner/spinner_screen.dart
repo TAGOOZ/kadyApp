@@ -325,8 +325,21 @@ class _PrizeLegend extends StatelessWidget {
   const _PrizeLegend({required this.lang});
   final AppLang lang;
 
+  void _showTerms(BuildContext context) {
+    final s = SpinnerStrings.of(lang);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.termsTitle),
+        content: SingleChildScrollView(child: Text(s.termsBody, style: AppTextStyles.bodySm)),
+        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(s.claimButton))],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final s = SpinnerStrings.of(lang);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -340,6 +353,13 @@ class _PrizeLegend extends StatelessWidget {
               style: AppTextStyles.titleSm
                   .copyWith(color: AppColors.coffeeBean),
             ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => _showTerms(context),
+              icon: const Icon(Icons.info_outline, size: 14),
+              label: Text(s.termsButton, style: AppTextStyles.labelMd),
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.xs8),
@@ -351,18 +371,26 @@ class _PrizeLegend extends StatelessWidget {
               _LegendChip(
                 icon: p.icon,
                 label: lang == AppLang.ar ? p.labelAr : p.labelEn,
+                weight: p.weight.toInt(),
                 isMuted: p == SpinPrize.nothing,
               ),
           ],
         ),
         const SizedBox(height: AppSpacing.xs8),
+        Text(s.oddsFootnote,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.labelMd.copyWith(color: AppColors.textMuted, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text(s.expiryNote,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted)),
+        const SizedBox(height: 4),
         Text(
           lang == AppLang.ar
               ? 'كل لفة لها جائزة — وحتى "حظ أوفر" بتقربك للتوكن الجاي.'
               : 'Every spin wins — even “Try again” keeps you close to the next token.',
           textAlign: TextAlign.center,
-          style:
-              AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
+          style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
         ),
       ],
     );
@@ -371,9 +399,10 @@ class _PrizeLegend extends StatelessWidget {
 
 class _LegendChip extends StatelessWidget {
   const _LegendChip(
-      {required this.icon, required this.label, required this.isMuted});
+      {required this.icon, required this.label, required this.weight, required this.isMuted});
   final IconData icon;
   final String label;
+  final int weight;
   final bool isMuted;
 
   @override
@@ -396,7 +425,7 @@ class _LegendChip extends StatelessWidget {
               size: 16,
               color: isMuted ? AppColors.textMuted : AppColors.primary),
           const SizedBox(width: 6),
-          Text(label,
+          Text('$label · $weight%',
               style: AppTextStyles.labelMd.copyWith(
                   color: isMuted
                       ? AppColors.textMuted

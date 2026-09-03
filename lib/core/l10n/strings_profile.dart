@@ -50,6 +50,8 @@ class ProfileStrings {
     required this.voucherFreeTopping,
     required this.voucherFreeSnack,
     required this.voucherValidChip,
+    required this.voucherExpiredChip,
+    required this.voucherExpiryLabelTemplate,
     required this.vouchersEmpty,
     required this.logoutTile,
     required this.logoutConfirmTitle,
@@ -113,6 +115,8 @@ class ProfileStrings {
   final String voucherFreeTopping;
   final String voucherFreeSnack;
   final String voucherValidChip;
+  final String voucherExpiredChip;
+  final String voucherExpiryLabelTemplate;
   final String vouchersEmpty;
   final String logoutTile;
   final String logoutConfirmTitle;
@@ -154,6 +158,11 @@ class ProfileStrings {
         VoucherType.freeTopping => voucherFreeTopping,
         VoucherType.freeSnack => voucherFreeSnack,
       };
+
+  String voucherExpiryLabel(DateTime expiresAt) {
+    final d = '${expiresAt.day}/${expiresAt.month}/${expiresAt.year}';
+    return voucherExpiryLabelTemplate.replaceAll('{date}', d);
+  }
 }
 
 abstract final class ProfileStringsCatalog {
@@ -204,6 +213,8 @@ abstract final class ProfileStringsCatalog {
       voucherFreeTopping: 'توبينج مجاني',
       voucherFreeSnack: 'سناكس مجاني',
       voucherValidChip: 'صالحة',
+      voucherExpiredChip: 'منتهية',
+      voucherExpiryLabelTemplate: 'صالح حتى {date}',
       vouchersEmpty: 'مفيش مكافآت لسه — العب واكسب!',
       logoutTile: 'تسجيل الخروج',
       logoutConfirmTitle: 'تسجيل الخروج؟',
@@ -268,6 +279,8 @@ abstract final class ProfileStringsCatalog {
       voucherFreeTopping: 'Free topping',
       voucherFreeSnack: 'Free snack',
       voucherValidChip: 'Valid',
+      voucherExpiredChip: 'Expired',
+      voucherExpiryLabelTemplate: 'Valid until {date}',
       vouchersEmpty: 'No rewards yet — play and earn!',
       logoutTile: 'Sign out',
       logoutConfirmTitle: 'Sign out?',
