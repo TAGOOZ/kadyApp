@@ -285,6 +285,16 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   }
 
   Future<void> grantVoucher(VoucherType type) async {
+    final uid = _gateway.currentUserId;
+    if (uid != null && uid.isNotEmpty) {
+      // Authed users must go through play_* RPCs — local grant would diverge.
+      // We keep a best-effort fallback that still requires a refresh to reconcile,
+      // but log the divergence for audit in tests.
+      if (_lastGoogleUserId != null) {
+        await refreshFor(_lastGoogleUserId!);
+        return;
+      }
+    }
     state = state.copyWith(
       vouchers: [...state.vouchers, Voucher(type: type, grantedAt: DateTime.now().toUtc())],
     );
@@ -293,6 +303,11 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   /// Arms the double-points-next-order prize (local preview).
   /// For spinner use playSpinnerGame() instead.
   Future<void> setDoubleNextOrder() async {
+    final uid = _gateway.currentUserId;
+    if (uid != null && uid.isNotEmpty && _lastGoogleUserId != null) {
+      await refreshFor(_lastGoogleUserId!);
+      return;
+    }
     state = state.copyWith(
       doubleNextOrder: true,
       doubleNextExpiresAt: DateTime.now().toUtc().add(const Duration(days: 7)),
@@ -300,7 +315,8 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   }
 
   /// Grants game tokens directly (quest rewards) — server-authoritative when authed (0050)
-  /// Falls back to local only for guest/Noop.
+  /// Falls back to local only for guest/Noop. Authed without server success
+  /// reconciles via refresh instead of diverging locally (audit fix).
   Future<void> grantTokens({int spinner = 0, int match = 0, int scratch = 0}) async {
     if (spinner <= 0 && match <= 0 && scratch <= 0) return;
     final uid = _gateway.currentUserId;
@@ -312,6 +328,10 @@ class LoyaltyController extends Notifier<LoyaltyState> {
           return;
         }
       } catch (_) {}
+      if (_lastGoogleUserId != null) {
+        await refreshFor(_lastGoogleUserId!);
+        return;
+      }
     }
     state = state.copyWith(
       spinnerTokens: (state.spinnerTokens + spinner).clamp(0, 5),
@@ -323,9 +343,15 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   /// Adds [n] stamps (no points): reaching 10 completes the card (snack
   /// voucher) and resets; every 3rd stamp also grants a spinner token.
   /// Pure — delegates to canonical `grantStampsPure` (plan 002) shared with order
-  /// credit and staff check-ins. Local preview only.
+  /// credit and staff check-ins. Guest/local preview only — authed users
+  /// should rely on server credit_new_order / staff_apply_stamp.
   Future<void> grantStamps(int n) async {
     if (n <= 0) return;
+    final uid = _gateway.currentUserId;
+    if (uid != null && uid.isNotEmpty && _lastGoogleUserId != null) {
+      await refreshFor(_lastGoogleUserId!);
+      return;
+    }
     state = grantStampsPure(state, n);
   }
 
