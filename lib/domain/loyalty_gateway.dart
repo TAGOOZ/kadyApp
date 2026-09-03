@@ -29,9 +29,11 @@ abstract class LoyaltyGateway {
   /// Server-authoritative game plays — SECURITY DEFINER RPCs that CHECK tokens>0
   /// and roll prize server side (mirror 0004 pattern). Returns prize payload.
   /// Throws on no_tokens (P0001) or not owned (42501). Null when offline/unauth.
-  Future<Map<String, dynamic>?> playSpinner();
-  Future<Map<String, dynamic>?> playMatch();
-  Future<Map<String, dynamic>?> playScratch();
+  /// [idempotencyKey] is client Uuid.v4 per tap — same key replay returns same
+  /// prize without consuming new token (038). Null => non-idempotent legacy.
+  Future<Map<String, dynamic>?> playSpinner({String? idempotencyKey});
+  Future<Map<String, dynamic>?> playMatch({String? idempotencyKey});
+  Future<Map<String, dynamic>?> playScratch({String? idempotencyKey});
 
   /// Low-level token consume (legacy) — now server-authoritative.
   /// Returns true if token was consumed, false if none available or not owned.
@@ -55,11 +57,11 @@ class _NoopLoyaltyGateway implements LoyaltyGateway {
   @override
   Stream<LoyaltyState> watchState(String phone) => Stream.value(const LoyaltyState());
   @override
-  Future<Map<String, dynamic>?> playSpinner() async => null;
+  Future<Map<String, dynamic>?> playSpinner({String? idempotencyKey}) async => null;
   @override
-  Future<Map<String, dynamic>?> playMatch() async => null;
+  Future<Map<String, dynamic>?> playMatch({String? idempotencyKey}) async => null;
   @override
-  Future<Map<String, dynamic>?> playScratch() async => null;
+  Future<Map<String, dynamic>?> playScratch({String? idempotencyKey}) async => null;
   @override
   Future<bool> consumeSpinnerToken() async => false;
   @override
