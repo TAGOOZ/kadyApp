@@ -50,11 +50,11 @@ class FakeLoyaltyGateway implements LoyaltyGateway {
   }
 
   @override
-  Future<Map<String, dynamic>?> playSpinner() async => null;
+  Future<Map<String, dynamic>?> playSpinner({String? idempotencyKey}) async => null;
   @override
-  Future<Map<String, dynamic>?> playMatch() async => null;
+  Future<Map<String, dynamic>?> playMatch({String? idempotencyKey}) async => null;
   @override
-  Future<Map<String, dynamic>?> playScratch() async => null;
+  Future<Map<String, dynamic>?> playScratch({String? idempotencyKey}) async => null;
   @override
   Future<bool> consumeSpinnerToken() async {
     String? phone;

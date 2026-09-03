@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import 'auth_controller.dart';
 import 'loyalty_gateway.dart';
@@ -191,14 +192,16 @@ class LoyaltyController extends Notifier<LoyaltyState> {
 
   /// Server-authoritative play — consumes token and grants prize atomically.
   /// Returns server-rolled prize or null on failure (no_tokens/offline).
-  Future<Map<String, dynamic>?> playSpinnerGame() async {
+  /// [idempotencyKey] client Uuid.v4 per tap — same key replay returns same
+  /// prize without new token (038). If null, a new key is generated.
+  Future<Map<String, dynamic>?> playSpinnerGame({String? idempotencyKey}) async {
+    final key = idempotencyKey ?? const Uuid().v4();
     try {
-      final res = await _gateway.playSpinner();
+      final res = await _gateway.playSpinner(idempotencyKey: key);
       if (res != null) {
         if (_lastGoogleUserId != null) {
           await refreshFor(_lastGoogleUserId!);
         } else {
-          // Optimistic fallback: map prize to local state
           final prize = res['prize'] as String?;
           _applySpinnerPrizeLocally(prize);
         }
@@ -209,9 +212,10 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     }
   }
 
-  Future<Map<String, dynamic>?> playMatchGame() async {
+  Future<Map<String, dynamic>?> playMatchGame({String? idempotencyKey}) async {
+    final key = idempotencyKey ?? const Uuid().v4();
     try {
-      final res = await _gateway.playMatch();
+      final res = await _gateway.playMatch(idempotencyKey: key);
       if (res != null && _lastGoogleUserId != null) {
         await refreshFor(_lastGoogleUserId!);
       }
@@ -221,9 +225,10 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     }
   }
 
-  Future<Map<String, dynamic>?> playScratchGame() async {
+  Future<Map<String, dynamic>?> playScratchGame({String? idempotencyKey}) async {
+    final key = idempotencyKey ?? const Uuid().v4();
     try {
-      final res = await _gateway.playScratch();
+      final res = await _gateway.playScratch(idempotencyKey: key);
       if (res != null && _lastGoogleUserId != null) {
         await refreshFor(_lastGoogleUserId!);
       }

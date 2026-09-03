@@ -68,9 +68,10 @@ class SupabaseLoyaltyGateway implements LoyaltyGateway {
   }
 
   @override
-  Future<Map<String, dynamic>?> playSpinner() async {
+  Future<Map<String, dynamic>?> playSpinner({String? idempotencyKey}) async {
     try {
-      final res = await _client.rpc('play_spinner');
+      final res = await _client.rpc('play_spinner',
+          params: idempotencyKey == null ? null : {'p_idem': idempotencyKey});
       if (res == null) return null;
       if (res is Map) return Map<String, dynamic>.from(res);
       return null;
@@ -80,9 +81,10 @@ class SupabaseLoyaltyGateway implements LoyaltyGateway {
   }
 
   @override
-  Future<Map<String, dynamic>?> playMatch() async {
+  Future<Map<String, dynamic>?> playMatch({String? idempotencyKey}) async {
     try {
-      final res = await _client.rpc('play_match');
+      final res = await _client.rpc('play_match',
+          params: idempotencyKey == null ? null : {'p_idem': idempotencyKey});
       if (res == null) return null;
       if (res is Map) return Map<String, dynamic>.from(res);
       return null;
@@ -92,9 +94,10 @@ class SupabaseLoyaltyGateway implements LoyaltyGateway {
   }
 
   @override
-  Future<Map<String, dynamic>?> playScratch() async {
+  Future<Map<String, dynamic>?> playScratch({String? idempotencyKey}) async {
     try {
-      final res = await _client.rpc('play_scratch');
+      final res = await _client.rpc('play_scratch',
+          params: idempotencyKey == null ? null : {'p_idem': idempotencyKey});
       if (res == null) return null;
       if (res is Map) return Map<String, dynamic>.from(res);
       return null;
