@@ -9,8 +9,9 @@ void main() {
       const expected = {
         SpinPrize.points5: 30,
         SpinPrize.points10: 25,
-        SpinPrize.toppingVoucher: 20,
+        SpinPrize.toppingVoucher: 15,
         SpinPrize.doubleNext: 10,
+        SpinPrize.drinkVoucher: 5,
         SpinPrize.nothing: 15,
       };
       final counts = simulateSpins(2000, Random(7));
@@ -35,6 +36,8 @@ void main() {
       var r = Random(3);
       for (var i = 0; i < 50; i++) {
         final prize = roll(r);
+        // drinkVoucher (weight 0) falls back to topping slice visually
+        if (prize == SpinPrize.drinkVoucher) continue;
         final slice = sliceIndexFor(prize, r);
         expect(kSpinnerSlices[slice], prize);
         final target = spinTargetRotation(

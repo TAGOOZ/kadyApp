@@ -8,12 +8,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/strings_checkout.dart';
+import '../../core/l10n/strings_home.dart';
 import '../../core/l10n/strings_orders.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repos/orders_repository.dart';
 import '../../data/repos/order_status_repository.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/cart_controller.dart';
+import '../../domain/loyalty_controller.dart';
 
 class OrderConfirmationScreen extends ConsumerWidget {
   const OrderConfirmationScreen({super.key});
@@ -23,6 +25,17 @@ class OrderConfirmationScreen extends ConsumerWidget {
     final lang = ref.watch(localeNotifierProvider);
     final strings = CheckoutStringsCatalog.of(lang);
     final ordersStrings = OrdersStringsCatalog.of(lang);
+    final homeStrings = HomeStringsCatalog.of(lang);
+    ref.listen<int>(loyaltyProvider.select((s) => s.spinnerTokens), (prev, next) {
+      if (prev != null && next > prev && context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text('${homeStrings.tokenEarnedTitle} ${homeStrings.tokenEarnedBody}'),
+            action: SnackBarAction(label: homeStrings.actionPlay, onPressed: () => context.push('/games/spinner')),
+          ));
+      }
+    });
     final args = GoRouterState.of(context).extra;
     if (args is! ConfirmationArgs) {
       // Direct deep-link without a placed order — nothing to show.

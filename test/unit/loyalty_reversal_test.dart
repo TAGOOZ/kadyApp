@@ -79,32 +79,33 @@ void main() {
       expect(r.revokedVoucher, true);
     });
 
-    test('card voucher already redeemed: keep card and stamps', () {
+    test('card voucher already redeemed: revert stamp/card and clawback points (0046)', () {
       // A 9->0 card voucher, then B redeemed voucher, so current has no voucher but cards1 stamps1 (after B)
-      // Cancel A: voucher not found -> do NOT revert stamps/cards
+      // Cancel A: voucher not found -> 0046 always revert stamp/card + clawback 150 pts
       final voucherAt = DateTime.parse('2026-01-01T00:00:00Z');
-      final cur = _s(stamps: 1, cards: 1, vouchers: []); // voucher already consumed, plus B 0->1
+      final cur = _s(points: 200, stamps: 1, cards: 1, vouchers: []); // voucher already consumed, plus B 0->1
       final eff = OrderEffect(
           orderId: 'A', earned: 5, stampGranted: true, stampBefore: 9, stampAfter: 0,
           tokenGranted: false, completedCardGranted: true,
           voucherGrantedType: 'free_snack', voucherAt: voucherAt);
       final r = reverseLoyalty(cur, eff);
-      expect(r.state.stamps, 1, reason: 'keep stamps when voucher already redeemed');
-      expect(r.state.completedCards, 1);
+      expect(r.state.stamps, 0, reason: '0046 always revert even when voucher redeemed');
+      expect(r.state.completedCards, 1); // 11 ->10 => 0,1
       expect(r.revokedVoucher, false);
-      expect(r.revokedStamp, false);
+      expect(r.revokedStamp, true);
+      expect(r.state.points, 45, reason: 'clawback 150 + earned 5 from 200');
     });
 
     test('example from audit: 9 stamps -> A gives voucher -> B happens -> voucher redeemed -> cancel A', () {
       // Initial 9, A 9->0 voucher, B 0->1, voucher redeemed (B not relevant), current stamps1 cards1 no voucher
-      // Per edge test above, cancel A should keep
+      // 0046: cancel A should revert stamp/card + clawback
       final voucherAt = DateTime.parse('2026-01-01T00:00:00Z');
-      final cur = _s(points: 15, stamps: 1, cards: 1, vouchers: []);
+      final cur = _s(points: 200, stamps: 1, cards: 1, vouchers: []);
       final eff = OrderEffect(orderId: 'A', earned: 10, stampGranted: true, stampBefore: 9, stampAfter: 0,
           tokenGranted: false, completedCardGranted: true, voucherGrantedType: 'free_snack', voucherAt: voucherAt);
       final r = reverseLoyalty(cur, eff);
-      expect(r.state.points, 5);
-      expect(r.state.stamps, 1);
+      expect(r.state.points, 40, reason: '200-10-150 clawback');
+      expect(r.state.stamps, 0);
       expect(r.state.completedCards, 1);
       expect(r.revokedVoucher, false);
     });

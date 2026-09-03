@@ -1,22 +1,23 @@
-// Pure Spinner of Luck engine (#008 / FEATURES §5.1) — no state, no IO.
-// The wheel shows 6 physical slices while odds stay governed by the per-prize
-// weights: the ٥ نقاط prize is split across two ADJACENT slices of weight 15
-// each (combined 30%). Result is always pre-computed, then animated to.
+// Pure Spinner of Luck engine (#008 / FEATURES §5.1 + 0050 thorough) — no state, no IO.
+// The wheel shows 7 physical slices (0050) while odds stay governed by weights:
+// ٥ نقاط split across two adjacent 15% slices (combined 30%) + rare drinkVoucher 5% when enabled.
 import 'dart:math';
 
 import 'package:flutter/material.dart' show IconData, Icons;
 
-/// Prizes tuned rare-on-big-wins (issue #008): points5 30% · points10 25% ·
-/// toppingVoucher 20% · doubleNext 10% · nothing 15%.
-enum SpinPrize { points5, points10, toppingVoucher, doubleNext, nothing }
+/// Prizes tuned rare-on-big-wins (issue #008, 0050): points5 30% · points10 25% ·
+/// toppingVoucher 15% (20→15 when drink enabled) · doubleNext 10% · drinkVoucher 5% · nothing 15%.
+enum SpinPrize { points5, points10, toppingVoucher, doubleNext, drinkVoucher, nothing }
 
 extension SpinPrizeX on SpinPrize {
-  /// Relative probability weight (sums to 100 across [SpinPrize.values]).
+  /// Relative probability weight — 0050 thorough: 7-slice wheel, rare drink 5%.
+  /// Default seed 30/25/15/10/5/15 =100 (topping 20→15 to keep total 100).
   double get weight => switch (this) {
         SpinPrize.points5 => 30,
         SpinPrize.points10 => 25,
-        SpinPrize.toppingVoucher => 20,
+        SpinPrize.toppingVoucher => 15,
         SpinPrize.doubleNext => 10,
+        SpinPrize.drinkVoucher => 5,
         SpinPrize.nothing => 15,
       };
 
@@ -25,6 +26,7 @@ extension SpinPrizeX on SpinPrize {
         SpinPrize.points10 => '١٠ نقاط',
         SpinPrize.toppingVoucher => 'توبينج مجاني',
         SpinPrize.doubleNext => 'ضعف الطلب الجاي',
+        SpinPrize.drinkVoucher => 'مشروب مجاني',
         SpinPrize.nothing => 'حظ أوفر',
       };
 
@@ -33,6 +35,7 @@ extension SpinPrizeX on SpinPrize {
         SpinPrize.points10 => '10 pts',
         SpinPrize.toppingVoucher => 'Free topping',
         SpinPrize.doubleNext => 'Double next order',
+        SpinPrize.drinkVoucher => 'Free drink',
         SpinPrize.nothing => 'Try again',
       };
 
@@ -41,22 +44,23 @@ extension SpinPrizeX on SpinPrize {
         SpinPrize.points10 => Icons.star,
         SpinPrize.toppingVoucher => Icons.icecream,
         SpinPrize.doubleNext => Icons.bolt,
+        SpinPrize.drinkVoucher => Icons.local_cafe,
         SpinPrize.nothing => Icons.refresh,
       };
 }
 
-/// Physical slice order around the wheel — two adjacent ٥ نقاط slices
-/// (indices 0 and 1, weight 15 each), then one slice per remaining prize.
+/// Physical slice order — 7 slices (0050 thorough): twin ٥ نقاط (0,1) then one per remaining prize.
 const List<SpinPrize> kSpinnerSlices = [
   SpinPrize.points5,
   SpinPrize.points5,
   SpinPrize.points10,
   SpinPrize.toppingVoucher,
   SpinPrize.doubleNext,
+  SpinPrize.drinkVoucher,
   SpinPrize.nothing,
 ];
 
-const int kSpinnerSliceCount = 6;
+const int kSpinnerSliceCount = 7;
 const double kSpinnerSliceAngleDeg = 360 / kSpinnerSliceCount;
 
 /// Weighted pick over prizes; `r.nextDouble() * totalWeight` walk.
@@ -70,8 +74,7 @@ SpinPrize roll(Random r) {
   return SpinPrize.values.last;
 }
 
-/// Uniform pick among the physical slices showing [prize] (the twin ٥ نقاط
-/// slices make either landing visually correct).
+/// Uniform pick among the physical slices showing [prize] (twin ٥ نقاط).
 int sliceIndexFor(SpinPrize prize, Random r) {
   final matches = <int>[
     for (var i = 0; i < kSpinnerSliceCount; i++)

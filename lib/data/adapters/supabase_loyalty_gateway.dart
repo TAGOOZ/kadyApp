@@ -16,7 +16,7 @@ class SupabaseLoyaltyGateway implements LoyaltyGateway {
   Future<({String phone, LoyaltyState state})?> fetchState(String googleUserId) async {
     final rows = await _client
         .from('customers')
-        .select('phone, loyalty_state(points, lifetime_points, stamps, completed_cards, spinner_tokens, match_tokens, scratch_tokens, double_next_order, vouchers, processed_orders)')
+        .select('phone, loyalty_state(points, lifetime_points, stamps, completed_cards, spinner_tokens, match_tokens, scratch_tokens, double_next_order, double_next_expires_at, vouchers, processed_orders)')
         .eq('google_user_id', googleUserId)
         .limit(1);
     if (rows.isEmpty) return null;
@@ -151,20 +151,49 @@ class SupabaseLoyaltyGateway implements LoyaltyGateway {
   }
 
   @override
-  Future<Map<String, dynamic>?> requestFreeToken() async {
+  Future<Map<String, dynamic>?> requestFreeToken({String? deviceId}) async {
     try {
-      final res = await _client.rpc('request_free_token');
+      final params = deviceId == null || deviceId.isEmpty ? null : {'p_device_id': deviceId};
+      final res = await _client.rpc('request_free_token', params: params);
       if (res == null) return null;
       if (res is Map) return Map<String, dynamic>.from(res);
       return null;
     } on PostgrestException catch (e) {
-      final combined = '${e.hint} ${e.message}';
-      if (combined.contains('free_token_rate_limited')) {
+      final combined = '${e.hint} ${e.message} ${e.code}';
+      if (combined.contains('free_token_rate_limited') || combined.contains('device_rate_limited') || combined.contains('device_flagged')) {
         throw const FreeTokenRateLimitedException();
       }
       if (combined.contains('token_cap')) {
         throw const TokenCapException();
       }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> grantQuestTokens({int spinner = 0, int match = 0, int scratch = 0}) async {
+    try {
+      final res = await _client.rpc('grant_quest_tokens', params: {
+        'p_spinner': spinner,
+        'p_match': match,
+        'p_scratch': scratch,
+      });
+      if (res == null) return null;
+      if (res is Map) return Map<String, dynamic>.from(res);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> grantQuestPoints(int points) async {
+    try {
+      final res = await _client.rpc('grant_quest_points', params: {'p_points': points});
+      if (res == null) return null;
+      if (res is Map) return Map<String, dynamic>.from(res);
       return null;
     } catch (_) {
       return null;

@@ -78,6 +78,7 @@ class LoyaltyState {
     this.matchTokens = 0,
     this.scratchTokens = 0,
     this.doubleNextOrder = false,
+    this.doubleNextExpiresAt,
     this.vouchers = const [],
     this.processedOrders = const [],
   });
@@ -90,6 +91,7 @@ class LoyaltyState {
   final int matchTokens;
   final int scratchTokens;
   final bool doubleNextOrder;
+  final DateTime? doubleNextExpiresAt;
   final List<Voucher> vouchers;
 
   /// Order ids already credited — mirrors the `loyalty_state.processed_orders`
@@ -97,6 +99,14 @@ class LoyaltyState {
   final List<String> processedOrders;
 
   Tier get tier => derivedTier(lifetimePoints);
+
+  /// True when doubleNext is active and not expired (0046: 7d default).
+  bool get isDoubleNextActive {
+    if (!doubleNextOrder) return false;
+    final exp = doubleNextExpiresAt;
+    if (exp == null) return true;
+    return DateTime.now().toUtc().isBefore(exp);
+  }
 
   factory LoyaltyState.fromJson(Map<String, dynamic> j) => LoyaltyState(
         points: (j['points'] as num?)?.toInt() ?? 0,
@@ -107,6 +117,9 @@ class LoyaltyState {
         matchTokens: (j['match_tokens'] as num?)?.toInt() ?? 0,
         scratchTokens: (j['scratch_tokens'] as num?)?.toInt() ?? 0,
         doubleNextOrder: (j['double_next_order'] as bool?) ?? false,
+        doubleNextExpiresAt: j['double_next_expires_at'] == null
+            ? null
+            : DateTime.tryParse(j['double_next_expires_at'] as String),
         vouchers: ((j['vouchers'] as List?) ?? [])
             .map((v) => Voucher.fromJson(v as Map<String, dynamic>))
             .toList(),
@@ -124,8 +137,10 @@ class LoyaltyState {
     int? matchTokens,
     int? scratchTokens,
     bool? doubleNextOrder,
+    DateTime? doubleNextExpiresAt,
     List<Voucher>? vouchers,
     List<String>? processedOrders,
+    bool clearDoubleNextExpiry = false,
   }) =>
       LoyaltyState(
         points: points ?? this.points,
@@ -136,6 +151,7 @@ class LoyaltyState {
         matchTokens: matchTokens ?? this.matchTokens,
         scratchTokens: scratchTokens ?? this.scratchTokens,
         doubleNextOrder: doubleNextOrder ?? this.doubleNextOrder,
+        doubleNextExpiresAt: clearDoubleNextExpiry ? null : (doubleNextExpiresAt ?? this.doubleNextExpiresAt),
         vouchers: vouchers ?? this.vouchers,
         processedOrders: processedOrders ?? this.processedOrders,
       );

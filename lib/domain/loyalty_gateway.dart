@@ -47,7 +47,12 @@ abstract class LoyaltyGateway {
   /// No-purchase free token (FIX #1) — 1 per 7 days, respects token cap.
   /// Returns payload with new token count or null if rate-limited/capped.
   /// Throws [FreeTokenRateLimitedException] or [TokenCapException] for specific hints.
-  Future<Map<String, dynamic>?> requestFreeToken();
+  /// `deviceId` optional per-device farm gate (0050) — stable `risk.device_id` UUID.
+  Future<Map<String, dynamic>?> requestFreeToken({String? deviceId});
+
+  /// Server-authoritative quest rewards (0050 thorough) — creates token ledger + respects cap 5
+  Future<Map<String, dynamic>?> grantQuestTokens({int spinner = 0, int match = 0, int scratch = 0});
+  Future<Map<String, dynamic>?> grantQuestPoints(int points);
 }
 
 class FreeTokenRateLimitedException implements Exception {
@@ -84,7 +89,11 @@ class _NoopLoyaltyGateway implements LoyaltyGateway {
   @override
   Future<bool> consumeVoucher(String voucherType) async => false;
   @override
-  Future<Map<String, dynamic>?> requestFreeToken() async => null;
+  Future<Map<String, dynamic>?> requestFreeToken({String? deviceId}) async => null;
+  @override
+  Future<Map<String, dynamic>?> grantQuestTokens({int spinner = 0, int match = 0, int scratch = 0}) async => null;
+  @override
+  Future<Map<String, dynamic>?> grantQuestPoints(int points) async => null;
 }
 
 final loyaltyGatewayProvider = Provider<LoyaltyGateway>(

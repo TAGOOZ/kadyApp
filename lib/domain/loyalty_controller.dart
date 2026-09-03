@@ -5,6 +5,7 @@ import 'auth_controller.dart';
 import 'loyalty_gateway.dart';
 import 'loyalty_rules.dart';
 import 'loyalty_state.dart';
+import '../core/device/device_id_provider.dart';
 
 export 'loyalty_state.dart';
 
@@ -92,7 +93,7 @@ class LoyaltyController extends Notifier<LoyaltyState> {
       dineIn: dineIn,
       pointsPer10: cfg.pointsPer10Egp,
       dineInMultiplier: cfg.dineInMultiplier,
-      doubleWindow: doubleWindow || state.doubleNextOrder,
+      doubleWindow: doubleWindow || state.isDoubleNextActive,
       doubleMaxExtra: cfg.doubleMaxExtra,
     );
   }
@@ -251,7 +252,10 @@ class LoyaltyController extends Notifier<LoyaltyState> {
         state = state.copyWith(vouchers: [...state.vouchers, Voucher(type: VoucherType.freeTopping, grantedAt: DateTime.now().toUtc())], spinnerTokens: state.spinnerTokens > 0 ? state.spinnerTokens - 1 : 0);
         break;
       case 'doubleNext':
-        state = state.copyWith(doubleNextOrder: true, spinnerTokens: state.spinnerTokens > 0 ? state.spinnerTokens - 1 : 0);
+        state = state.copyWith(
+            doubleNextOrder: true,
+            doubleNextExpiresAt: DateTime.now().toUtc().add(const Duration(days: 7)),
+            spinnerTokens: state.spinnerTokens > 0 ? state.spinnerTokens - 1 : 0);
         break;
       case 'nothing':
         if (state.spinnerTokens > 0) state = state.copyWith(spinnerTokens: state.spinnerTokens - 1);
@@ -261,10 +265,19 @@ class LoyaltyController extends Notifier<LoyaltyState> {
     }
   }
 
-  /// Adds earned points to both balances (local preview, no persist).
-  /// For game prizes use play*Game() instead; this remains for quest rewards.
+  /// Adds earned points to both balances — server-authoritative when authed (0050)
   Future<void> grantPoints(int n) async {
     if (n <= 0) return;
+    final uid = _gateway.currentUserId;
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        final res = await _gateway.grantQuestPoints(n);
+        if (res != null && _lastGoogleUserId != null) {
+          await refreshFor(_lastGoogleUserId!);
+          return;
+        }
+      } catch (_) {}
+    }
     state = state.copyWith(
       points: state.points + n,
       lifetimePoints: state.lifetimePoints + n,
@@ -280,13 +293,26 @@ class LoyaltyController extends Notifier<LoyaltyState> {
   /// Arms the double-points-next-order prize (local preview).
   /// For spinner use playSpinnerGame() instead.
   Future<void> setDoubleNextOrder() async {
-    state = state.copyWith(doubleNextOrder: true);
+    state = state.copyWith(
+      doubleNextOrder: true,
+      doubleNextExpiresAt: DateTime.now().toUtc().add(const Duration(days: 7)),
+    );
   }
 
-  /// Grants game tokens directly (quest rewards, local preview).
-  /// FIX #8: caps at 5 (matches DB trigger enforce_token_cap).
+  /// Grants game tokens directly (quest rewards) — server-authoritative when authed (0050)
+  /// Falls back to local only for guest/Noop.
   Future<void> grantTokens({int spinner = 0, int match = 0, int scratch = 0}) async {
     if (spinner <= 0 && match <= 0 && scratch <= 0) return;
+    final uid = _gateway.currentUserId;
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        final res = await _gateway.grantQuestTokens(spinner: spinner, match: match, scratch: scratch);
+        if (res != null && _lastGoogleUserId != null) {
+          await refreshFor(_lastGoogleUserId!);
+          return;
+        }
+      } catch (_) {}
+    }
     state = state.copyWith(
       spinnerTokens: (state.spinnerTokens + spinner).clamp(0, 5),
       matchTokens: (state.matchTokens + match).clamp(0, 5),
@@ -325,8 +351,16 @@ class LoyaltyController extends Notifier<LoyaltyState> {
 
   /// No-purchase free token (FIX #1) — 1 per 7 days, respects cap.
   /// Throws [FreeTokenRateLimitedException]/[TokenCapException] for UI.
+  /// 0050: per-device gate via `risk.device_id` when available.
   Future<Map<String, dynamic>?> requestFreeToken() async {
-    final res = await _gateway.requestFreeToken();
+    String? deviceId;
+    try {
+      // tryResolveDeviceId is async; avoid hard dependency — best-effort
+      deviceId = ref.read(deviceIdProvider);
+    } catch (_) {
+      deviceId = null;
+    }
+    final res = await _gateway.requestFreeToken(deviceId: deviceId);
     if (res != null && _lastGoogleUserId != null) {
       await refreshFor(_lastGoogleUserId!);
     }

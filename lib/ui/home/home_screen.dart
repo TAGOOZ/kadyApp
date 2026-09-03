@@ -72,6 +72,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final lang = ref.watch(localeNotifierProvider);
     final strings = HomeStringsCatalog.of(lang);
     final auth = ref.watch(authControllerProvider);
+    // Token-earned toast (audit §14) — listens for spinnerTokens increase via realtime/refresh
+    ref.listen<int>(loyaltyProvider.select((s) => s.spinnerTokens), (prev, next) {
+      if (prev != null && next > prev && mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text('${strings.tokenEarnedTitle} ${strings.tokenEarnedBody}'),
+            action: SnackBarAction(label: strings.actionPlay, onPressed: () => context.push('/games/spinner')),
+            duration: const Duration(seconds: 4),
+          ));
+      }
+    });
     // Select only the fields this hub actually displays — avoids rebuilding
     // on spinnerTokens/matchTokens churn (audit #5).
     final tier = ref.watch(loyaltyProvider.select((s) => s.tier));

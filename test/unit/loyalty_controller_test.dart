@@ -103,7 +103,11 @@ class FakeLoyaltyGateway implements LoyaltyGateway {
   @override
   Future<bool> consumeVoucher(String voucherType) async => false;
   @override
-  Future<Map<String, dynamic>?> requestFreeToken() async => null;
+  Future<Map<String, dynamic>?> requestFreeToken({String? deviceId}) async => null;
+  @override
+  Future<Map<String, dynamic>?> grantQuestTokens({int spinner = 0, int match = 0, int scratch = 0}) async => null;
+  @override
+  Future<Map<String, dynamic>?> grantQuestPoints(int points) async => null;
 }
 
 ProviderContainer _container(FakeLoyaltyGateway fake) {

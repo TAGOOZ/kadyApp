@@ -18,6 +18,7 @@ Future<void> creditSpinPrize(
       SpinPrize.points5 => controller.grantPoints(5),
       SpinPrize.points10 => controller.grantPoints(10),
       SpinPrize.toppingVoucher => controller.grantVoucher(VoucherType.freeTopping),
+      SpinPrize.drinkVoucher => controller.grantVoucher(VoucherType.freeDrink),
       SpinPrize.doubleNext => controller.setDoubleNextOrder(),
       SpinPrize.nothing => Future.value(),
     };

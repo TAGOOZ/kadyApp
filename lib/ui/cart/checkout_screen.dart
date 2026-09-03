@@ -278,7 +278,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       configuredDeliveryFeeEgp: configuredFee,
       loyaltyConfig: rulesConfig,
       redemption: redeemed ? redemption : null,
-      doubleWindow: loyalty.doubleNextOrder,
+      doubleWindow: loyalty.isDoubleNextActive,
     );
     final subtotalAfterRedemption = quote.subtotalEgp;
     final fee = quote.deliveryFeeEgp;

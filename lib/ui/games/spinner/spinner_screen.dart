@@ -54,6 +54,8 @@ class _SpinnerScreenState extends ConsumerState<SpinnerScreen>
         'points10' => SpinPrize.points10,
         'toppingVoucher' => SpinPrize.toppingVoucher,
         'doubleNext' => SpinPrize.doubleNext,
+        'drinkVoucher' => SpinPrize.drinkVoucher,
+        'sold_out' => SpinPrize.nothing,
         _ => SpinPrize.nothing,
       };
 

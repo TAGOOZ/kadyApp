@@ -70,14 +70,15 @@ ReversalResult reverseLoyalty(LoyaltyState current, OrderEffect effect) {
   }
 
   // Points: always revoke earned if order was processed (even if not qualifying)
-  // lifetime NOT touched.
-  final newPoints = (current.points - effect.earned).clamp(0, 1 << 30);
+  // lifetime NOT touched. 0046: also clawback if voucher already redeemed.
+  var newPoints = (current.points - effect.earned).clamp(0, 1 << 30);
 
   // Determine token revocation: only if this order causally created a token AND still unused
   final canRevokeToken = effect.tokenGranted && current.spinnerTokens > 0;
   // Determine voucher revocation: only if still present in array (unused)
   bool canRevokeVoucher = false;
   List<Voucher> newVouchers = current.vouchers;
+  int clawbackPts = 0;
   if (effect.voucherGrantedType != null) {
     // Find first voucher matching type + at timestamp (causal identity)
     final idx = current.vouchers.indexWhere((v) =>
@@ -92,33 +93,28 @@ ReversalResult reverseLoyalty(LoyaltyState current, OrderEffect effect) {
       canRevokeVoucher = true;
       newVouchers = [...current.vouchers]..removeAt(fallbackIdx);
     } else {
-      // already redeemed -> keep per policy, do NOT revert card
+      // already redeemed -> clawback: deduct cost, still revert stamp/card (0046 fix)
       canRevokeVoucher = false;
       newVouchers = current.vouchers;
+      clawbackPts = switch (effect.voucherGrantedType) {
+        'free_snack' => 150,
+        'free_topping' => 100,
+        'free_drink' => 200,
+        _ => 0,
+      };
+      newPoints = (newPoints - clawbackPts).clamp(0, 1 << 30);
     }
   }
 
-  // Stamps/cards revert via total-count method ONLY if stamp was granted AND
-  // (not a card completion OR voucher was still present to revoke).
-  // If voucher was already redeemed, we keep stamps/cards as-is per ambiguous policy - documented.
+  // Stamps/cards revert via total-count method ALWAYS if stamp was granted (0046: no longer keep when voucher redeemed).
   int newStamps = current.stamps;
   int newCards = current.completedCards;
 
   if (effect.stampGranted) {
-    final isCardCompletion = effect.completedCardGranted;
-    final shouldRevertCards = !isCardCompletion || canRevokeVoucher;
-    if (shouldRevertCards) {
-      final totalCurrent = current.completedCards * 10 + current.stamps;
-      final newTotal = (totalCurrent - 1).clamp(0, 1 << 30);
-      newStamps = newTotal % 10;
-      newCards = newTotal ~/ 10;
-    } else {
-      // Card completed but voucher already redeemed: do NOT touch stamps/cards
-      // (keep current). Only points/token handling above.
-      newStamps = current.stamps;
-      newCards = current.completedCards;
-      // also voucher already handled as not revoked
-    }
+    final totalCurrent = current.completedCards * 10 + current.stamps;
+    final newTotal = (totalCurrent - 1).clamp(0, 1 << 30);
+    newStamps = newTotal % 10;
+    newCards = newTotal ~/ 10;
   }
 
   final newTokens = canRevokeToken ? (current.spinnerTokens - 1).clamp(0, 1 << 30) : current.spinnerTokens;
@@ -134,8 +130,8 @@ ReversalResult reverseLoyalty(LoyaltyState current, OrderEffect effect) {
 
   return ReversalResult(
     state: newState,
-    revokedPoints: effect.earned > 0,
-    revokedStamp: effect.stampGranted && (effect.completedCardGranted ? canRevokeVoucher : true),
+    revokedPoints: effect.earned > 0 || clawbackPts > 0,
+    revokedStamp: effect.stampGranted,
     revokedToken: canRevokeToken,
     revokedVoucher: canRevokeVoucher,
   );

@@ -45,6 +45,8 @@ class HomeStrings {
     required this.lastOrderTemplate,
     required this.actionMyOrders,
     required this.qrScannedTemplate,
+    required this.tokenEarnedTitle,
+    required this.tokenEarnedBody,
   });
 
   final String greetingSignedInTemplate;
@@ -103,6 +105,9 @@ class HomeStrings {
 
   /// `تم المسح: {phone}` — QR scan success banner.
   final String qrScannedTemplate;
+
+  final String tokenEarnedTitle;
+  final String tokenEarnedBody;
 
   /// `أهلاً {firstName} 👋`
   String greeting(String firstName) =>
@@ -203,6 +208,8 @@ abstract final class HomeStringsCatalog {
       lastOrderTemplate: 'آخر طلبك #{number}',
       actionMyOrders: 'طلباتي',
       qrScannedTemplate: 'تم المسح: {phone}',
+      tokenEarnedTitle: 'كسبت توكن! 🎉',
+      tokenEarnedBody: 'كل ٣ أختام = لفة مجانية في دولاب الحظ',
     ),
     AppLang.en: HomeStrings(
       greetingSignedInTemplate: 'Hi {name} 👋',
@@ -245,6 +252,8 @@ abstract final class HomeStringsCatalog {
       lastOrderTemplate: 'Last order #{number}',
       actionMyOrders: 'My orders',
       qrScannedTemplate: 'Scanned: {phone}',
+      tokenEarnedTitle: 'You earned a spin! 🎉',
+      tokenEarnedBody: 'Every 3 stamps = free Spin of Luck',
     ),
   };
 
