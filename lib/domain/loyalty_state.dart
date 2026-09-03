@@ -20,14 +20,39 @@ extension VoucherTypeX on VoucherType {
 }
 
 class Voucher {
-  const Voucher({required this.type, required this.grantedAt});
+  const Voucher({
+    required this.type,
+    required this.grantedAt,
+    this.id,
+    this.expiresAt,
+    this.source,
+  });
   final VoucherType type;
   final DateTime grantedAt;
+  final String? id;
+  final DateTime? expiresAt;
+  final String? source;
 
-  Map<String, dynamic> toJson() => {'type': type.key, 'at': grantedAt.toIso8601String()};
+  bool get isExpired => expiresAt != null && DateTime.now().toUtc().isAfter(expiresAt!);
+  bool get isExpiringSoon {
+    if (expiresAt == null) return false;
+    final now = DateTime.now().toUtc();
+    return expiresAt!.isAfter(now) && expiresAt!.difference(now).inDays <= 2;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'type': type.key,
+        'at': grantedAt.toIso8601String(),
+        if (id != null) 'id': id,
+        if (expiresAt != null) 'expires_at': expiresAt!.toIso8601String(),
+        if (source != null) 'source': source,
+      };
   factory Voucher.fromJson(Map<String, dynamic> j) => Voucher(
         type: VoucherTypeX.fromKey(j['type'] as String),
         grantedAt: DateTime.parse(j['at'] as String),
+        id: j['id'] as String?,
+        expiresAt: j['expires_at'] == null ? null : DateTime.tryParse(j['expires_at'] as String),
+        source: j['source'] as String?,
       );
 }
 
